@@ -1,0 +1,30 @@
+node_modules/
+vendor/
+coverage/
+
+# Nạp lại được lúc Python khởi động, nên không cần nằm trong lịch sử kho mã.
+public/mediapipe/
+public/models/
+# A plugin's downloads stay in its own folder, and out of history like Core's.
+src/modules/*/models/
+src/modules/*/vendor/
+public/.runtime/
+assistant/.tools/
+assistant/.certs/
+*.local
+
+.env
+.env.*
+!assistant/.env.example
+
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+.venv/
+**/__pycache__/
+*.py[cod]
+assistant/weights/

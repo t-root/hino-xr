@@ -1,0 +1,8 @@
+{
+  "displayName": { "vi": "Mục tiêu mô phỏng", "en": "Simulated target" },
+  "description": {
+    "vi": "Sinh hộp chuyển động không cần mô hình, dùng để kiểm tra luồng xử lý và lớp phủ nhận diện.",
+    "en": "Generates a moving box with no model at all, to exercise the pipeline and the overlay."
+  },
+  "label": { "vi": "Mục tiêu", "en": "Target" }
+}

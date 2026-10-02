@@ -1,0 +1,8 @@
+{
+  "displayName": { "vi": "Phát hiện người", "en": "Person detection" },
+  "description": {
+    "vi": "Khoanh vùng người trong khung hình. Mô hình chạy nền ngay trên máy, khung hình không rời thiết bị.",
+    "en": "Draws a box around each person in frame. The model runs in a worker on your device; frames never leave it."
+  },
+  "label": { "vi": "Người", "en": "Person" }
+}

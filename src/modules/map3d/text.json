@@ -1,0 +1,47 @@
+{
+  "displayName": { "vi": "Bản đồ 3D", "en": "3D map" },
+  "description": {
+    "vi": "Mở bản đồ để kéo chọn một vùng, rồi dựng toà nhà và đường phố ở đó thành thành phố ba chiều: xoay, phóng to, chọn, kéo và đổi cỡ từng toà nhà, xuất tệp GLB. Dùng chuột hoặc cảm ứng. Ô bản đồ và vùng đã chọn được gửi tới OpenStreetMap để lấy dữ liệu.",
+    "en": "Opens a map to drag out an area, then builds its buildings and streets into a 3D city: orbit, zoom, select, move and resize each building, export a GLB. Driven by mouse or touch. Map tiles and the chosen area are fetched from OpenStreetMap."
+  },
+  "close": { "vi": "Đóng", "en": "Close" },
+  "caption": {
+    "vi": "THU THẬP KHU VỰC // VẼ MỘT VÙNG ĐỂ KHỞI TẠO",
+    "en": "SECTOR ACQUISITION // DRAW AN AREA TO INITIALIZE"
+  },
+  "credit": { "vi": "© OPENSTREETMAP", "en": "© OPENSTREETMAP" },
+  "myLocation": { "vi": "Vị trí của tôi", "en": "My Location" },
+  "locating": { "vi": "Đang định vị...", "en": "Locating..." },
+  "locateTitle": { "vi": "Đến vị trí hiện tại", "en": "Go to your current location" },
+  "noGeolocation": { "vi": "Thiết bị không hỗ trợ định vị", "en": "This device does not support geolocation" },
+  "locationDenied": {
+    "vi": "Không thể lấy vị trí — hãy cho phép quyền định vị",
+    "en": "Could not get your location — allow location access"
+  },
+  "yourLocation": { "vi": "VỊ TRÍ CỦA BẠN", "en": "YOUR LOCATION" },
+  "removeBox": { "vi": "Xoá vùng", "en": "Remove Box" },
+  "selectBox": { "vi": "Chọn vùng", "en": "Select Box" },
+  "backToDrag": { "vi": "Quay lại kéo bản đồ", "en": "Back to Drag" },
+  "prevStep": { "vi": "Bước trước", "en": "Prev Step" },
+  "nextStep": { "vi": "Bước tiếp", "en": "Next Step" },
+  "exportGlb": { "vi": "Xuất GLB", "en": "Export GLB" },
+  "tooBig": { "vi": "Vùng chọn quá lớn", "en": "The area is too big" },
+  "proceed": { "vi": "Bạn có muốn tiếp tục không?", "en": "Do you want to proceed?" },
+  "export": { "vi": "Xuất tệp", "en": "Export" },
+  "glbDownload": { "vi": "Tải GLB", "en": "GLB Download" },
+  "systemStatus": { "vi": "TRẠNG THÁI HỆ THỐNG", "en": "SYSTEM STATUS" },
+  "live": { "vi": "TRỰC TIẾP / 03D", "en": "LIVE / 03D" },
+  "linked": { "vi": "{count} CÔNG TRÌNH ĐÃ LIÊN KẾT", "en": "{count} STRUCTURES LINKED" },
+  "visualizer": { "vi": "ARC // TRÌNH HIỂN THỊ", "en": "ARC // VISUALIZER" },
+  "urbanModel": { "vi": "MÔ HÌNH ĐÔ THỊ", "en": "URBAN MODEL" },
+  "orbitHint": { "vi": "KÉO ĐỂ XOAY · LĂN CHUỘT ĐỂ PHÓNG TO", "en": "DRAG TO ORBIT · SCROLL TO ZOOM" },
+  "moving": { "vi": "ĐANG DI CHUYỂN // TRỰC TIẾP", "en": "MOVING // LIVE" },
+  "resizing": { "vi": "CHỤM ĐỔI CỠ // TRỰC TIẾP", "en": "PINCH RESIZE // LIVE" },
+  "selected": { "vi": "ĐÃ CHỌN // SẴN SÀNG", "en": "SELECTED // READY" },
+  "clickToSelect": { "vi": "BẤM ĐỂ CHỌN", "en": "CLICK TO SELECT" },
+  "urbanStructure": { "vi": "CÔNG TRÌNH ĐÔ THỊ", "en": "URBAN STRUCTURE" },
+  "editHint": {
+    "vi": "KÉO CHUỘT = DI CHUYỂN · 2 NGÓN = ĐỔI KÍCH THƯỚC",
+    "en": "DRAG = MOVE · 2 FINGERS = RESIZE"
+  }
+}

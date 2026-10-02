@@ -1,0 +1,226 @@
+{
+  "start.begin": { "vi": "Bắt đầu", "en": "Start" },
+  "start.busy": { "vi": "Đang mở camera", "en": "Opening camera" },
+  "start.booting": { "vi": "Đang khởi động", "en": "Starting up" },
+
+  "boot.log.init": { "vi": "Đang khởi động lõi hệ thống", "en": "Starting core system" },
+  "boot.log.hands": { "vi": "Đang tải nhận diện tay", "en": "Loading hand tracking" },
+  "boot.log.assistant": { "vi": "Đang khởi động trợ lý", "en": "Starting assistant" },
+  "boot.log.voice": { "vi": "Đang tạo giọng nói", "en": "Generating voice" },
+  "boot.log.ready": { "vi": "Hệ thống sẵn sàng", "en": "System ready" },
+
+  "menu.back": { "vi": "quay lại", "en": "back" },
+
+  "category.stereo": { "vi": "hai mắt", "en": "two eyes" },
+  "category.orientation": { "vi": "xoay", "en": "turn" },
+  "category.lens": { "vi": "thấu kính", "en": "lens" },
+  "category.gesture": { "vi": "cử chỉ", "en": "gestures" },
+  "category.cursor": { "vi": "con trỏ", "en": "cursor" },
+  "category.colour": { "vi": "màu", "en": "colour" },
+  "category.plugin": { "vi": "tiện ích", "en": "plugins" },
+  "category.assistant": { "vi": "trợ lý", "en": "assistant" },
+  "category.pipeline": { "vi": "luồng xử lý", "en": "pipeline" },
+  "category.camera": { "vi": "camera", "en": "camera" },
+  "category.diagnostics": { "vi": "chẩn đoán", "en": "diagnostics" },
+  "category.log": { "vi": "nhật ký", "en": "log" },
+  "category.language": { "vi": "ngôn ngữ", "en": "language" },
+
+  "stereo.two": { "vi": "Hai mắt", "en": "Two eyes" },
+  "stereo.one": { "vi": "Một khung", "en": "One frame" },
+  "stereo.locked": { "vi": "Một khung (khoá)", "en": "One frame (locked)" },
+  "stereo.lockedNote": {
+    "vi": "Đang khoá một khung: {reason}.",
+    "en": "Locked to one frame: {reason}."
+  },
+
+  "orientation.rotate": { "vi": "Xoay 90°", "en": "Turn 90°" },
+  "orientation.auto": { "vi": "Tự động theo hướng máy", "en": "Follow the phone" },
+  "orientation.autoDenied": {
+    "vi": "Chưa được cấp quyền cảm biến hướng. Hãy dùng nút xoay.",
+    "en": "Orientation sensors were not granted. Use the turn button."
+  },
+
+  "lens.reset": { "vi": "Đặt lại thấu kính", "en": "Reset lens" },
+  "lens.ipd": { "vi": "Khoảng cách hai mắt (IPD)", "en": "Eye distance (IPD)" },
+  "lens.eyeGap": { "vi": "Khe giữa hai mắt", "en": "Gap between the eyes" },
+  "lens.fov": { "vi": "Trường nhìn mỗi mắt", "en": "Field of view per eye" },
+  "lens.frameScale": { "vi": "Cỡ khung camera", "en": "Camera frame size" },
+  "lens.center": { "vi": "Lệch tâm thấu kính", "en": "Lens centre offset" },
+  "lens.k1": { "vi": "Độ méo thùng (k1)", "en": "Barrel distortion (k1)" },
+  "lens.k2": { "vi": "Độ méo bậc hai (k2)", "en": "Second-order distortion (k2)" },
+  "lens.uiDistance": { "vi": "Khoảng cách lớp giao diện", "en": "Distance of the UI layer" },
+
+  "gesture.sensitivity": { "vi": "Độ nhạy chụm ngón", "en": "Pinch sensitivity" },
+  "gesture.drag": { "vi": "Ngưỡng kéo", "en": "Drag threshold" },
+  "gesture.hold": { "vi": "Giữ bao lâu thì thành kéo", "en": "Hold before it becomes a drag" },
+
+  "cursor.opacity": { "vi": "Độ rõ của con trỏ", "en": "Cursor opacity" },
+  "cursor.size": { "vi": "Kích thước con trỏ", "en": "Cursor size" },
+
+  "colour.reset": { "vi": "Đặt lại màu", "en": "Reset colours" },
+  "colour.primary": { "vi": "Màu chính", "en": "Main colour" },
+  "colour.accent": { "vi": "Màu phụ", "en": "Accent colour" },
+  "colour.hue": { "vi": "Sắc", "en": "Hue" },
+  "colour.saturation": { "vi": "Độ đậm", "en": "Saturation" },
+  "colour.lightness": { "vi": "Độ sáng", "en": "Lightness" },
+  "colour.opacity": { "vi": "Độ trong", "en": "Opacity" },
+
+  "diagnostics.pinch": { "vi": "Chụm ngón", "en": "Pinch" },
+  "diagnostics.noHand": { "vi": "Chưa thấy bàn tay nào", "en": "No hand seen yet" },
+  "diagnostics.pinchGap": {
+    "vi": "hở {ratio}, gần nhất {closest}, vào dưới {enter}, nhả trên {exit}",
+    "en": "gap {ratio}, closest {closest}, enter under {enter}, release over {exit}"
+  },
+  "diagnostics.probeTarget": { "vi": "đang chỉ vào {target}", "en": "on {target}" },
+  "diagnostics.probeNothing": {
+    "vi": "không chỉ vào thứ gì bấm được",
+    "en": "not on anything pressable"
+  },
+  "diagnostics.snap": { "vi": "Búng tay", "en": "Snap" },
+  "diagnostics.snapGap": {
+    "vi": "{state} · ngón cái–giữa {gap}, ngón giữa–lòng {curl}",
+    "en": "{state} · thumb–middle {gap}, middle–palm {curl}"
+  },
+  "gesture.snap": { "vi": "Búng tay để bật tắt cài đặt", "en": "Finger snap toggles settings" },
+
+  "unit.fps": { "vi": "{value} khung/giây", "en": "{value} FPS" },
+  "unit.ms": { "vi": "{value} ms", "en": "{value} ms" },
+
+  "pipeline.handFps": { "vi": "Tốc độ theo dõi tay", "en": "Hand tracking rate" },
+  "pipeline.moduleFps": { "vi": "Tốc độ mô-đun nhận diện", "en": "AI module rate" },
+  "pipeline.analysisSize": { "vi": "Kích thước ảnh phân tích", "en": "Analysis image size" },
+
+  "plugin.empty": { "vi": "Chưa có tiện ích nào được đăng ký.", "en": "No plugin is registered yet." },
+  "plugin.on": { "vi": "Bật", "en": "On" },
+  "plugin.off": { "vi": "Tắt", "en": "Off" },
+  "plugin.state.available": { "vi": "chưa bật", "en": "off" },
+  "plugin.state.idle": { "vi": "chưa bật", "en": "off" },
+  "plugin.state.loading": { "vi": "đang tải", "en": "loading" },
+  "plugin.state.ready": { "vi": "đang chạy", "en": "running" },
+  "plugin.state.paused": { "vi": "tạm dừng", "en": "paused" },
+  "plugin.state.failed": { "vi": "lỗi", "en": "failed" },
+
+  "assistant.offline": { "vi": "chưa kết nối máy chủ", "en": "server is unreachable" },
+  "assistant.idle": { "vi": "chưa tải", "en": "not loaded" },
+  "assistant.loading": { "vi": "đang tải", "en": "loading" },
+  "assistant.ready": { "vi": "sẵn sàng", "en": "ready" },
+  "assistant.failed": { "vi": "lỗi", "en": "failed" },
+  "assistant.generating": { "vi": "đang viết", "en": "writing" },
+  "assistant.listening": { "vi": "đang nghe", "en": "listening" },
+  "assistant.speaking": { "vi": "đang nói", "en": "speaking" },
+  "assistant.voice.idle": { "vi": "giọng chưa tải", "en": "voice not loaded" },
+  "assistant.voice.loading": { "vi": "đang tải giọng", "en": "loading voice" },
+  "assistant.voice.ready": { "vi": "giọng sẵn sàng", "en": "voice ready" },
+  "assistant.voice.failed": { "vi": "giọng lỗi", "en": "voice failed" },
+  "assistant.enabled": { "vi": "Bật", "en": "On" },
+  "assistant.enabledHint": { "vi": "Chào khi bắt đầu phiên.", "en": "Greets you when the session starts." },
+  "assistant.who": { "vi": "Tên: {name}", "en": "Name: {name}" },
+  "assistant.models": { "vi": "Mô hình", "en": "Models" },
+  "assistant.chat": { "vi": "Hội thoại", "en": "Chat" },
+  "assistant.you": { "vi": "Bạn", "en": "You" },
+  "assistant.device": { "vi": "Máy: {device}", "en": "Device: {device}" },
+  "assistant.load": { "vi": "Tải", "en": "Load" },
+  "assistant.ping": { "vi": "Thử", "en": "Try" },
+  "assistant.talk": { "vi": "Nói", "en": "Talk" },
+  "assistant.talkHold": { "vi": "Dừng", "en": "Stop" },
+  "assistant.tooShort": { "vi": "Nói lâu hơn một chút.", "en": "Speak a little longer." },
+  "assistant.noMic": { "vi": "Không mở được micro.", "en": "The microphone could not be opened." },
+  "assistant.noSpeech": { "vi": "Không nghe rõ.", "en": "Nothing was heard." },
+  "assistant.youSaid": { "vi": "Bạn: {text}", "en": "You: {text}" },
+  "assistant.voiceWait": { "vi": "Giọng nói chưa sẵn sàng.", "en": "Voice is not ready yet." },
+  "assistant.pingPrompt": {
+    "vi": "Xin chào. Trả lời một câu ngắn.",
+    "en": "Hello. Reply in one short sentence."
+  },
+  "assistant.empty": { "vi": "Chưa có câu trả lời.", "en": "No reply yet." },
+
+  "permission.camera-frame": { "vi": "khung hình", "en": "frames" },
+  "permission.network": { "vi": "mạng", "en": "network" },
+  "permission.snapshot": { "vi": "ảnh chụp", "en": "snapshots" },
+  "permission.screen": { "vi": "màn hình riêng", "en": "own screen" },
+
+
+  "camera.mirror": { "vi": "Lật ảnh camera trước", "en": "Mirror the front camera" },
+  "camera.error.failed": { "vi": "Không mở được camera.", "en": "The camera could not be opened." },
+  "camera.error.denied": {
+    "vi": "Bạn đã từ chối quyền camera. Hãy cấp quyền rồi thử lại.",
+    "en": "Camera permission was denied. Grant it and try again."
+  },
+  "camera.error.notFound": {
+    "vi": "Không tìm thấy camera phù hợp với cấu hình yêu cầu.",
+    "en": "No camera matches the requested configuration."
+  },
+  "camera.error.busy": {
+    "vi": "Camera đang được ứng dụng khác sử dụng.",
+    "en": "Another application is using the camera."
+  },
+  "camera.error.trackEnded": { "vi": "Luồng camera đã dừng.", "en": "The camera track ended." },
+
+  "capability.secureContext": {
+    "vi": "Camera chỉ mở được trên HTTPS. Trang này đang HTTP — hãy mở {url}. Lần đầu trình duyệt cảnh báo giấy chứng nhận: chọn tiếp tục, rồi tải lại.",
+    "en": "The camera only opens over HTTPS. This page is HTTP — open {url}. The first time, continue past the certificate warning, then reload."
+  },
+  "capability.getUserMedia": {
+    "vi": "Trình duyệt không hỗ trợ mở camera (getUserMedia).",
+    "en": "This browser does not support getUserMedia."
+  },
+  "capability.webgl2": {
+    "vi": "Trình duyệt không hỗ trợ WebGL2 để dựng hình hai mắt.",
+    "en": "This browser does not support WebGL2 for stereo rendering."
+  },
+
+  "media.error.opaque": {
+    "vi": "Nguồn nhúng không đọc được pixel, không thể vẽ vào cảnh.",
+    "en": "An embedded source exposes no pixels, so it cannot be drawn into the scene."
+  },
+  "media.error.timeout": {
+    "vi": "Nguồn không phản hồi. Kiểm tra lại địa chỉ hoặc kết nối.",
+    "en": "The source did not respond. Check the address or the connection."
+  },
+  "media.error.load": {
+    "vi": "Không tải được video từ nguồn này: sai định dạng, hoặc máy chủ chặn đọc từ trang khác (CORS).",
+    "en": "This video could not be loaded (wrong format, or CORS headers missing)."
+  },
+
+  "mono.embed": { "vi": "nội dung nhúng bên thứ ba", "en": "third-party embedded content" },
+
+  "module.missingPermissions": {
+    "vi": "quyền chưa được cấp: {list}",
+    "en": "permissions not granted: {list}"
+  },
+
+  "diagnostics.toggle": {
+    "vi": "Khung chẩn đoán ở góc",
+    "en": "Diagnostics panel in the corner"
+  },
+  "diagnostics.render": { "vi": "Dựng hình", "en": "Render" },
+  "diagnostics.frame": { "vi": "Khung", "en": "Frame" },
+  "diagnostics.dropped": { "vi": "Rớt", "en": "Dropped" },
+  "diagnostics.detections": { "vi": "Nhận diện", "en": "Detections" },
+  "diagnostics.hand": { "vi": "Tay", "en": "Hand" },
+  "diagnostics.lastGesture": { "vi": "Cử chỉ gần nhất: {event}", "en": "Last gesture: {event}" },
+  "diagnostics.noGesture": { "vi": "chưa có", "en": "none yet" },
+  "diagnostics.modules": { "vi": "Mô-đun", "en": "Modules" },
+  "diagnostics.noModules": {
+    "vi": "Chưa có mô-đun nào đang chạy.",
+    "en": "No module is running yet."
+  },
+
+  "hand.idle": { "vi": "chưa bật", "en": "off" },
+  "hand.loading": { "vi": "đang tải mô hình", "en": "loading model" },
+  "hand.ready": { "vi": "đang theo dõi", "en": "tracking" },
+  "hand.failed": { "vi": "lỗi, dùng chuột", "en": "failed, use the mouse" },
+  "hand.unsupported": { "vi": "không hỗ trợ", "en": "unsupported" },
+  "hand.left": { "vi": "tay trái", "en": "left hand" },
+  "hand.right": { "vi": "tay phải", "en": "right hand" },
+
+  "log.clear": { "vi": "Xoá", "en": "Clear" },
+  "log.count": { "vi": "{count} dòng", "en": "{count} lines" },
+  "log.empty": {
+    "vi": "Trình duyệt chưa in dòng nào.",
+    "en": "The console has printed nothing yet."
+  },
+
+  "language.name.vi": { "vi": "Tiếng Việt", "en": "Vietnamese" },
+  "language.name.en": { "vi": "Tiếng Anh", "en": "English" }
+}

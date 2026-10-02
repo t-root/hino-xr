@@ -1,0 +1,8 @@
+{
+  "displayName": { "vi": "Phát hiện khuôn mặt", "en": "Face detection" },
+  "description": {
+    "vi": "Khoanh vùng khuôn mặt trong tầm khoảng 2 mét và cho biết mặt đang quay đi hay hướng vào ống kính. Không nhận dạng danh tính, không lưu ảnh; mô hình chạy nền ngay trên máy.",
+    "en": "Boxes faces within about two metres and says whether one is turned towards the lens or away. It never identifies anyone and stores no images; the model runs in a worker on your device."
+  },
+  "label": { "vi": "Khuôn mặt", "en": "Face" }
+}

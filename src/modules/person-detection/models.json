@@ -1,0 +1,9 @@
+{
+  "files": [
+    {
+      "file": "efficientdet_lite0.tflite",
+      "url": "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite",
+      "sha256": "4b59100025bea1235a84c1038879a6cccc9f6c49f5e41144e91e74d99e780993"
+    }
+  ]
+}

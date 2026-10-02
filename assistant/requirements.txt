@@ -1,0 +1,15 @@
+# PyPI ships llama-cpp-python as source. Compiling it on Windows needs Visual
+# Studio / nmake, which this machine does not have. The maintainer publishes
+# CPU wheels; pip must take those instead of trying to build.
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+--only-binary=llama-cpp-python
+
+fastapi>=0.115
+# Starlette 1.x dropped Router(on_startup=...), which FastAPI before 0.124 still
+# passes; another package pulling Starlette to 1.x then breaks `FastAPI()`.
+starlette>=0.40,<0.51
+uvicorn>=0.34
+cryptography>=43.0
+llama-cpp-python>=0.3.0
+pywhispercpp>=1.2
+pyttsx3>=2.90

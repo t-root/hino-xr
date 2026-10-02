@@ -1,0 +1,1047 @@
+/**
+ * See-through, square-cornered interface.
+ *
+ * Rules enforced here and by `test/design-system.test.ts`:
+ * - only `--ui-color` and `--ui-accent` may appear as colour values;
+ * - every surface is that colour at a low alpha, so the camera stays visible;
+ * - nothing is rounded;
+ * - native scrollbars are removed because their chrome is a colour we do not own.
+ */
+:root {
+  --ui-color: #a9e7ff;
+  --ui-accent: #ff4d4d;
+  --ui-color-alpha: 1;
+  --ui-accent-alpha: 1;
+
+  --a-hairline: 14%;
+  --a-surface: 8%;
+  --a-surface-strong: 14%;
+  --a-text-faint: 28%;
+  --a-text-dim: 55%;
+  --a-text: 88%;
+
+  --text: color-mix(in srgb, var(--ui-color) calc(var(--a-text) * var(--ui-color-alpha)), transparent);
+  --text-dim: color-mix(in srgb, var(--ui-color) calc(var(--a-text-dim) * var(--ui-color-alpha)), transparent);
+  --text-faint: color-mix(in srgb, var(--ui-color) calc(var(--a-text-faint) * var(--ui-color-alpha)), transparent);
+  --surface: color-mix(in srgb, var(--ui-color) calc(var(--a-surface) * var(--ui-color-alpha)), transparent);
+  --surface-strong: color-mix(
+    in srgb,
+    var(--ui-color) calc(var(--a-surface-strong) * var(--ui-color-alpha)),
+    transparent
+  );
+  --hairline: color-mix(in srgb, var(--ui-color) calc(var(--a-hairline) * var(--ui-color-alpha)), transparent);
+  --ui-ink: color-mix(in srgb, var(--ui-color) calc(100% * var(--ui-color-alpha)), transparent);
+
+  --accent-text: color-mix(in srgb, var(--ui-accent) calc(var(--a-text) * var(--ui-accent-alpha)), transparent);
+  --accent-dim: color-mix(in srgb, var(--ui-accent) calc(var(--a-text-dim) * var(--ui-accent-alpha)), transparent);
+  --accent-faint: color-mix(in srgb, var(--ui-accent) calc(var(--a-text-faint) * var(--ui-accent-alpha)), transparent);
+  --accent-surface: color-mix(
+    in srgb,
+    var(--ui-accent) calc(var(--a-surface-strong) * var(--ui-accent-alpha)),
+    transparent
+  );
+  --accent-hairline: color-mix(in srgb, var(--ui-accent) calc(var(--a-hairline) * var(--ui-accent-alpha)), transparent);
+  --accent-ink: color-mix(in srgb, var(--ui-accent) calc(100% * var(--ui-accent-alpha)), transparent);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  /* Square corners everywhere; no component may opt back in. */
+  border-radius: 0;
+  /* Firefox/standard: no native scrollbar track or thumb. */
+  scrollbar-width: none;
+}
+
+/* WebKit/Blink: same, while keeping the element scrollable. */
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* The void behind the camera image, derived from the same single token. */
+  background: color-mix(in srgb, var(--ui-color) calc(4% * var(--ui-color-alpha)), #000);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/*
+ * The two squares stay put. This only turns the interface inside each square,
+ * matching the same quarter-turn applied to the camera image.
+ */
+.eye__turn {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+}
+
+.eye__turn[data-turn="90"] {
+  transform: rotate(90deg);
+}
+
+.eye__turn[data-turn="180"] {
+  transform: rotate(180deg);
+}
+
+.eye__turn[data-turn="270"] {
+  transform: rotate(270deg);
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.stereo-dom {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * One box per eye, placed on the exact rectangle the renderer uses for that
+ * eye's GL viewport (rules.md). The two boxes fill the stage. They are the
+ * black void — not a mount point. Widgets live in `.camera-frame`.
+ */
+.eye {
+  position: absolute;
+  overflow: hidden;
+  /* Clicks fall through to the canvas except on the interface itself. */
+  pointer-events: none;
+}
+
+/*
+ * The square camera picture inside the eye (rules.md). Core names this
+ * rectangle (`CoordinateMapper.frameInEye`); StereoView only applies it.
+ * No background, no border: the box is the picture, not a theme around it.
+ * Every overlay — boot hologram, menu, diagnostics — is a child of this box.
+ */
+.camera-frame {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: size;
+}
+
+.camera-frame > * {
+  pointer-events: auto;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* State is carried by opacity and wording, not by colour. */
+.chip[data-tone="strong"],
+.chip[data-active="true"] {
+  color: var(--ui-ink);
+  border-color: var(--ui-ink);
+  background: var(--surface-strong);
+}
+
+.chip[data-tone="accent"] {
+  color: var(--accent-ink);
+  border-color: var(--accent-ink);
+  background: var(--accent-surface);
+}
+
+.chip[data-tone="dim"] {
+  opacity: 0.6;
+}
+
+button.chip:hover:not(:disabled),
+button.chip[data-twin-hover]:not(:disabled) {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.chip--hold {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 36px;
+  margin-top: 8px;
+}
+
+.swatch {
+  height: 22px;
+  margin: 4px 0 10px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--ui-color) calc(100% * var(--ui-color-alpha)), transparent);
+}
+
+.swatch[data-swatch="accent"] {
+  background: color-mix(in srgb, var(--ui-accent) calc(100% * var(--ui-accent-alpha)), transparent);
+}
+
+/*
+ * Scrolling regions never use native overflow: the position would live in the
+ * element and the two eyes would drift apart (rules.md, `ScrollBox`).
+ */
+.scroll {
+  position: relative;
+  overflow: hidden;
+  /* The band is dragged vertically, so the browser must not claim the gesture. */
+  touch-action: pan-x;
+}
+
+.menu__body h3,
+.hud h3 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.metrics span:nth-child(odd) {
+  color: var(--text-dim);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.module-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.module-row:first-of-type {
+  border-top: none;
+}
+
+.module-row strong {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.module-row small {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.module-row button {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+/*
+ * Native range and checkbox chrome is rounded and uses the platform accent, so
+ * both controls are rebuilt from square blocks of the one UI colour.
+ */
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--hairline);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--hairline);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 4px;
+  height: 14px;
+  margin-top: -6px;
+  background: var(--text);
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 4px;
+  height: 14px;
+  background: var(--text);
+  border: none;
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+/* Filled block means on; there is no tick glyph to draw. */
+input[type="checkbox"]:checked {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+/*
+ * Screens arrive by fading and settling a few pixels rather than appearing all
+ * at once: this interface floats at the centre of vision, where a hard cut
+ * reads as a flash. Motion is short enough not to be waited on.
+ */
+@keyframes ui-rise {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+}
+
+/*
+ * A band of light crossing a surface once, as it appears. It says "this just
+ * came up" without any glyph, and it is a gradient of the one colour, so it
+ * costs nothing but a composited transform.
+ */
+@keyframes ui-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* A heading settling out of wide tracking; the only "typing" allowed is real text. */
+@keyframes ui-title {
+  from {
+    opacity: 0;
+    letter-spacing: 0.6em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/*
+ * Written by the hand, not by the mouse: `:hover` needs a pointer the browser
+ * knows about, and a hand is not one. The two marks say the same thing `:hover`
+ * and `:active` would — this is what you are on, this is what you are holding —
+ * and they say it in alpha of the one colour, like everything else.
+ */
+[data-hand-hover] {
+  background: var(--surface-strong);
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+}
+
+[data-hand-press] {
+  background: color-mix(in srgb, var(--ui-color) calc(22% * var(--ui-color-alpha)), transparent);
+  outline-color: var(--ui-ink);
+}
+
+/*
+ * Settings menu: centred on `.camera-frame`, one group at a time, so it stays
+ * readable through a lens where a long scrolling column is not.
+ * Widths are `%` / `cqi` of that square, never `vw` / the window.
+ */
+.menu {
+  position: absolute;
+  inset: 24px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 6;
+  font-size: 12px;
+}
+
+/*
+ * The band clips to five slots in the middle of the camera frame: entries run off both
+ * edges and the track slides sideways to bring the chosen one to the middle,
+ * where the lens is sharpest. Entries beyond the visible width are still drawn,
+ * so the loop is never seen being stitched (`MenuStrip`).
+ */
+.strip {
+  /* `--slot` is set from `MenuStrip`, which owns the slot width. */
+  position: relative;
+  width: min(100%, calc(var(--slot) * 5));
+  height: 34px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  /* Fade at the edges instead of a hard cut, so the band reads as continuing. */
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  /* The band is swiped, so the browser must not claim the horizontal gesture. */
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.strip[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+/*
+ * The frame stays put in the middle and the entries run through it, the way a
+ * dial reads against a fixed mark. Framing the entry itself would send the box
+ * sliding off with it, which says "this moved" where the truth is "this is the
+ * one that counts".
+ */
+.strip::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--slot);
+  transform: translateX(-50%);
+  border: 1px solid var(--ui-ink);
+  background: var(--surface-strong);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--ui-color) calc(10% * var(--ui-color-alpha)), transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/*
+ * Offset and duration are written by `MenuStrip` as finished values. Both eyes
+ * derive them from the same shared numbers, so they cannot disagree, and the
+ * transform changes directly, which is what a transition needs to run.
+ */
+.strip__track {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  /* Above the fixed frame, so entries read as passing in front of it. */
+  z-index: 1;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Placed by slot number rather than by document order: a slot may be negative,
+ * and the same entry comes round again a lap further along.
+ *
+ * Names that do not fit the centre frame are cut with an ellipsis. The slot
+ * width is fixed (stereo: both eyes share the same arithmetic), so a long
+ * label must never grow the box.
+ */
+.strip__item {
+  position: absolute;
+  top: 0;
+  display: block;
+  width: var(--slot);
+  height: 100%;
+  padding: 6px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 220ms ease-out;
+}
+
+/* Hairline ticks between slots, drawn as rules rather than characters. */
+.strip__item + .strip__item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1px;
+  height: 12px;
+  transform: translateY(-50%);
+  background: var(--hairline);
+}
+
+/* No tick where the fixed frame already draws an edge. */
+.strip__item[data-active="true"]::before,
+.strip__item[data-active="true"] + .strip__item::before {
+  display: none;
+}
+
+/* Depth by alpha: the further from the centre, the fainter. */
+.strip__item[data-distance="2"],
+.strip__item[data-distance="3"] {
+  color: var(--text-faint);
+}
+
+.strip__item:hover,
+.strip__item[data-twin-hover] {
+  color: var(--text);
+}
+
+/* The frame is drawn by the band, so the centred entry only brightens. */
+.strip__item[data-active="true"] {
+  color: var(--ui-ink);
+}
+
+.menu__title {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ui-ink);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* The chosen entry on its own; the strip is gone while this is up. */
+.menu__body {
+  position: relative;
+  width: min(84cqi, calc(100% - 24px));
+  min-height: 0;
+  max-height: calc(100% - 52px);
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+
+.strip,
+.menu__body,
+.menu__close {
+  animation: ui-rise 220ms ease-out backwards;
+}
+
+/* One pass of light down a surface as it comes up (`ui-sweep`). */
+.menu__body::after,
+.hud::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 34%,
+    color-mix(in srgb, var(--ui-color) calc(12% * var(--ui-color-alpha)), transparent) 50%,
+    transparent 66%
+  );
+  animation: ui-sweep 760ms ease-out both;
+  pointer-events: none;
+}
+
+/*
+ * Rows arrive one after another rather than all at once, a few tens of a
+ * millisecond apart: the eye follows the order it should read them in. The
+ * whole cascade is over inside a third of a second, so nothing is waited on.
+ */
+.menu__body .scroll__content > * {
+  animation: ui-rise 260ms ease-out backwards;
+}
+
+.menu__body .scroll__content > .menu__title {
+  animation-name: ui-title;
+  animation-duration: 420ms;
+}
+
+.menu__body .scroll__content > *:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.menu__body .scroll__content > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.menu__body .scroll__content > *:nth-child(4) {
+  animation-delay: 135ms;
+}
+
+.menu__body .scroll__content > *:nth-child(5) {
+  animation-delay: 180ms;
+}
+
+.menu__body .scroll__content > *:nth-child(6) {
+  animation-delay: 225ms;
+}
+
+.menu__body .scroll__content > *:nth-child(n + 7) {
+  animation-delay: 270ms;
+}
+
+.menu__close {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-top: 10px;
+  padding: 7px 18px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.menu__close:hover,
+.menu__close[data-twin-hover] {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+/*
+ * Diagnostics: the one readout allowed outside the menu.
+ *
+ * It has no controls and no state of its own — nothing here can be operated in
+ * one eye and left behind in the other — and it is off until the menu turns it
+ * on, so the corner stays empty for anyone who never asks for numbers.
+ */
+.hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: min(48cqi, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  padding: 8px 10px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  font-size: 11px;
+  line-height: 1.4;
+  z-index: 5;
+  /* Nothing to press: every click belongs to the scene behind it. */
+  pointer-events: none;
+  animation: ui-rise 220ms ease-out both;
+}
+
+.hud .metrics,
+.hud .module-row strong {
+  font-size: 11px;
+}
+
+.hud .module-row {
+  padding: 5px 0;
+}
+
+/*
+ * A third-party embed cannot be duplicated per eye (rules.md), so it sits in
+ * the stage, below the interface, and only ever exists once.
+ */
+.embed-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * A plugin's own screen: one copy per camera frame, above the menu. What is
+ * inside belongs to the plugin, including its look.
+ */
+.module-screen {
+  /* Half the camera frame's area (each side × √0.5), centred in it. */
+  --module-screen-side: 70.71%;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: var(--module-screen-side);
+  height: var(--module-screen-side);
+  z-index: 20;
+  overflow: hidden;
+  /* What the plugin measures itself against, rather than the whole frame. */
+  container-type: size;
+}
+
+.module-screen[hidden] {
+  display: none;
+}
+
+.embed-surface {
+  position: absolute;
+  inset: 8% 8% 14%;
+  width: auto;
+  height: auto;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--ui-color) calc(4% * var(--ui-color-alpha)), #000);
+  pointer-events: auto;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.note {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.assistant-reply {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 10px;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.chat__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat__who {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chat__text {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.chat__row[data-role="user"] .chat__text {
+  color: var(--text-dim);
+}
+
+.log__count {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A console line, printed as it was written. Monospace because
+ * these are identifiers, paths and numbers, where a column that lines up is
+ * what makes two lines comparable at a glance.
+ */
+.log-row {
+  padding: 6px 0;
+  border-top: 1px solid var(--hairline);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.log-row:first-of-type {
+  border-top: none;
+}
+
+.log-row small {
+  display: block;
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.log-row span {
+  display: block;
+  /* Long lines wrap rather than scroll: a second scroll axis inside a shared
+     scroll region is a second thing that can drift between eyes (rules.md). */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+}
+
+/* Errors and warnings stand on the accent, so they read apart from ordinary lines. */
+.log-row[data-level="error"] span,
+.log-row[data-level="warn"] span {
+  color: var(--accent-text);
+}
+
+.log-row[data-level="error"] small,
+.log-row[data-level="warn"] small {
+  color: var(--accent-dim);
+}
+
+.start {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  padding: 24px;
+}
+
+.start--boot {
+  /* Fills `.camera-frame`. cqi/cqb come from that square, not the eye. */
+  pointer-events: auto;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.start__veil {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ui-color) 0%, #000);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.start__veil[data-outro="true"] {
+  animation: boot-veil 1100ms ease-in forwards;
+}
+
+.start--boot[data-outro="true"] {
+  pointer-events: none;
+  animation: boot-veil 1100ms ease-in forwards;
+}
+
+.start--boot[data-outro="true"] .boot-hud {
+  animation: boot-outro-glow 1100ms ease-out forwards;
+}
+
+.start--boot[data-outro="true"] .boot-term__cursor {
+  animation: none;
+  opacity: 1;
+}
+
+.boot-hud {
+  position: relative;
+  z-index: 1;
+  /* Sized to `.camera-frame` (container-type: size), not the terminal or window. */
+  width: min(72cqi, 72cqb);
+  height: min(72cqi, 72cqb);
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  color: var(--text);
+  filter: drop-shadow(0 0 12px var(--text));
+}
+
+.boot-term {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.35em;
+  padding: 4px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 3.6cqi;
+  line-height: 1.4;
+}
+
+.boot-term__line {
+  display: block;
+  animation: boot-line-in 260ms ease-out;
+}
+
+.boot-term__tag {
+  display: inline-block;
+  margin-right: 0.6em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.boot-term__text {
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Ordinary chatter turns solid once printed; the milestone rule below owns colour instead. */
+.boot-term__line[data-done="true"]:not(.boot-term__line--milestone) .boot-term__tag,
+.boot-term__line[data-done="true"]:not(.boot-term__line--milestone) .boot-term__text {
+  color: var(--text);
+}
+
+/* The real boot steps, marked apart from the filler stream around them. */
+.boot-term__line--milestone .boot-term__tag,
+.boot-term__line--milestone .boot-term__text {
+  color: var(--accent-text);
+}
+
+.boot-term__line--milestone .boot-term__text {
+  font-weight: 700;
+}
+
+.boot-term__cursor {
+  color: var(--text);
+  animation: boot-cursor-blink 1s steps(1) infinite;
+}
+
+@keyframes boot-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes boot-cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes boot-veil {
+  0%,
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes boot-outro-glow {
+  0% {
+    filter: drop-shadow(0 0 12px var(--text));
+  }
+  32% {
+    filter: drop-shadow(0 0 26px var(--text));
+  }
+  100% {
+    filter: drop-shadow(0 0 6px var(--text));
+  }
+}
+
+.start-card {
+  width: min(340px, 100%);
+  display: grid;
+  justify-items: stretch;
+}
+
+.start-card .primary {
+  width: 88px;
+  height: 132px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  justify-self: center;
+}
+
+.start-print {
+  width: 88px;
+  height: 132px;
+  display: block;
+}
+
+.start-print__mark {
+  fill: currentColor;
+}
+
+.start-card .primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.notice {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+}
+
+.notice[data-tone="strong"] {
+  border-color: var(--accent-ink);
+  color: var(--accent-text);
+  background: var(--accent-surface);
+}
+
+/*
+ * Measured against `.camera-frame`, not the window: in stereo that square is
+ * smaller than half the screen, so a window media query would fire too late.
+ */
+@container (max-width: 560px) {
+  .menu__body {
+    max-height: calc(100% - 52px);
+  }
+}
