@@ -14,7 +14,7 @@ from pathlib import Path
 PORT = 5173
 ROOT = Path(__file__).resolve().parent
 ASSISTANT = ROOT / "assistant"
-REQUIREMENTS = ASSISTANT / "requirements.txt"
+REQUIREMENTS = ROOT / "requirements.txt"
 PACKAGES = (
     "fastapi",
     "uvicorn",
