@@ -17,6 +17,15 @@ class VendorLockTest(unittest.TestCase):
             self.assertIsInstance(version, str, name)
             self.assertFalse(any(mark in version for mark in "^~>=<"), f"{name}={version}")
 
+    def test_unpacked_packages_match_their_pins_when_present(self) -> None:
+        specs = json.loads((ROOT / "vendor.json").read_text(encoding="utf-8"))
+        for name, version in specs.items():
+            manifest = ROOT / "vendor" / name / "package.json"
+            if not manifest.exists():
+                continue
+            installed = json.loads(manifest.read_text(encoding="utf-8"))["version"]
+            self.assertEqual(installed, version, name)
+
     def test_plugins_load_on_demand_from_a_minified_bundle(self) -> None:
         # A plugin's `await import()` becomes its own file, fetched when it is
         # switched on; app.js carries Core only. Both are minified.

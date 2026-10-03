@@ -121,12 +121,18 @@ def ensure_package(name: str, version: str, root: Path = VENDOR) -> Path:
     dest = root / name
     marker = dest / "package.json"
     if marker.exists():
-        return dest
+        installed = json.loads(marker.read_text(encoding="utf-8")).get("version")
+        if installed == version:
+            return dest
+        _log(f"  vendor   {name} is {installed}, vendor.json pins {version}")
     _log(f"  vendor   downloading {name}@{version}")
     try:
         archive = _fetch(_npm_tarball(name, version))
     except urllib.error.HTTPError as error:
         raise RuntimeError(f"could not download {name}@{version}: {error}") from error
+    # Unpacking over another version would leave its files behind.
+    if dest.exists():
+        shutil.rmtree(dest)
     _extract_npm(archive, dest)
     if not marker.exists():
         raise RuntimeError(f"package {name} extracted without package.json")
