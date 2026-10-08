@@ -1,10 +1,12 @@
 import { MODEL_API } from "@/core/config";
 import type { ChatMessage, ModelInfo } from "@/shared/contracts/model";
+import { DEFAULT_VOICE, voiceQuery, type VoiceSettings } from "@/shared/contracts/voice";
 
 type TalkResult = Readonly<{
   transcript: string;
   reply: string;
-  audio: Blob | null;
+  /** Pieces of speech in the order they were said; also handed to `onAudio` as they arrive. */
+  audio: readonly Blob[];
 }>;
 
 /**
@@ -43,8 +45,10 @@ export class ModelClient {
     signal?: AbortSignal,
     speak = false,
     locale = "vi",
+    voice: VoiceSettings = DEFAULT_VOICE,
+    onAudio?: (audio: Blob) => void,
   ): Promise<TalkResult> {
-    const response = await this.send(`${this.base}/${encodeURIComponent(id)}/complete`, {
+    const response = await this.send(`${this.base}/${encodeURIComponent(id)}/complete?${voiceQuery(voice)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
       body: JSON.stringify({ messages, maxTokens: 128, voice: speak, locale }),
@@ -52,7 +56,7 @@ export class ModelClient {
     });
     if (!response) throw new Error("offline");
     if (!response.ok || !response.body) throw new Error(await readDetail(response));
-    return readSse(response.body, { onToken }, signal);
+    return readSse(response.body, { onToken, onAudio }, signal);
   }
 
   async wake(
@@ -61,9 +65,12 @@ export class ModelClient {
     onToken: (text: string) => void,
     signal?: AbortSignal,
     onStatus?: (state: string) => void,
+    voice: VoiceSettings = DEFAULT_VOICE,
+    onAudio?: (audio: Blob) => void,
+    greeting = "",
   ): Promise<TalkResult> {
     const response = await this.send(
-      `${this.base}/${encodeURIComponent(id)}/wake?locale=${encodeURIComponent(locale)}`,
+      `${this.base}/${encodeURIComponent(id)}/wake?locale=${encodeURIComponent(locale)}&greeting=${encodeURIComponent(greeting)}&${voiceQuery(voice)}`,
       {
         method: "POST",
         headers: { Accept: "text/event-stream" },
@@ -72,7 +79,7 @@ export class ModelClient {
     );
     if (!response) throw new Error("offline");
     if (!response.ok || !response.body) throw new Error(await readDetail(response));
-    return readSse(response.body, { onToken, onStatus }, signal);
+    return readSse(response.body, { onToken, onStatus, onAudio }, signal);
   }
 
   async talk(
@@ -83,6 +90,9 @@ export class ModelClient {
     onTranscript: (text: string) => void,
     signal?: AbortSignal,
     history: readonly ChatMessage[] = [],
+    voice: VoiceSettings = DEFAULT_VOICE,
+    onAudio?: (audio: Blob) => void,
+    stripWake = false,
   ): Promise<TalkResult> {
     const headers: Record<string, string> = { Accept: "text/event-stream" };
     let body: BodyInit = wav;
@@ -93,7 +103,7 @@ export class ModelClient {
       headers["Content-Type"] = "audio/wav";
     }
     const response = await this.send(
-      `${this.base}/${encodeURIComponent(id)}/talk?locale=${encodeURIComponent(locale)}`,
+      `${this.base}/${encodeURIComponent(id)}/talk?locale=${encodeURIComponent(locale)}&stripWake=${stripWake}&${voiceQuery(voice)}`,
       {
         method: "POST",
         headers,
@@ -103,7 +113,44 @@ export class ModelClient {
     );
     if (!response) throw new Error("offline");
     if (!response.ok || !response.body) throw new Error(await readDetail(response));
-    return readSse(response.body, { onToken, onTranscript }, signal);
+    return readSse(response.body, { onToken, onTranscript, onAudio }, signal);
+  }
+
+  /**
+   * Is this line the call that wakes the system ("system call") or the assistant
+   * (its name)? `after` is how many words followed the call: more than a couple
+   * means the question came with it.
+   */
+  async listen(
+    wav: Blob,
+    expect: "system" | "wake",
+    locale: string,
+    signal?: AbortSignal,
+  ): Promise<Readonly<{ heard: string; matched: boolean; after: number }>> {
+    const response = await this.send(
+      `${this.voiceBase()}/listen?expect=${expect}&locale=${encodeURIComponent(locale)}`,
+      { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav, ...init(signal) },
+    );
+    if (!response) throw new Error("offline");
+    if (!response.ok) throw new Error(await readDetail(response));
+    return (await response.json()) as { heard: string; matched: boolean; after: number };
+  }
+
+  private voiceBase(): string {
+    return `${this.base.replace(/\/models$/, "")}/voice`;
+  }
+
+  /** One line spoken in the given voice, without the language model. */
+  async preview(text: string, locale: string, voice: VoiceSettings, signal?: AbortSignal): Promise<Blob> {
+    const response = await this.send(`${this.voiceBase()}/preview?${voiceQuery(voice)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, locale }),
+      ...init(signal),
+    });
+    if (!response) throw new Error("offline");
+    if (!response.ok) throw new Error(await readDetail(response));
+    return response.blob();
   }
 
   private async send(url: string, init: RequestInit): Promise<Response | null> {
@@ -131,6 +178,7 @@ type SseHandlers = Readonly<{
   onToken?: (text: string) => void;
   onTranscript?: (text: string) => void;
   onStatus?: (state: string) => void;
+  onAudio?: ((audio: Blob) => void) | undefined;
 }>;
 
 const readSse = async (
@@ -143,7 +191,7 @@ const readSse = async (
   let buffer = "";
   let reply = "";
   let transcript = "";
-  let audio: Blob | null = null;
+  const audio: Blob[] = [];
   for (;;) {
     if (signal?.aborted) {
       await reader.cancel();
@@ -183,7 +231,9 @@ const readSse = async (
         handlers.onToken?.(event.text);
       }
       if (event.type === "audio" && event.data) {
-        audio = decodeAudio(event.data, event.mime ?? "audio/wav");
+        const piece = decodeAudio(event.data, event.mime ?? "audio/wav");
+        audio.push(piece);
+        handlers.onAudio?.(piece);
       }
       if (event.type === "status" && event.state) handlers.onStatus?.(event.state);
       if (event.type === "error" && event.error) throw new Error(event.error);

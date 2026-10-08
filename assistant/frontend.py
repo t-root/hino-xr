@@ -32,14 +32,6 @@ CERTS = ASSISTANT / ".certs"
 VENDOR = PROJECT / "vendor"
 VENDOR_LOCK = PROJECT / "vendor.json"
 
-CORE_MODELS = [
-    {
-        "file": "hand_landmarker.task",
-        "url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-        "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1",
-    },
-]
-
 PERMISSIONS_POLICY = (
     "accelerometer=(self), ambient-light-sensor=(self), attribution-reporting=(self), "
     "autoplay=(self), bluetooth=(self), camera=(self), clipboard-read=(self), "
@@ -248,10 +240,8 @@ def prepare_plugin_packages() -> None:
 
 
 def prepare_models() -> None:
-    core_dest = PUBLIC / "models"
-    core_dest.mkdir(parents=True, exist_ok=True)
-    wanted = [{**model, "dest": core_dest} for model in CORE_MODELS] + _plugin_models()
-    for model in wanted:
+    """Models a plugin declares in its own models.json. Core's own are in the root downloads.json."""
+    for model in _plugin_models():
         dest = model["dest"]
         assert isinstance(dest, Path)
         dest.mkdir(parents=True, exist_ok=True)

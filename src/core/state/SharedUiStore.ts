@@ -50,6 +50,11 @@ const slotOf = (category: SettingsCategory, from: number): number => {
 };
 
 export type SharedUiState = {
+  /**
+   * Camera open and split into two eyes, nothing else running: the system waits
+   * to be called by voice. No text, no menu, no boot log yet.
+   */
+  armed: boolean;
   starting: boolean;
   /** HUD dissolving over the camera after boot, same in both eyes. */
   bootOutro: boolean;
@@ -74,6 +79,7 @@ export type SharedUiState = {
    */
   scroll: Readonly<Record<string, number>>;
 
+  setArmed: (armed: boolean) => void;
   setStarting: (starting: boolean) => void;
   setBootOutro: (outro: boolean) => void;
   setMenuOpen: (open: boolean) => void;
@@ -122,6 +128,7 @@ const RESET = {
  * both copies, so they cannot diverge.
  */
 export const useSharedUiStore = createStore<SharedUiState>((set) => ({
+  armed: false,
   starting: false,
   bootOutro: false,
   menuOpen: false,
@@ -132,6 +139,7 @@ export const useSharedUiStore = createStore<SharedUiState>((set) => ({
   diagnosticsOpen: false,
   scroll: {},
 
+  setArmed: (armed) => set({ armed, ...(armed ? { menuOpen: false, diagnosticsOpen: false } : {}) }),
   setStarting: (starting) =>
     set({ starting, bootOutro: false, ...(starting ? { menuOpen: false, diagnosticsOpen: false } : {}) }),
   setBootOutro: (bootOutro) => set((state) => (state.starting || !bootOutro ? { bootOutro } : state)),

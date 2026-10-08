@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import runpy
+import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import traceback
 from pathlib import Path
@@ -15,6 +19,7 @@ PORT = 5173
 ROOT = Path(__file__).resolve().parent
 ASSISTANT = ROOT / "assistant"
 REQUIREMENTS = ROOT / "requirements.txt"
+DOWNLOADS = ROOT / "downloads.json"
 PACKAGES = (
     "fastapi",
     "uvicorn",
@@ -22,6 +27,7 @@ PACKAGES = (
     "llama_cpp",
     "pywhispercpp",
     "pyttsx3",
+    "sherpa_onnx",
 )
 
 
@@ -78,6 +84,72 @@ def _ensure_packages() -> bool:
     _say("roi chay lai. Khong cai Visual Studio chi de mo ung dung.")
     _say()
     return False
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _present(item: dict, dest: Path) -> bool:
+    if item.get("unpack"):
+        return dest.is_dir() and all((dest / name).exists() for name in item["needs"])
+    return dest.is_file() and dest.stat().st_size == item["bytes"]
+
+
+def _fetch(item: dict, dest: Path) -> None:
+    """curl (resumes a cut-off download), check the SHA-256, then put it in place, unpacking an archive."""
+    part = dest.with_name(dest.name + ".part")
+    part.parent.mkdir(parents=True, exist_ok=True)
+    if not (part.is_file() and part.stat().st_size == item["bytes"]):
+        subprocess.run(["curl", "-L", "--fail", "-C", "-", "--progress-bar", "-o", str(part), item["url"]], check=True)
+    if _sha256(part) != item["sha256"]:
+        part.unlink()
+        raise ValueError("sha256 khong khop, da xoa file tai ve")
+    if not item.get("unpack"):
+        part.replace(dest)
+        return
+    stage = dest.with_name(dest.name + ".unpack")
+    shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True)
+    try:
+        with tarfile.open(part) as archive:  # not tar.exe: Windows' one hangs on .bz2
+            if any(Path(m.name).is_absolute() or ".." in Path(m.name).parts for m in archive.getmembers()):
+                raise ValueError("goi tai ve co duong dan la")
+            archive.extractall(stage)
+        if not all((stage / dest.name / name).exists() for name in item["needs"]):
+            raise ValueError("goi tai ve thieu file")
+        shutil.rmtree(dest, ignore_errors=True)
+        (stage / dest.name).replace(dest)
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+        part.unlink(missing_ok=True)
+
+
+def _ensure_downloads(items: list | None = None) -> None:
+    """Every file in downloads.json that is not on disk yet. To fetch something else, add an entry there."""
+    _say("Kiem tra cac file can tai...")
+    sys.path.insert(0, str(ASSISTANT))
+    try:
+        import models.catalog  # noqa: F401 - reads assistant/.env, which may name a file of the user's own
+    except Exception:  # noqa: BLE001
+        pass
+    for item in json.loads(DOWNLOADS.read_text(encoding="utf-8"))["items"] if items is None else items:
+        dest, name = ROOT / item["to"], item["what"]
+        if os.environ.get(item.get("env", ""), "").strip():
+            _say(f"  {name}: dung duong dan rieng ({item['env']}), khong tai.")
+        elif _present(item, dest):
+            _say(f"  {name}: da co, bo qua.")
+        else:
+            _say(f"  {name}: dang tai ({item['bytes'] >> 20} MB)...")
+            try:
+                _fetch(item, dest)
+            except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                _say(f"  [LOI] {name}: {error}. Kiem tra mang roi chay lai, phan tai do dang se duoc tiep tuc.")
+    _say()
 
 
 def _pids_on_port(port: int) -> list[int]:
@@ -183,7 +255,7 @@ def _notes(killed: bool) -> None:
     _say("    / Proceed / Tiep tuc, roi tai lai.")
     _say("  - Lan dau can mang de tai Three.js, MediaPipe va mo hinh thi giac.")
     _say("    Tai xong roi thi nhung lan sau chay duoc ca khi khong co mang.")
-    _say("  - Dat file .gguf vao assistant/weights/ (xem assistant/.env.example)")
+    _say("  - Lan dau se tu tai model (xem downloads.json), co the mat vai phut.")
     _say("  - Bam Ctrl+C de dung may chu.")
     _say()
 
@@ -225,6 +297,7 @@ def main() -> int:
     _say()
     if not _ensure_packages():
         return 1
+    _ensure_downloads()
     killed = _free_port(PORT)
     _notes(killed)
     try:

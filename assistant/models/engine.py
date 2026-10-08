@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from collections.abc import Iterator
 from typing import Any
 
-from .catalog import ModelSpec, _env, get_spec
-from .prompts import system_prompt, wake_prompt
+from .catalog import ModelSpec, _env, assistant_greeting, assistant_name, get_spec
+from .chunks import next_chunk
+from .prompts import system_prompt
+from .tuning import VoiceTuning
+from .wake import drop_leading_phrase
 
 ChatMessage = dict[str, str]
 
@@ -97,9 +101,18 @@ class Engine:
             model_path=str(path),
             n_ctx=int(_env("VR_N_CTX") or "4096"),
             n_gpu_layers=gpu_layers,
+            n_threads=int(_env("VR_N_THREADS") or os.cpu_count() or 4),
             chat_format=_env("VR_CHAT_FORMAT") or "qwen",
             verbose=False,
         )
+        # The first call pays for loading the weights into cache and for reading the
+        # system prompt. Do it now so the first real question is not the slow one.
+        try:
+            model.create_chat_completion(
+                messages=_with_system([{"role": "user", "content": "Xin chào"}], "vi"), max_tokens=1
+            )
+        except Exception:  # noqa: BLE001 — warming up is an optimisation, not a requirement
+            pass
         with self._lock:
             self._model = model
             self.device = "gpu" if gpu_layers != 0 else "cpu"
@@ -107,7 +120,9 @@ class Engine:
             self.error = None
         self._ensure_speech()
 
-    def generate(self, spec: ModelSpec, messages: list[ChatMessage], max_tokens: int) -> Iterator[str]:
+    def generate(
+        self, spec: ModelSpec, messages: list[ChatMessage], max_tokens: int, locale: str = "vi"
+    ) -> Iterator[str]:
         self.load(spec)
         with self._lock:
             model = self._model
@@ -117,9 +132,9 @@ class Engine:
         capped = max(8, min(int(max_tokens), 512))
         with self._generate_lock:
             stream = model.create_chat_completion(
-                messages=_with_system(messages),
+                messages=_with_system(messages, locale),
                 max_tokens=capped,
-                temperature=0.7,
+                temperature=0.5,
                 stream=True,
             )
             for chunk in stream:
@@ -137,13 +152,27 @@ class Engine:
         max_tokens: int,
         voice: bool,
         locale: str,
+        tuning: VoiceTuning | None = None,
     ) -> Iterator[dict[str, Any]]:
-        spoken: list[str] = []
-        for token in self.generate(spec, messages, max_tokens):
-            spoken.append(token)
+        # Speak each sentence as soon as it is written, while the model goes on with the next.
+        pending = ""
+        first = True
+        for token in self.generate(spec, messages, max_tokens, locale):
             yield {"type": "token", "text": token}
-        if voice:
-            audio = _tts("".join(spoken), locale)
+            if not voice:
+                continue
+            pending += token
+            while True:
+                cut = next_chunk(pending, first)
+                if cut is None:
+                    break
+                piece, pending = cut
+                first = False
+                audio = _tts(piece, locale, tuning)
+                if audio:
+                    yield audio
+        if voice and pending.strip():
+            audio = _tts(pending, locale, tuning)
             if audio:
                 yield audio
 
@@ -153,37 +182,51 @@ class Engine:
         wav_bytes: bytes,
         locale: str,
         history: list[ChatMessage] | None = None,
+        tuning: VoiceTuning | None = None,
+        strip_wake: bool = False,
     ) -> Iterator[dict[str, Any]]:
         from .speech import speech
 
         self.load(spec)
         speech.ensure()
         heard = speech.transcribe(wav_bytes, locale)
+        if strip_wake:
+            # Said as "hino, what time is it": the name is a call, not part of the question.
+            heard = drop_leading_phrase(heard, assistant_name())
         if not heard:
             yield {"type": "error", "error": "no speech"}
             return
         yield {"type": "transcript", "text": heard}
         prior = [item for item in (history or []) if item.get("content", "").strip()]
-        yield from self.reply(spec, [*prior, {"role": "user", "content": heard}], 128, True, locale)
+        yield from self.reply(spec, [*prior, {"role": "user", "content": heard}], 128, True, locale, tuning)
 
-    def wake(self, spec: ModelSpec, locale: str) -> Iterator[dict[str, Any]]:
+    def wake(
+        self,
+        spec: ModelSpec,
+        locale: str,
+        tuning: VoiceTuning | None = None,
+        greeting: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Say the first line. It is the wearer's own text, spoken as written, not asked of the model.
+
+        `greeting` is None for "use the default" and empty for "say nothing".
+        """
         self.load(spec)
         yield {"type": "status", "state": self.state}
-        yield from self.reply(
-            spec,
-            [{"role": "user", "content": wake_prompt(locale)}],
-            128,
-            True,
-            locale,
-        )
+        text = (assistant_greeting(locale) if greeting is None else greeting).strip()
+        if not text:
+            return
+        yield {"type": "token", "text": text}
+        audio = _tts(text, locale, tuning)
+        if audio:
+            yield audio
 
 
-def _tts(text: str, locale: str) -> dict[str, Any] | None:
+def _tts(text: str, locale: str, tuning: VoiceTuning | None) -> dict[str, Any] | None:
     from .speech import b64, speech
 
     try:
-        speech.ensure()
-        audio = speech.synthesize(text, locale)
+        audio = speech.synthesize(text, locale, tuning)
     except Exception:  # noqa: BLE001 — a missing voice file must not drop the text
         return None
     if not audio:
@@ -191,10 +234,10 @@ def _tts(text: str, locale: str) -> dict[str, Any] | None:
     return {"type": "audio", "mime": "audio/wav", "data": b64(audio)}
 
 
-def _with_system(messages: list[ChatMessage]) -> list[ChatMessage]:
+def _with_system(messages: list[ChatMessage], locale: str) -> list[ChatMessage]:
     if messages and messages[0].get("role") == "system":
         return messages
-    return [{"role": "system", "content": system_prompt()}, *messages]
+    return [{"role": "system", "content": system_prompt(locale)}, *messages]
 
 
 def parse_messages(raw: Any) -> list[ChatMessage]:

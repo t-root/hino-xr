@@ -11,5 +11,7 @@ starlette>=0.40,<0.51
 uvicorn>=0.34
 cryptography>=43.0
 llama-cpp-python>=0.3.0
-pywhispercpp>=1.2
+# 1.4+ uses `X | Y` annotations at runtime, which fails to import on Python 3.9.
+pywhispercpp>=1.2,<1.4
 pyttsx3>=2.90
+sherpa-onnx>=1.10

@@ -1,6 +1,7 @@
 import type { AssistantSnapshot, ChatMessage, ModelInfo } from "@/shared/contracts/model";
 import { EMPTY_ASSISTANT } from "@/shared/contracts/model";
 import { SpeechPlayer } from "../audio/SpeechPlayer";
+import { encodeWav } from "../audio/wav";
 import { MIN_TALK_MS, MAX_TALK_MS, VoiceCapture } from "../audio/VoiceCapture";
 import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
@@ -11,6 +12,26 @@ import { ModelClient } from "./ModelClient";
 const POLL_MS = 8000;
 const DEFAULT_ID = DEFAULT_SETTINGS.assistant.modelId;
 const HISTORY = 24;
+
+/** Two quick rising notes, soft enough not to startle in a headset. */
+const listeningCue = (): Blob => {
+  const rate = 22_050;
+  const note = (hz: number, seconds: number): Float32Array => {
+    const count = Math.floor(rate * seconds);
+    const out = new Float32Array(count);
+    for (let i = 0; i < count; i += 1) {
+      const fade = Math.min(1, i / 200, (count - i) / 400);
+      out[i] = 0.18 * fade * Math.sin((2 * Math.PI * hz * i) / rate);
+    }
+    return out;
+  };
+  const low = note(660, 0.08);
+  const high = note(990, 0.1);
+  const joined = new Float32Array(low.length + high.length);
+  joined.set(low, 0);
+  joined.set(high, low.length);
+  return encodeWav(joined, rate);
+};
 /** Skip poll during a live turn. Load and wake already talk to the server. */
 const HOLD_POLL = new Set(["generating", "listening", "speaking"]);
 
@@ -130,6 +151,7 @@ export class ModelBridge {
     const id = this.selectedId();
     this.modelId = id;
     this.askAbort?.abort();
+    this.player.stop();
     const abort = new AbortController();
     this.askAbort = abort;
     useRuntimeStore.getState().patchAssistant({
@@ -159,12 +181,13 @@ export class ModelBridge {
             });
           }
         },
+        this.voice(),
+        this.audioSink(abort),
+        useRuntimeStore.getState().settings.assistant.greeting[currentLocale()],
       );
       if (abort.signal.aborted) return;
-      this.settleReply(result.reply, { state: result.audio ? "speaking" : "ready", greeted: true });
-      if (result.audio) {
-        await this.player.play(result.audio);
-      }
+      this.settleReply(result.reply, { state: result.audio.length > 0 ? "speaking" : "ready", greeted: true });
+      await this.player.idle();
       if (abort.signal.aborted) return;
       useRuntimeStore.getState().patchAssistant({ state: "ready" });
     } catch (error) {
@@ -181,6 +204,7 @@ export class ModelBridge {
     if (!trimmed) return;
     const id = this.selectedId();
     this.askAbort?.abort();
+    this.player.stop();
     const abort = new AbortController();
     this.askAbort = abort;
     this.startUserTurn(trimmed);
@@ -193,12 +217,12 @@ export class ModelBridge {
         abort.signal,
         true,
         currentLocale(),
+        this.voice(),
+        this.audioSink(abort),
       );
       if (abort.signal.aborted) return;
-      this.settleReply(result.reply, { state: result.audio ? "speaking" : "ready", greeted: true });
-      if (result.audio) {
-        await this.player.play(result.audio);
-      }
+      this.settleReply(result.reply, { state: result.audio.length > 0 ? "speaking" : "ready", greeted: true });
+      await this.player.idle();
       if (abort.signal.aborted) return;
       useRuntimeStore.getState().patchAssistant({ state: "ready" });
     } catch (error) {
@@ -285,11 +309,85 @@ export class ModelBridge {
     this.player.stop();
   }
 
+  /**
+   * Hands each sentence to the speaker the moment the server has it, while the
+   * model is still writing the next one. Without this the wearer would hear
+   * nothing until the whole reply existed.
+   */
+  private audioSink(abort: AbortController): (audio: Blob) => void {
+    return (audio) => {
+      if (abort.signal.aborted) return;
+      this.player.enqueue(audio);
+      if (useRuntimeStore.getState().assistant.state !== "speaking") {
+        useRuntimeStore.getState().patchAssistant({ state: "speaking" });
+      }
+    };
+  }
+
+  private voice() {
+    return useRuntimeStore.getState().settings.assistant.voice;
+  }
+
+  /** Speaks a fixed line in the current voice settings so the wearer can judge them. */
+  async previewVoice(text: string): Promise<void> {
+    if (!this.enabled) return;
+    this.askAbort?.abort();
+    const abort = new AbortController();
+    this.askAbort = abort;
+    this.player.stop();
+    this.player.unlock();
+    try {
+      const audio = await this.client.preview(text, currentLocale(), this.voice(), abort.signal);
+      if (abort.signal.aborted) return;
+      await this.player.play(audio);
+    } catch (error) {
+      if (abort.signal.aborted) return;
+      this.logger.warn("voice preview failed", { message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
   private selectedId(): string {
     return useRuntimeStore.getState().settings.assistant.modelId || this.modelId || DEFAULT_ID;
   }
 
-  private async sendTalk(wav: Blob): Promise<void> {
+  /**
+   * Answers a line the wearer spoke without pressing anything: the microphone
+   * heard the assistant's name, and the line may begin with it.
+   */
+  async answerSpeech(wav: Blob): Promise<void> {
+    if (!this.enabled || this.phase !== "idle") return;
+    this.phase = "sending";
+    this.player.stop();
+    await this.sendTalk(wav, true);
+  }
+
+  /** True while a turn is under way, however it began. */
+  busy(): boolean {
+    const state = useRuntimeStore.getState().assistant.state;
+    return this.phase !== "idle" || this.waking || state === "generating" || state === "speaking" || state === "loading";
+  }
+
+  /** The assistant is waiting for the wearer to speak, or has stopped waiting. */
+  markListening(on: boolean): void {
+    const current = useRuntimeStore.getState().assistant;
+    if (on) {
+      useRuntimeStore.getState().patchAssistant({ state: "listening", error: null, voiceIssue: null });
+    } else if (current.state === "listening" && this.phase === "idle") {
+      useRuntimeStore.getState().patchAssistant({ state: current.id ? "ready" : "offline" });
+    }
+  }
+
+  /** A short rising tone: the assistant heard its name and is listening. */
+  cue(): void {
+    this.player.enqueue(listeningCue());
+  }
+
+  /** Resolves when nothing is being played. */
+  quiet(): Promise<void> {
+    return this.player.idle();
+  }
+
+  private async sendTalk(wav: Blob, stripWake = false): Promise<void> {
     const id = this.selectedId();
     const locale = currentLocale();
     this.askAbort?.abort();
@@ -313,18 +411,19 @@ export class ModelBridge {
         },
         abort.signal,
         this.historyForRequest(),
+        this.voice(),
+        this.audioSink(abort),
+        stripWake,
       );
       if (abort.signal.aborted) {
         this.phase = "idle";
         return;
       }
       this.settleReply(result.reply, {
-        state: result.audio ? "speaking" : "ready",
+        state: result.audio.length > 0 ? "speaking" : "ready",
         heard: result.transcript,
       });
-      if (result.audio) {
-        await this.player.play(result.audio);
-      }
+      await this.player.idle();
       if (abort.signal.aborted) {
         this.phase = "idle";
         return;
@@ -456,7 +555,8 @@ export class ModelBridge {
     }
     const reply = (last?.role === "assistant" ? last.content : "") + token;
     useRuntimeStore.getState().patchAssistant({
-      state: "generating",
+      // Sentences may already be playing while the rest is still being written.
+      state: current.state === "speaking" ? "speaking" : "generating",
       reply,
       messages: messages.slice(-HISTORY),
     });

@@ -55,6 +55,7 @@ _load_env()
 _REPO = Path(__file__).resolve().parents[2]
 _DEFAULT_GGUF = "assistant/weights/qwen2.5-3b-instruct-q4_k_m.gguf"
 _DEFAULT_WHISPER = "assistant/weights/ggml-small.bin"
+_DEFAULT_VOICE_VI = "assistant/weights/vits-piper-vi_VN-vais1000-medium"
 
 
 def catalog() -> tuple[ModelSpec, ...]:
@@ -107,6 +108,21 @@ def whisper_path() -> Path:
     raw = _env("VR_WHISPER_PATH") or _DEFAULT_WHISPER
     path = Path(raw)
     return path if path.is_absolute() else _REPO / path
+
+
+def voice_vi_dir() -> Path:
+    """Folder of the Vietnamese Piper voice (.onnx, tokens.txt, espeak-ng-data)."""
+    raw = _env("VR_VOICE_VI_PATH") or _DEFAULT_VOICE_VI
+    path = Path(raw)
+    return path if path.is_absolute() else _REPO / path
+
+
+def assistant_greeting(locale: str) -> str:
+    """The first line spoken when the system comes up. Default: src/shared/assistant.json."""
+    path = _REPO / "src" / "shared" / "assistant.json"
+    greeting = json.loads(path.read_text(encoding="utf-8")).get("greeting") or {}
+    text = greeting.get("vi" if locale == "vi" else "en")
+    return text.strip() if isinstance(text, str) else ""
 
 
 def assistant_name() -> str:

@@ -38,17 +38,17 @@ export const mountApp = (host: HTMLElement): () => void => {
 
   const layout = runtime.renderer.layout;
 
-  const handleStart = async () => {
-    runtime.models.prepareAudio();
-    runtime.renderer.setMode("stereo");
-    useSharedUiStore.getState().setStarting(true);
+  /**
+   * The system proper: hands, the assistant, the boot log, the menu. Only runs
+   * after the wearer has said "system call"; until then the camera is open and
+   * split into two eyes and nothing is written on it.
+   */
+  const handleSystemCall = async () => {
+    const ui = useSharedUiStore.getState();
+    ui.setArmed(false);
+    ui.setStarting(true);
     try {
-      const access = runtime.claimDeviceAccess();
-      const full = await requestAppFullscreen(app);
-      if (!full && document.documentElement) await requestAppFullscreen(document.documentElement);
-      await unlockViewOrientation();
-      await access;
-      await runtime.start();
+      await runtime.startHands();
       if (useRuntimeStore.getState().settings.assistant.enabled) {
         await runtime.models.load();
       }
@@ -64,13 +64,45 @@ export const mountApp = (host: HTMLElement): () => void => {
     } finally {
       useSharedUiStore.getState().setStarting(false);
     }
+    // From here on the assistant answers to its name.
+    void runtime.wake.listenForAssistant();
+  };
+
+  /** The fingerprint: open the camera, split it in two, then wait to be called. */
+  const handleStart = async () => {
+    runtime.models.prepareAudio();
+    runtime.renderer.setMode("stereo");
+    useSharedUiStore.getState().setArmed(true);
+    try {
+      const access = runtime.claimDeviceAccess();
+      const full = await requestAppFullscreen(app);
+      if (!full && document.documentElement) await requestAppFullscreen(document.documentElement);
+      await unlockViewOrientation();
+      await access;
+      await runtime.startCamera();
+    } catch {
+      runtime.renderer.setMode("mono");
+      useSharedUiStore.getState().setArmed(false);
+      return;
+    }
+    try {
+      await runtime.wake.listenForSystemCall(() => void handleSystemCall());
+    } catch {
+      // No microphone to call the system with: start it anyway so the app is not stuck on a bare picture.
+      void handleSystemCall();
+    }
   };
 
   const handleSettings = (settings: Settings) => {
     runtime.applySettings(settings);
   };
 
-  const mountEyes = (frame: HTMLElement) => {
+  /**
+   * Everything the system draws in one eye: boot log, figures, plugin screens, menu.
+   * Not built at all while the system waits to be called, so nothing of it exists,
+   * runs a timer or listens to a store until "system call" has been said.
+   */
+  const mountInterface = (frame: HTMLElement): (() => void) => {
     const { mode, monoReasons } = stereoState(layout);
     const stopLoad = LoadingOverlay(frame);
     const stopHud = DiagnosticsOverlay(frame);
@@ -94,12 +126,28 @@ export const mountApp = (host: HTMLElement): () => void => {
       onAssistantTalkStart: () => {
         runtime.models.toggleTalk();
       },
+      onAssistantPreview: (text) => {
+        void runtime.models.previewVoice(text);
+      },
     });
     return () => {
       stopLoad();
       stopHud();
       stopMenu();
       stopScreens();
+    };
+  };
+
+  const mountEyes = (frame: HTMLElement) => {
+    let stopInterface: (() => void) | null = useSharedUiStore.getState().armed ? null : mountInterface(frame);
+    const stopWaiting = watch(useSharedUiStore, (state: SharedUiState) => state.armed, () => {
+      if (useSharedUiStore.getState().armed || stopInterface) return;
+      stopInterface = mountInterface(frame);
+    });
+    return () => {
+      stopWaiting();
+      stopInterface?.();
+      stopInterface = null;
     };
   };
 
@@ -118,8 +166,9 @@ export const mountApp = (host: HTMLElement): () => void => {
 
   const syncShell = () => {
     const starting = useSharedUiStore.getState().starting;
+    const armed = useSharedUiStore.getState().armed;
     const running = useRuntimeStore.getState().cameraState === "ready";
-    const inSession = starting || running;
+    const inSession = starting || armed || running;
     const { mode } = stereoState(layout);
     stage.dataset.mode = mode;
     showStart(inSession);
@@ -132,6 +181,7 @@ export const mountApp = (host: HTMLElement): () => void => {
     watch(useRuntimeStore, (state: RuntimeUiState) => state.cameraError, () => start?.sync(useSharedUiStore.getState().starting)),
     watch(useRuntimeStore, (state: RuntimeUiState) => state.blockers, () => start?.sync(useSharedUiStore.getState().starting)),
     watch(useSharedUiStore, (state: SharedUiState) => state.starting, syncShell),
+    watch(useSharedUiStore, (state: SharedUiState) => state.armed, syncShell),
     watchLocale(() => start?.sync(useSharedUiStore.getState().starting)),
     layout.subscribe(() => {
       stage.dataset.mode = stereoState(layout).mode;

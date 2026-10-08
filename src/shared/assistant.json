@@ -1,3 +1,7 @@
 {
-  "name": "HINO"
+  "name": "HINO",
+  "greeting": {
+    "vi": "Chào sếp",
+    "en": "Hello boss"
+  }
 }

@@ -1,6 +1,10 @@
 import { isTurn, type Turn } from "../view/orientation";
 import { DEFAULT_THEME, isHexColor, type ThemeSettings } from "@/ui/theme";
 import { clamp, clamp01 } from "@/shared/math/num";
+import { DEFAULT_VOICE, parseVoice, type VoiceSettings } from "@/shared/contracts/voice";
+import { DEFAULT_LISTEN_SECONDS, parseListenSeconds } from "@/shared/contracts/wake";
+import { DEFAULT_GREETING } from "../models/identity";
+import { LOCALES, type Locale } from "@/shared/contracts/locale";
 
 export type GestureSettings = Readonly<{
   /** Minimum landmark confidence for a hand to drive a pointer. */
@@ -96,7 +100,16 @@ type AssistantSettings = Readonly<{
   enabled: boolean;
   /** Catalog slot id, e.g. `qwen-2.5-3b`. */
   modelId: string;
+  /** How the reply sounds. */
+  voice: VoiceSettings;
+  /** Seconds the assistant keeps listening after it was called or after it answered. */
+  listenSeconds: number;
+  /** The first line it says when the system comes up, in each language. Empty says nothing. */
+  greeting: Readonly<Record<Locale, string>>;
 }>;
+
+/** The longest greeting that can be written. */
+export const GREETING_MAX = 120;
 
 type FeatureFlags = Readonly<{
   /** Snap opens the menu. On by default now that landing on the palm is
@@ -238,6 +251,9 @@ export const DEFAULT_SETTINGS: Settings = {
   assistant: {
     enabled: true,
     modelId: "qwen-2.5-3b",
+    voice: DEFAULT_VOICE,
+    listenSeconds: DEFAULT_LISTEN_SECONDS,
+    greeting: DEFAULT_GREETING,
   },
 };
 
@@ -334,6 +350,17 @@ const readFrameScale = (value: Partial<LensSettings> & { viewScale?: number }): 
   return DEFAULT_LENS.frameScale;
 };
 
+/** A saved greeting is kept as written, even empty; a missing one is the default. */
+const parseGreeting = (raw: unknown): Readonly<Record<Locale, string>> => {
+  const saved = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return Object.fromEntries(
+    LOCALES.map((locale) => {
+      const text = saved[locale];
+      return [locale, typeof text === "string" ? text.slice(0, GREETING_MAX) : DEFAULT_GREETING[locale]];
+    }),
+  ) as Record<Locale, string>;
+};
+
 const parseAssistant = (raw: unknown): AssistantSettings => {
   if (!raw || typeof raw !== "object") return DEFAULT_SETTINGS.assistant;
   const value = raw as Record<string, unknown>;
@@ -341,6 +368,9 @@ const parseAssistant = (raw: unknown): AssistantSettings => {
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : DEFAULT_SETTINGS.assistant.enabled,
     modelId: modelId.length > 0 ? modelId : DEFAULT_SETTINGS.assistant.modelId,
+    voice: parseVoice(value.voice),
+    listenSeconds: parseListenSeconds(value.listenSeconds),
+    greeting: parseGreeting(value.greeting),
   };
 };
 

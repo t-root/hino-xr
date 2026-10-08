@@ -1,0 +1,42 @@
+{
+  "_how_to_add": "Muon tai them mot thu gi: them mot muc vao 'items', khong can sua ma. 'to' tinh tu thu muc goc cua du an. Co 'unpack' thi 'to' la thu muc, giai nen tu goi tai ve (tar.bz2, tar.gz...), 'needs' la nhung muc phai co trong do. 'env' (tuy chon) la ten bien moi truong: dat no thi dung duong dan rieng va khong tai.",
+  "items": [
+    {
+      "id": "llm",
+      "what": "Qwen 2.5 3B (tra loi)",
+      "env": "VR_MODEL_PATH",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
+      "to": "assistant/weights/qwen2.5-3b-instruct-q4_k_m.gguf",
+      "bytes": 2104932768,
+      "sha256": "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d"
+    },
+    {
+      "id": "stt",
+      "what": "Whisper small (nghe)",
+      "env": "VR_WHISPER_PATH",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+      "to": "assistant/weights/ggml-small.bin",
+      "bytes": 487601967,
+      "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+    },
+    {
+      "id": "voice-vi",
+      "what": "Piper vi_VN vais1000 (giong doc tieng Viet)",
+      "env": "VR_VOICE_VI_PATH",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-vi_VN-vais1000-medium.tar.bz2",
+      "to": "assistant/weights/vits-piper-vi_VN-vais1000-medium",
+      "unpack": "tar",
+      "needs": ["vi_VN-vais1000-medium.onnx", "tokens.txt", "espeak-ng-data"],
+      "bytes": 67154040,
+      "sha256": "fa1367710767d36ed5cf13b4a449e20c35ffd12791c2e47c2e64142bfa55551a"
+    },
+    {
+      "id": "hand-landmarker",
+      "what": "MediaPipe hand landmarker (theo doi ban tay)",
+      "url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      "to": "public/models/hand_landmarker.task",
+      "bytes": 7819105,
+      "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+    }
+  ]
+}

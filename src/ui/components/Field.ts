@@ -34,6 +34,31 @@ export const mountSliderField = (
   };
 };
 
+export const mountTextField = (
+  parent: ParentNode,
+  options: {
+    label: string;
+    value: string;
+    maxLength: number;
+    onChange: (value: string) => void;
+  },
+): { sync: (next: { label?: string; value: string }) => void } => {
+  const caption = el("span", { text: options.label });
+  const input = el("input", {
+    type: "text",
+    value: options.value,
+    onInput: (event) => options.onChange((event.target as HTMLInputElement).value),
+  });
+  input.maxLength = options.maxLength;
+  parent.append(el("div", { className: "field" }, [el("label", {}, [caption]), input]));
+  return {
+    sync: (next) => {
+      if (next.label !== undefined) caption.textContent = next.label;
+      if (input.value !== next.value) input.value = next.value;
+    },
+  };
+};
+
 export const mountSwitchField = (
   parent: ParentNode,
   options: {

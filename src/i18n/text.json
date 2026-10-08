@@ -134,6 +134,35 @@
   },
   "assistant.empty": { "vi": "Chưa có câu trả lời.", "en": "No reply yet." },
 
+  "assistant.greeting": { "vi": "Lời chào đầu tiên", "en": "First greeting" },
+  "assistant.greetingHint": {
+    "vi": "Trợ lý đọc đúng câu này khi hệ thống khởi động. Để trống nếu không muốn nó chào.",
+    "en": "The assistant says exactly this when the system starts. Leave it empty for no greeting."
+  },
+  "assistant.listenWindow": { "vi": "Thời gian nghe tiếp", "en": "Listening time" },
+  "assistant.listenHint": {
+    "vi": "Gọi \"{name}\" để trợ lý nghe. Sau khi gọi hoặc sau mỗi câu trả lời, trợ lý nghe thêm trong khoảng này rồi ngủ lại.",
+    "en": "Say \"{name}\" to wake the assistant. After the call, and after each answer, it keeps listening for this long, then sleeps."
+  },
+  "assistant.voiceTitle": { "vi": "Giọng đọc", "en": "Voice" },
+  "assistant.voiceNote": {
+    "vi": "Tiếng Việt dùng cả năm mục. Tiếng Anh chỉ đổi tốc độ.",
+    "en": "Vietnamese uses all five. English only changes the speed."
+  },
+  "assistant.voicePitch": { "vi": "Cao độ", "en": "Pitch" },
+  "assistant.voiceSpeed": { "vi": "Tốc độ đọc", "en": "Speaking speed" },
+  "assistant.voiceExpression": { "vi": "Biểu cảm", "en": "Expression" },
+  "assistant.voiceRhythm": { "vi": "Nhịp đọc", "en": "Rhythm" },
+  "assistant.voicePause": { "vi": "Quãng nghỉ giữa câu", "en": "Pause between sentences" },
+  "assistant.voicePreview": { "vi": "Nghe thử giọng", "en": "Hear the voice" },
+  "assistant.voiceReset": { "vi": "Đặt lại giọng", "en": "Reset voice" },
+  "assistant.voiceSample": {
+    "vi": "Xin chào, tôi là trợ lý của bạn. Hôm nay bạn muốn xem gì?",
+    "en": "Hello, I am your assistant. What would you like to see today?"
+  },
+  "unit.hz": { "vi": "{value} Hz", "en": "{value} Hz" },
+  "unit.seconds": { "vi": "{value} giây", "en": "{value} s" },
+
   "permission.camera-frame": { "vi": "khung hình", "en": "frames" },
   "permission.network": { "vi": "mạng", "en": "network" },
   "permission.snapshot": { "vi": "ảnh chụp", "en": "snapshots" },

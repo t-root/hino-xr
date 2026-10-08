@@ -296,6 +296,17 @@ button.chip[data-twin-hover]:not(:disabled) {
  * Native range and checkbox chrome is rounded and uses the platform accent, so
  * both controls are rebuilt from square blocks of the one UI colour.
  */
+input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+}
+
 input[type="range"] {
   appearance: none;
   -webkit-appearance: none;

@@ -5,10 +5,17 @@ import { encodeWav } from "./wav";
  *
  * The headset UI never mounts an <audio> tag. This element lives in Core and
  * is not inserted into either eye.
+ *
+ * A reply arrives as sentences while the model is still writing, so playback is
+ * a queue: each piece starts as soon as the one before it ends.
  */
 export class SpeechPlayer {
   private readonly el: HTMLAudioElement;
   private objectUrl: string | null = null;
+  private readonly queue: Blob[] = [];
+  private draining = false;
+  private finishCurrent: (() => void) | null = null;
+  private waiting: Array<() => void> = [];
 
   constructor() {
     this.el = new Audio();
@@ -30,30 +37,30 @@ export class SpeechPlayer {
       });
   }
 
+  /** Plays after whatever is already queued. */
+  enqueue(blob: Blob): void {
+    this.queue.push(blob);
+    if (!this.draining) void this.drain();
+  }
+
+  /** Replaces whatever is playing and resolves when this one has ended. */
   async play(blob: Blob): Promise<void> {
     this.stop();
-    const url = URL.createObjectURL(blob);
-    this.objectUrl = url;
-    this.el.src = url;
-    try {
-      await this.el.play();
-    } catch {
-      this.forget(url);
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      const done = () => {
-        this.el.removeEventListener("ended", done);
-        this.el.removeEventListener("error", done);
-        resolve();
-      };
-      this.el.addEventListener("ended", done);
-      this.el.addEventListener("error", done);
+    this.enqueue(blob);
+    await this.idle();
+  }
+
+  /** Resolves when nothing is playing and nothing is waiting. */
+  idle(): Promise<void> {
+    if (!this.draining && this.queue.length === 0) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      this.waiting.push(resolve);
     });
-    this.forget(url);
   }
 
   stop(): void {
+    this.queue.length = 0;
+    const finish = this.finishCurrent;
     this.el.pause();
     this.el.removeAttribute("src");
     try {
@@ -65,10 +72,46 @@ export class SpeechPlayer {
       URL.revokeObjectURL(this.objectUrl);
       this.objectUrl = null;
     }
+    finish?.();
   }
 
   dispose(): void {
     this.stop();
+  }
+
+  private async drain(): Promise<void> {
+    this.draining = true;
+    try {
+      for (;;) {
+        const next = this.queue.shift();
+        if (!next) break;
+        await this.playOne(next);
+      }
+    } finally {
+      this.draining = false;
+      const waiting = this.waiting;
+      this.waiting = [];
+      for (const resolve of waiting) resolve();
+    }
+  }
+
+  private playOne(blob: Blob): Promise<void> {
+    const url = URL.createObjectURL(blob);
+    this.objectUrl = url;
+    this.el.src = url;
+    return new Promise<void>((resolve) => {
+      const done = () => {
+        this.el.removeEventListener("ended", done);
+        this.el.removeEventListener("error", done);
+        this.finishCurrent = null;
+        this.forget(url);
+        resolve();
+      };
+      this.finishCurrent = done;
+      this.el.addEventListener("ended", done);
+      this.el.addEventListener("error", done);
+      this.el.play().catch(done);
+    });
   }
 
   private forget(url: string): void {

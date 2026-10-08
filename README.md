@@ -33,11 +33,11 @@ Tóm tắt:
 
 Mô hình ngôn ngữ chạy **trên máy tính** qua llama.cpp, file **GGUF**. Trình duyệt trên điện thoại chỉ gửi tin nhắn hoặc một file WAV và nhận chữ cùng tiếng nói.
 
-1. Đặt file GGUF vào `assistant/weights/` (mặc định `qwen2.5-3b-instruct-q4_k_m.gguf`). File Whisper.cpp mặc định `ggml-small.bin`. Giọng nói ra dùng SAPI của Windows. Các file này **không** do bước tải mô hình thị giác tải.
+1. Không cần tự tải gì: `run.bat` tải những file còn thiếu ở lần chạy đầu (Qwen `qwen2.5-3b-instruct-q4_k_m.gguf` khoảng 2,1 GB, Whisper `ggml-small.bin` khoảng 488 MB, giọng Việt khoảng 67 MB, model bàn tay) vào `assistant/weights/` và `public/models/`; file đã có thì bỏ qua, bị ngắt thì tải tiếp, sai mã sha256 thì bỏ. Mọi thứ tự tải (ngoài thư viện ghim ở `vendor.json`) được khai báo trong một file ở thư mục gốc, `downloads.json`: muốn tải thêm gì chỉ cần thêm một mục vào đó (địa chỉ, dung lượng, sha256, nơi đặt), không phải sửa mã. Phần tải nằm trong `run.py` (dùng `curl` có sẵn trong Windows 10 trở lên) và không nhắc tên file nào, nên không cần sửa mã. Đặt `VR_MODEL_PATH`, `VR_WHISPER_PATH` hoặc `VR_VOICE_VI_PATH` thì dùng file riêng của bạn và không tải. Mặc định Qwen và Whisper như trên. Giọng nói ra: tiếng Việt dùng Piper `vi_VN-vais1000-medium` (một giọng nữ, đủ thanh điệu) chạy cục bộ qua `sherpa-onnx` vì Windows không có giọng SAPI tiếng Việt; thư mục `assistant/weights/vits-piper-vi_VN-vais1000-medium/` (tải `vits-piper-vi_VN-vais1000-medium.tar.bz2` từ bản phát hành `tts-models` của k2-fsa/sherpa-onnx rồi giải nén vào `assistant/weights/`, đổi chỗ bằng `VR_VOICE_VI_PATH`; cao độ, tốc độ, biểu cảm, nhịp và quãng nghỉ chỉnh trong menu Trợ lý, khoảng giá trị và mặc định nằm ở `src/shared/voice.json`); tiếng Anh dùng SAPI của Windows. Các file này **không** do bước tải mô hình thị giác tải.
 2. `run.bat` hoặc `python run.py`. Điện thoại chỉ cần `https://địa-chỉ-máy:5173`.
 3. Bấm **dấu vân tay**: camera lên, trợ lý (nếu bật) nạp và chào. Trong kính: menu → **trợ lý** → bật/tắt, chọn slot, **Tải**, **Nói** / **Dừng**, hoặc **Thử** một câu chữ.
 
-Đổi file: `VR_MODEL_PATH` và `VR_WHISPER_PATH` trong `assistant/.env`. GPU: `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU). LoRA đã merge thì xuất ra một GGUF mới rồi trỏ `VR_MODEL_PATH` vào file đó. Không đổi mã web. Đổi tên gọi: sửa `src/shared/assistant.json`.
+Đổi file: `VR_MODEL_PATH` và `VR_WHISPER_PATH` trong `assistant/.env`. Số luồng CPU cho Qwen và Whisper: `VR_N_THREADS` (mặc định = số nhân). GPU: `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU). LoRA đã merge thì xuất ra một GGUF mới rồi trỏ `VR_MODEL_PATH` vào file đó. Không đổi mã web. Đổi tên gọi: sửa `src/shared/assistant.json`.
 
 Mở ứng dụng rồi bấm **dấu vân tay**. Màn hình đó luôn **một khung**. Cú bấm xin camera **và** đưa trang vào toàn màn hình (trình duyệt chỉ cho phép toàn màn hình từ một lần chạm). Camera chỉ được xin quyền sau cú bấm đó, không sớm hơn. Nút **xoay 90°** chỉ quay giao diện, không quay ảnh camera. Sau khi bắt đầu, hai mắt là **hai ô vuông sát giữa**: điện thoại dọc thì chồng, máy tính ngang thì cạnh nhau. Phần đen dư ra hai mép ngoài, không để khe ở giữa.
 
@@ -179,6 +179,7 @@ camera → FrameHub ─┬→ HandTracking → Smoother → GestureStateMachine 
                                             StereoRenderer vẽ scene 2 lần (mắt trái/phải)
 
 micro/UI ──HTTPS /api──► Python :5173 (trang + GGUF + STT + TTS)
+                         trả lời được đọc từng câu ngay khi Qwen viết xong câu đó, không chờ hết cả đoạn
 ```
 
 | Thư mục | Nội dung |
@@ -198,10 +199,18 @@ micro/UI ──HTTPS /api──► Python :5173 (trang + GGUF + STT + TTS)
 | `src/shared` | Contract dùng chung, `assistant.json` (tên HINO), toán học, schema Zod, redaction, `LocalizedText` |
 | `src/i18n` | `text.json` (câu giao diện) và lớp gắn kiểu cho nó — không chứa câu chào mô hình |
 | `src/ui` | Token màu (`theme.ts`), stylesheet, menu vanilla, nút vân tay, HUD khởi động, `ScrollBox`, `t()` |
-| `assistant/` | Process Python: HTTPS trang + `/api`, llama.cpp, prompt, Whisper, SAPI. `weights/` gitignored |
+| `assistant/` | Process Python: HTTPS trang + `/api`, llama.cpp, prompt, Whisper, Piper (tiếng Việt), SAPI (tiếng Anh). `weights/` gitignored |
 | `assistant/frontend.py` | Tải gói JS, gói TypeScript bằng esbuild (file .exe, không Node) có nén và tách file: `app.js` chỉ mang Core, mỗi plugin là một file trong `public/.runtime/chunks/` chỉ tải khi bật; phục vụ `public/` |
 | `run.py` / `run.bat` | Cài pip nếu thiếu, nhả cổng 5173, chạy trợ lý. Không Node |
 | `public` | Mô hình thị giác, WASM, file JS đã gói; sinh ra được nên không nằm trong kho mã |
+
+### Khởi động và gọi bằng giọng nói
+
+1. Bấm vân tay: chỉ mở camera và chia hai mắt. Chưa có chữ, menu, nhật ký khởi động, bàn tay hay trợ lý. Micro mở và chờ đúng cụm **"system call"** (giữ nguyên tiếng Anh, `src/shared/wake.json`).
+2. Nghe thấy "system call": hệ thống mới thật sự chạy (nhận bàn tay, nạp trợ lý, nhật ký khởi động, menu, trợ lý chào).
+3. Sau đó trợ lý ngủ. Hô tên trợ lý (**"hino"**, lấy từ `assistant.json`) thì nó nghe: hỏi luôn trong câu ("hino, mấy giờ rồi") hoặc hô xong rồi hỏi. Sau mỗi câu trả lời nó nghe thêm một khoảng rồi ngủ lại. Khoảng này chỉnh trong menu Trợ lý (mặc định 5 giây, `assistant.listenSeconds`).
+
+Nghe và nhận cụm gọi đều ở máy chủ Python: trình duyệt chỉ cắt các đoạn có tiếng nói theo độ to, gửi `/api/voice/listen`, Whisper chép chữ rồi so khớp gần đúng (`assistant/models/wake.py`). Trợ lý đang nói thì micro tạm tắt để không nghe lại giọng của chính nó.
 
 ### Những quyết định quan trọng
 

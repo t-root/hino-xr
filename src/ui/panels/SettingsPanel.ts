@@ -3,7 +3,9 @@ import { ASSISTANT_NAME } from "@/core/models/identity";
 import { useLocaleStore } from "@/core/state/LocaleStore";
 import { useLogStore } from "@/core/observability/ConsoleLog";
 import { useRuntimeStore } from "@/core/state/RuntimeStore";
-import { DEFAULT_LENS, type LensSettings, type Settings } from "@/core/state/settings";
+import { DEFAULT_LENS, GREETING_MAX, type LensSettings, type Settings } from "@/core/state/settings";
+import { DEFAULT_VOICE, VOICE_RANGE, type VoiceSettings } from "@/shared/contracts/voice";
+import { LISTEN_RANGE } from "@/shared/contracts/wake";
 import { DEFAULT_THEME, hexToHsl, hslToHex } from "@/ui/theme";
 import { MENU_SCROLL_KEY, SETTINGS_CATEGORIES, useSharedUiStore } from "@/core/state/SharedUiStore";
 import { nextTurn } from "@/core/view/orientation";
@@ -20,7 +22,7 @@ import {
 } from "@/i18n/text";
 import { el, empty, watch } from "../dom";
 import { loc, t, watchLocale } from "../i18n/useText";
-import { mountColourGroup, mountSliderField, mountSwitchField } from "../components/Field";
+import { mountColourGroup, mountSliderField, mountSwitchField, mountTextField } from "../components/Field";
 import { MenuStrip, updateMenuStrip } from "../components/MenuStrip";
 import { ScrollBox } from "../components/ScrollBox";
 import { paintLogSection } from "./LogSection";
@@ -94,6 +96,7 @@ type SettingsPanelProps = Readonly<{
   onAssistantLoad: (id?: string) => void;
   onAssistantAsk: (prompt: string) => void;
   onAssistantTalkStart: () => void;
+  onAssistantPreview: (text: string) => void;
 }>;
 
 /**
@@ -112,6 +115,8 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
   const settingsOf = () => useRuntimeStore.getState().settings;
   const patch = (next: Partial<Settings>) => props.onChange({ ...settingsOf(), ...next });
   const patchLens = (next: Partial<LensSettings>) => patch({ lens: { ...settingsOf().lens, ...next } });
+  const patchVoice = (next: Partial<VoiceSettings>) =>
+    patch({ assistant: { ...settingsOf().assistant, voice: { ...settingsOf().assistant.voice, ...next } } });
 
   const choose = (next: number) => {
     const ui = useSharedUiStore.getState();
@@ -536,6 +541,97 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
         onClick: () => props.onAssistantTalkStart(),
       });
       content.append(el("div", { className: "row" }, [ping]), talk);
+      const greeting = mountTextField(content, {
+        label: t("assistant.greeting"),
+        value: settings.assistant.greeting[locale],
+        maxLength: GREETING_MAX,
+        onChange: (text) =>
+          patch({
+            assistant: {
+              ...settingsOf().assistant,
+              greeting: { ...settingsOf().assistant.greeting, [useLocaleStore.getState().locale]: text },
+            },
+          }),
+      });
+      content.append(el("p", { className: "note", text: t("assistant.greetingHint") }));
+      patchers.push(() => {
+        greeting.sync({ value: settingsOf().assistant.greeting[useLocaleStore.getState().locale] });
+      });
+      const listenWindow = mountSliderField(content, {
+        label: t("assistant.listenWindow"),
+        value: settings.assistant.listenSeconds,
+        min: LISTEN_RANGE.min,
+        max: LISTEN_RANGE.max,
+        step: LISTEN_RANGE.step,
+        format: (value) => t("unit.seconds", { value: value.toFixed(0) }),
+        onChange: (listenSeconds) => patch({ assistant: { ...settingsOf().assistant, listenSeconds } }),
+      });
+      content.append(el("p", { className: "note", text: t("assistant.listenHint", { name: ASSISTANT_NAME }) }));
+      patchers.push(() => {
+        listenWindow.sync({ value: settingsOf().assistant.listenSeconds });
+      });
+      content.append(el("h3", { text: t("assistant.voiceTitle") }));
+      content.append(el("p", { className: "note", text: t("assistant.voiceNote") }));
+      const voice = settings.assistant.voice;
+      const voiceSliders = [
+        mountSliderField(content, {
+          label: t("assistant.voicePitch"),
+          value: voice.pitchHz,
+          ...VOICE_RANGE.pitchHz,
+          format: (value) => t("unit.hz", { value: value.toFixed(0) }),
+          onChange: (pitchHz) => patchVoice({ pitchHz }),
+        }),
+        mountSliderField(content, {
+          label: t("assistant.voiceSpeed"),
+          value: voice.speed,
+          ...VOICE_RANGE.speed,
+          format: (value) => `${value.toFixed(2)}×`,
+          onChange: (speed) => patchVoice({ speed }),
+        }),
+        mountSliderField(content, {
+          label: t("assistant.voiceExpression"),
+          value: voice.expression,
+          ...VOICE_RANGE.expression,
+          format: (value) => value.toFixed(2),
+          onChange: (expression) => patchVoice({ expression }),
+        }),
+        mountSliderField(content, {
+          label: t("assistant.voiceRhythm"),
+          value: voice.rhythm,
+          ...VOICE_RANGE.rhythm,
+          format: (value) => value.toFixed(2),
+          onChange: (rhythm) => patchVoice({ rhythm }),
+        }),
+        mountSliderField(content, {
+          label: t("assistant.voicePause"),
+          value: voice.pause,
+          ...VOICE_RANGE.pause,
+          format: (value) => t("unit.seconds", { value: value.toFixed(2) }),
+          onChange: (pause) => patchVoice({ pause }),
+        }),
+      ];
+      const preview = el("button", {
+        className: "chip",
+        text: t("assistant.voicePreview"),
+        disabled: !settings.assistant.enabled || assistant.state !== "ready",
+        onClick: () => props.onAssistantPreview(t("assistant.voiceSample")),
+      });
+      const resetVoice = el("button", {
+        className: "chip",
+        text: t("assistant.voiceReset"),
+        onClick: () => patchVoice(DEFAULT_VOICE),
+      });
+      content.append(el("div", { className: "row" }, [preview, resetVoice]));
+      patchers.push(() => {
+        const live = settingsOf().assistant;
+        const liveVoice = live.voice;
+        voiceSliders[0]?.sync({ value: liveVoice.pitchHz });
+        voiceSliders[1]?.sync({ value: liveVoice.speed });
+        voiceSliders[2]?.sync({ value: liveVoice.expression });
+        voiceSliders[3]?.sync({ value: liveVoice.rhythm });
+        voiceSliders[4]?.sync({ value: liveVoice.pause });
+        preview.disabled = !live.enabled || useRuntimeStore.getState().assistant.state !== "ready";
+      });
       content.append(el("h3", { text: t("assistant.chat") }));
       const emptyNote = el("p", { className: "note", text: t("assistant.empty") });
       const chat = el("div", { className: "chat" });

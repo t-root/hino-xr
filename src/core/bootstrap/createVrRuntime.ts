@@ -28,6 +28,7 @@ import { detectCapabilities, findBlockers } from "./capabilities";
 import { DeviceAccess } from "../device/DeviceAccess";
 import { AutoOrientation } from "../view/AutoOrientation";
 import { ModelBridge } from "../models/ModelBridge";
+import { WakeController } from "../models/WakeController";
 import { registerBuiltInModules } from "@/modules/registry";
 
 type VrRuntime = Readonly<{
@@ -42,12 +43,17 @@ type VrRuntime = Readonly<{
   mountScreens: (frame: HTMLElement) => () => void;
   /** Language models on the Core server. The web only posts messages. */
   models: ModelBridge;
+  /** What the microphone is waiting for: "system call", then the assistant's name. */
+  wake: WakeController;
   /**
    * Sensor, location and wake-lock prompts. Must run inside the Start tap,
    * before fullscreen or the camera spend that gesture.
    */
   claimDeviceAccess: () => Promise<void>;
-  start: (request?: CameraRequest) => Promise<void>;
+  /** Opens the camera and starts the picture. Nothing else is switched on. */
+  startCamera: (request?: CameraRequest) => Promise<void>;
+  /** The rest of the system: hand tracking. Called once the wearer has said "system call". */
+  startHands: () => Promise<void>;
   stop: () => void;
   applySettings: (settings: Settings) => void;
   /** Show the camera after boot; the world stays black until this is called. */
@@ -121,6 +127,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   container.appendChild(embedHost);
   const media = new MediaController(bus, renderer.renderScene.uiRoot, embedHost, renderer.layout);
   const models = new ModelBridge();
+  const wake = new WakeController(models);
 
   const camera = new CameraController(bus);
   const frameHub = new FrameHub(bus, {
@@ -246,7 +253,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   window.addEventListener("orientationchange", onViewTurn);
   window.addEventListener("resize", onViewTurn);
 
-  const start = async (request: CameraRequest = DEFAULT_CAMERA_REQUEST): Promise<void> => {
+  const startCamera = async (request: CameraRequest = DEFAULT_CAMERA_REQUEST): Promise<void> => {
     const capabilities = await detectCapabilities();
     const blockers = findBlockers(capabilities);
     useRuntimeStore.getState().setCapabilities(capabilities, blockers);
@@ -267,15 +274,16 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
 
     autoOrientation.setCurrent(useRuntimeStore.getState().viewTurn);
     autoOrientation.setEnabled(settings.view.autoRotate);
+  };
 
-    if (settings.flags.handTracking) {
-      const status = await handTracking.initialize();
-      useRuntimeStore.getState().setHandStatus(status);
-      if (status === "ready") {
-        unregisterHandConsumer = frameHub.registerConsumer(
-          handTracking.createConsumer(settings.pipeline.handTrackingFps),
-        );
-      }
+  const startHands = async (): Promise<void> => {
+    if (!settings.flags.handTracking) return;
+    const status = await handTracking.initialize();
+    useRuntimeStore.getState().setHandStatus(status);
+    if (status === "ready") {
+      unregisterHandConsumer = frameHub.registerConsumer(
+        handTracking.createConsumer(settings.pipeline.handTrackingFps),
+      );
     }
   };
 
@@ -311,6 +319,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     videoLayer.applyTheme();
     media.applyTheme();
     models.syncSettings(next);
+    wake.syncSettings();
     if (next.view.autoRotate) {
       autoOrientation.setEnabled(true);
     } else {
@@ -323,6 +332,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
 
   const dispose = (): void => {
     stop();
+    wake.dispose();
     models.dispose();
     media.dispose();
     embedHost.remove();
@@ -352,8 +362,10 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     media,
     mountScreens: (frame) => screens.mountFrame(frame),
     models,
+    wake,
     claimDeviceAccess: () => deviceAccess.claimFromUserGesture().then(() => undefined),
-    start,
+    startCamera,
+    startHands,
     stop,
     applySettings,
     revealWorld,
