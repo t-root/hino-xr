@@ -7,8 +7,11 @@ export const objectDetectionManifest: ModuleManifest = {
   displayName: text.displayName,
   description: text.description,
   // EfficientDet-Lite0 looks at 320×320 anyway; a bigger frame is only more to copy.
-  // Things on a table move slowly, so a lower rate than faces is enough.
-  input: { preferredFps: 8, maxWidth: 320, maxHeight: 320 },
+  // Things on a table move slowly, so a lower rate than faces is enough. It runs on the CPU
+  // (see object.worker.ts) and takes 150 to 450 ms a frame, more while the page is busy, and
+  // the deadline for one frame is three frame intervals: at 8 fps that was 400 ms and every
+  // slow frame was aborted until the module was switched off. At 3 fps it is a second.
+  input: { preferredFps: 3, maxWidth: 320, maxHeight: 320 },
   outputKinds: ["object"],
   execution: "worker",
   permissions: ["camera-frame"],

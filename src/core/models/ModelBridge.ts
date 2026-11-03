@@ -7,7 +7,8 @@ import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
 import { useRuntimeStore } from "../state/RuntimeStore";
 import { DEFAULT_SETTINGS, type Settings } from "../state/settings";
-import { ModelClient } from "./ModelClient";
+import type { SpokenControl } from "./VoiceControls";
+import { ModelClient, type SpokenCommand, type SpokenPlugin } from "./ModelClient";
 
 const POLL_MS = 8000;
 const DEFAULT_ID = DEFAULT_SETTINGS.assistant.modelId;
@@ -21,7 +22,7 @@ const listeningCue = (): Blob => {
     const out = new Float32Array(count);
     for (let i = 0; i < count; i += 1) {
       const fade = Math.min(1, i / 200, (count - i) / 400);
-      out[i] = 0.18 * fade * Math.sin((2 * Math.PI * hz * i) / rate);
+      out[i] = 0.4 * fade * Math.sin((2 * Math.PI * hz * i) / rate);
     }
     return out;
   };
@@ -34,6 +35,18 @@ const listeningCue = (): Blob => {
 };
 /** Skip poll during a live turn. Load and wake already talk to the server. */
 const HOLD_POLL = new Set(["generating", "listening", "speaking"]);
+
+/** What the headset lets a spoken line do to its plugins. */
+export type PluginVoiceHost = Readonly<{
+  list: () => readonly SpokenPlugin[];
+  set: (id: string, on: boolean) => void;
+}>;
+
+/** What the headset lets a spoken line do to its menu and settings. */
+export type ControlVoiceHost = Readonly<{
+  describe: () => readonly SpokenControl[];
+  run: (id: string, value: unknown) => void;
+}>;
 
 /**
  * Keeps the UI store in step with the model server. Poll, load, ask, talk,
@@ -56,10 +69,56 @@ export class ModelBridge {
   private waking = false;
   private refreshBusy = false;
 
+  private pluginHost: PluginVoiceHost | null = null;
+  private controlHost: ControlVoiceHost | null = null;
+
   constructor() {
     const assistant = useRuntimeStore.getState().settings.assistant;
     this.enabled = assistant.enabled;
     this.modelId = assistant.modelId;
+  }
+
+  /** Lets "turn on the map plugin", said aloud, switch plugins. Without it every line is a question. */
+  setPluginHost(host: PluginVoiceHost): void {
+    this.pluginHost = host;
+  }
+
+  /** Lets a spoken "raise the speaking speed" or "open the lens section" work the menu. */
+  setControlHost(host: ControlVoiceHost): void {
+    this.controlHost = host;
+  }
+
+  private runCommand(command: SpokenCommand): void {
+    if (command.action === "setting" && command.id) {
+      this.controlHost?.run(command.id, command.value);
+      return;
+    }
+    if (command.action === "create") {
+      void this.followUp(() => this.client.draftPlugin(command.description, currentLocale()), false);
+    } else if (command.action === "approve" && command.id) {
+      const id = command.id;
+      void this.followUp(() => this.client.approvePlugin(id, currentLocale()), true);
+    } else if (command.action === "reject" && command.id) {
+      void this.client.rejectPlugin(command.id);
+    } else if (this.pluginHost && command.id && (command.action === "enable" || command.action === "disable")) {
+      this.pluginHost.set(command.id, command.action === "enable");
+    }
+  }
+
+  /**
+   * Work that outlasts the spoken answer (writing a plugin, rebuilding the app for
+   * one): when it ends the server's own line is spoken, and the page reloads if
+   * a new plugin was installed so the registry that lists it is the one running.
+   */
+  private async followUp(work: () => Promise<{ ok: boolean; say: string }>, reloadOnSuccess: boolean): Promise<void> {
+    try {
+      const outcome = await work();
+      await this.previewVoice(outcome.say);
+      useRuntimeStore.getState().patchAssistant({ reply: outcome.say });
+      if (reloadOnSuccess && outcome.ok) window.location.reload();
+    } catch (error) {
+      this.logger.warn("plugin follow-up failed", { message: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   start(): void {
@@ -367,6 +426,16 @@ export class ModelBridge {
     return this.phase !== "idle" || this.waking || state === "generating" || state === "speaking" || state === "loading";
   }
 
+  /**
+   * True only while the assistant is itself making sound or a spoken turn is in
+   * flight. Loading the model is not that: the wearer calling its name while the
+   * model loads must still be heard and answered with a cue.
+   */
+  talking(): boolean {
+    const state = useRuntimeStore.getState().assistant.state;
+    return this.phase !== "idle" || state === "generating" || state === "speaking";
+  }
+
   /** The assistant is waiting for the wearer to speak, or has stopped waiting. */
   markListening(on: boolean): void {
     const current = useRuntimeStore.getState().assistant;
@@ -380,6 +449,18 @@ export class ModelBridge {
   /** A short rising tone: the assistant heard its name and is listening. */
   cue(): void {
     this.player.enqueue(listeningCue());
+  }
+
+  /** Says the wearer's own "I am listening" line after the cue: the proof that the name was heard. Never throws. */
+  async acknowledge(): Promise<void> {
+    const line = useRuntimeStore.getState().settings.assistant.ack[currentLocale()].trim();
+    if (!line) return;
+    try {
+      const audio = await this.client.preview(line, currentLocale(), this.voice());
+      await this.player.play(audio);
+    } catch (error) {
+      this.logger.warn("acknowledge failed", { message: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   /** Resolves when nothing is being played. */
@@ -407,6 +488,7 @@ export class ModelBridge {
         locale,
         (token) => this.appendToken(token),
         (heard) => {
+          this.logger.info("understood", { text: heard });
           if (heard.trim()) this.startUserTurn(heard);
         },
         abort.signal,
@@ -414,11 +496,23 @@ export class ModelBridge {
         this.voice(),
         this.audioSink(abort),
         stripWake,
+        this.pluginHost?.list() ?? [],
+        this.controlHost?.describe() ?? [],
+        (command) => {
+          this.logger.info("command", {
+            action: command.action,
+            id: command.id,
+            brief: command.description,
+            value: command.value,
+          });
+          this.runCommand(command);
+        },
       );
       if (abort.signal.aborted) {
         this.phase = "idle";
         return;
       }
+      this.logger.info("replied", { text: result.reply, spoken: result.audio.length > 0 });
       this.settleReply(result.reply, {
         state: result.audio.length > 0 ? "speaking" : "ready",
         heard: result.transcript,

@@ -98,7 +98,7 @@ class DesignSystemTest(unittest.TestCase):
         self.assertIn("mapper.framePx", view)
         self.assertNotRegex(self.styles, r"\.(menu__body|hud|boot-hud)[^{]*\{[^}]*\b(vw|vh|vmin)\b")
         self.assertIn("84cqi", self.styles)
-        self.assertIn("48cqi", self.styles)
+        self.assertIn("60cqi", self.styles)
 
     def test_scrolling_goes_through_scroll_box(self) -> None:
         styles = re.sub(r"/\*[\s\S]*?\*/", "", self.styles)

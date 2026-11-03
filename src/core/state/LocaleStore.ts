@@ -4,13 +4,12 @@ import { isLocale, type Locale } from "@/shared/contracts/locale";
 const STORAGE_KEY = "vr.locale";
 
 /**
- * Falls back to the language the browser is already set to, so the first run
- * is in the right language without anybody being asked a question first.
+ * Vietnamese until the wearer picks another language in the menu. The browser's
+ * own language is not a guide: a Vietnamese wearer's browser is often English,
+ * and then the interface, the speech recogniser and the reply all came out in
+ * English with nothing to say why.
  */
-const detect = (): Locale => {
-  if (typeof navigator === "undefined") return "vi";
-  return navigator.language.toLowerCase().startsWith("vi") ? "vi" : "en";
-};
+const detect = (): Locale => "vi";
 
 const restore = (): Locale => {
   try {

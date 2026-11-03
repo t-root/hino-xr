@@ -3,7 +3,7 @@ import { DEFAULT_THEME, isHexColor, type ThemeSettings } from "@/ui/theme";
 import { clamp, clamp01 } from "@/shared/math/num";
 import { DEFAULT_VOICE, parseVoice, type VoiceSettings } from "@/shared/contracts/voice";
 import { DEFAULT_LISTEN_SECONDS, parseListenSeconds } from "@/shared/contracts/wake";
-import { DEFAULT_GREETING } from "../models/identity";
+import { ACK, DEFAULT_GREETING } from "../models/identity";
 import { LOCALES, type Locale } from "@/shared/contracts/locale";
 
 export type GestureSettings = Readonly<{
@@ -106,6 +106,8 @@ type AssistantSettings = Readonly<{
   listenSeconds: number;
   /** The first line it says when the system comes up, in each language. Empty says nothing. */
   greeting: Readonly<Record<Locale, string>>;
+  /** What it says the moment it hears its name and nothing else, in each language. Empty says nothing. */
+  ack: Readonly<Record<Locale, string>>;
 }>;
 
 /** The longest greeting that can be written. */
@@ -254,6 +256,7 @@ export const DEFAULT_SETTINGS: Settings = {
     voice: DEFAULT_VOICE,
     listenSeconds: DEFAULT_LISTEN_SECONDS,
     greeting: DEFAULT_GREETING,
+    ack: ACK,
   },
 };
 
@@ -350,13 +353,13 @@ const readFrameScale = (value: Partial<LensSettings> & { viewScale?: number }): 
   return DEFAULT_LENS.frameScale;
 };
 
-/** A saved greeting is kept as written, even empty; a missing one is the default. */
-const parseGreeting = (raw: unknown): Readonly<Record<Locale, string>> => {
+/** A saved line is kept as written, even empty; a missing one is the default. */
+const parseLines = (raw: unknown, defaults: Readonly<Record<Locale, string>>): Readonly<Record<Locale, string>> => {
   const saved = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return Object.fromEntries(
     LOCALES.map((locale) => {
       const text = saved[locale];
-      return [locale, typeof text === "string" ? text.slice(0, GREETING_MAX) : DEFAULT_GREETING[locale]];
+      return [locale, typeof text === "string" ? text.slice(0, GREETING_MAX) : defaults[locale]];
     }),
   ) as Record<Locale, string>;
 };
@@ -370,7 +373,8 @@ const parseAssistant = (raw: unknown): AssistantSettings => {
     modelId: modelId.length > 0 ? modelId : DEFAULT_SETTINGS.assistant.modelId,
     voice: parseVoice(value.voice),
     listenSeconds: parseListenSeconds(value.listenSeconds),
-    greeting: parseGreeting(value.greeting),
+    greeting: parseLines(value.greeting, DEFAULT_GREETING),
+    ack: parseLines(value.ack, ACK),
   };
 };
 

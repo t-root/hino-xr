@@ -474,6 +474,39 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
       });
       content.append(el("p", { className: "note", text: t("assistant.enabledHint") }));
       content.append(el("p", { className: "note", text: t("assistant.who", { name: ASSISTANT_NAME }) }));
+      // The two lines the wearer writes come first: they were once far down a long page and nobody found them.
+      const greeting = mountTextField(content, {
+        label: t("assistant.greeting"),
+        value: settings.assistant.greeting[locale],
+        maxLength: GREETING_MAX,
+        onChange: (text) =>
+          patch({
+            assistant: {
+              ...settingsOf().assistant,
+              greeting: { ...settingsOf().assistant.greeting, [useLocaleStore.getState().locale]: text },
+            },
+          }),
+      });
+      content.append(el("p", { className: "note", text: t("assistant.greetingHint") }));
+      patchers.push(() => {
+        greeting.sync({ value: settingsOf().assistant.greeting[useLocaleStore.getState().locale] });
+      });
+      const ack = mountTextField(content, {
+        label: t("assistant.ack"),
+        value: settings.assistant.ack[locale],
+        maxLength: GREETING_MAX,
+        onChange: (text) =>
+          patch({
+            assistant: {
+              ...settingsOf().assistant,
+              ack: { ...settingsOf().assistant.ack, [useLocaleStore.getState().locale]: text },
+            },
+          }),
+      });
+      content.append(el("p", { className: "note", text: t("assistant.ackHint") }));
+      patchers.push(() => {
+        ack.sync({ value: settingsOf().assistant.ack[useLocaleStore.getState().locale] });
+      });
       const statusChip = el("span", {
         className: "chip",
         dataset: { tone: stateTone(assistant.state) },
@@ -541,22 +574,6 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
         onClick: () => props.onAssistantTalkStart(),
       });
       content.append(el("div", { className: "row" }, [ping]), talk);
-      const greeting = mountTextField(content, {
-        label: t("assistant.greeting"),
-        value: settings.assistant.greeting[locale],
-        maxLength: GREETING_MAX,
-        onChange: (text) =>
-          patch({
-            assistant: {
-              ...settingsOf().assistant,
-              greeting: { ...settingsOf().assistant.greeting, [useLocaleStore.getState().locale]: text },
-            },
-          }),
-      });
-      content.append(el("p", { className: "note", text: t("assistant.greetingHint") }));
-      patchers.push(() => {
-        greeting.sync({ value: settingsOf().assistant.greeting[useLocaleStore.getState().locale] });
-      });
       const listenWindow = mountSliderField(content, {
         label: t("assistant.listenWindow"),
         value: settings.assistant.listenSeconds,

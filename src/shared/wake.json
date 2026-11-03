@@ -1,5 +1,5 @@
 {
   "systemCall": "system call",
   "match": 0.8,
-  "listenSeconds": { "min": 2, "max": 15, "step": 1, "default": 5 }
+  "listenSeconds": { "min": 2, "max": 60, "step": 1, "default": 10 }
 }

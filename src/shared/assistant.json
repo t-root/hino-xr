@@ -1,5 +1,9 @@
 {
   "name": "HINO",
+  "ack": {
+    "vi": "Tôi nghe",
+    "en": "Yes boss?"
+  },
   "greeting": {
     "vi": "Chào sếp",
     "en": "Hello boss"

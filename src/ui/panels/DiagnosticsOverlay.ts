@@ -31,10 +31,8 @@ export const DiagnosticsOverlay = (parent: ParentNode): (() => void) => {
   const stop = [
     watch(useSharedUiStore, (state) => state.diagnosticsOpen, sync),
     watch(useRuntimeStore, (state) => state.diagnostics, sync),
-    watch(useRuntimeStore, (state) => state.moduleStatuses, sync),
     watch(useRuntimeStore, (state) => state.handStatus, sync),
-    watch(useRuntimeStore, (state) => state.lastEvent, sync),
-    watch(useRuntimeStore, (state) => state.handProbes, sync),
+    watch(useRuntimeStore, (state) => state.assistant.state, sync),
     watchLocale(sync),
   ];
   return () => {

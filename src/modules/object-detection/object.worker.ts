@@ -26,27 +26,21 @@ const stringsOption = (payload: WorkerInitPayload, key: string): string[] => {
 };
 
 /**
- * GPU first, then CPU. The model is the quantised (int8) EfficientDet-Lite0,
- * picked because it runs at a usable rate on a phone's CPU when the GPU
- * delegate is unavailable — precision is not what this plugin is for.
+ * CPU only. The model is the quantised (int8) EfficientDet-Lite0, which runs at a
+ * usable rate on a phone's CPU. The GPU delegate loads it without complaint and then
+ * answers wrongly: a photo of a cat and a dog came back as a boat at 0.11, and the
+ * first frame took 26 seconds to compile. On the CPU the same photo gives dog 0.88 and
+ * cat 0.80 in about 300 ms, so there is no GPU attempt to fall back from.
  */
 const createDetector = async (payload: WorkerInitPayload): Promise<ObjectDetector> => {
   const fileset = await FilesetResolver.forVisionTasks(payload.wasmBase);
-  let lastError: unknown;
-  for (const delegate of ["GPU", "CPU"] as const) {
-    try {
-      return await ObjectDetector.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: payload.modelUrl, delegate },
-        runningMode: "VIDEO",
-        scoreThreshold: payload.scoreThreshold,
-        maxResults: numberOption(payload, "maxResults", 10),
-        categoryDenylist: stringsOption(payload, "deniedCategories"),
-      });
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error("object detector failed to start");
+  return ObjectDetector.createFromOptions(fileset, {
+    baseOptions: { modelAssetPath: payload.modelUrl, delegate: "CPU" },
+    runningMode: "VIDEO",
+    scoreThreshold: payload.scoreThreshold,
+    maxResults: numberOption(payload, "maxResults", 10),
+    categoryDenylist: stringsOption(payload, "deniedCategories"),
+  });
 };
 
 const initialize = async (payload: WorkerInitPayload): Promise<void> => {

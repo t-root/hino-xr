@@ -121,7 +121,12 @@ class Engine:
         self._ensure_speech()
 
     def generate(
-        self, spec: ModelSpec, messages: list[ChatMessage], max_tokens: int, locale: str = "vi"
+        self,
+        spec: ModelSpec,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        locale: str = "vi",
+        ceiling: int = 512,
     ) -> Iterator[str]:
         self.load(spec)
         with self._lock:
@@ -129,7 +134,7 @@ class Engine:
         if model is None:
             raise RuntimeError(self.error or "model is not ready")
 
-        capped = max(8, min(int(max_tokens), 512))
+        capped = max(8, min(int(max_tokens), ceiling))
         with self._generate_lock:
             stream = model.create_chat_completion(
                 messages=_with_system(messages, locale),
@@ -184,12 +189,17 @@ class Engine:
         history: list[ChatMessage] | None = None,
         tuning: VoiceTuning | None = None,
         strip_wake: bool = False,
+        plugins: list[dict[str, Any]] | None = None,
+        controls: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
+        from . import agent, pluginsmith
+        from .commands import plugin_command, say_for
+        from .controls import control_command
         from .speech import speech
 
         self.load(spec)
         speech.ensure()
-        heard = speech.transcribe(wav_bytes, locale)
+        heard = speech.transcribe(wav_bytes, locale, prompt=_vocabulary(locale), careful=True)
         if strip_wake:
             # Said as "hino, what time is it": the name is a call, not part of the question.
             heard = drop_leading_phrase(heard, assistant_name())
@@ -197,6 +207,40 @@ class Engine:
             yield {"type": "error", "error": "no speech"}
             return
         yield {"type": "transcript", "text": heard}
+        command = plugin_command(heard, plugins or [], locale, pluginsmith.pending())
+        if command is None and controls:
+            command = control_command(heard, controls, locale)
+        if command:
+            # Switching or writing a plugin is the headset's doing, not the model's: say so and stop.
+            if command["action"] == "source":
+                changed = pluginsmith.set_source(command["value"])
+                command["reply"] = say_for(locale, f"source_{command['value']}" if changed else "api_missing")
+                command["action"] = "none"
+            yield {
+                "type": "command",
+                "action": command["action"],
+                "id": command["id"],
+                "description": command.get("description", ""),
+                "value": command.get("value"),
+            }
+            if command["reply"]:
+                yield {"type": "token", "text": command["reply"]}
+                audio = _tts(command["reply"], locale, tuning)
+                if audio:
+                    yield audio
+            return
+        if pluginsmith.source() == "api" and (controls or plugins):
+            # Not a keyword command: a model on the API may still hear a request in it and call the settings.
+            calls = agent.plan(heard, controls or [], plugins or [], locale)
+            if calls:
+                for call in calls:
+                    yield {"type": "command", "action": call["action"], "id": call["id"], "description": "", "value": call.get("value")}
+                spoken = " ".join(call["reply"] for call in calls if call["reply"])
+                yield {"type": "token", "text": spoken}
+                audio = _tts(spoken, locale, tuning)
+                if audio:
+                    yield audio
+                return
         prior = [item for item in (history or []) if item.get("content", "").strip()]
         yield from self.reply(spec, [*prior, {"role": "user", "content": heard}], 128, True, locale, tuning)
 
@@ -220,6 +264,17 @@ class Engine:
         audio = _tts(text, locale, tuning)
         if audio:
             yield audio
+
+
+def _vocabulary(locale: str) -> str:
+    """Words Whisper should expect: the assistant's name and what the wearer commands it with."""
+    name = assistant_name()
+    if locale == "vi":
+        return (
+            f"{name}, bật plugin, tắt plugin, tạo plugin, duyệt plugin, mở menu, đóng menu, "
+            "chẩn đoán, tốc độ đọc, thời gian ngủ, nhận diện khuôn mặt, bản đồ ba D, quét đồ vật."
+        )
+    return f"{name}, turn on plugin, turn off plugin, create plugin, open menu, close menu, diagnostics, speaking speed."
 
 
 def _tts(text: str, locale: str, tuning: VoiceTuning | None) -> dict[str, Any] | None:

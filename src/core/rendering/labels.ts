@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { FONT_FAMILY } from "@/ui/font";
 import { ALPHA, uiColor } from "@/ui/theme";
 
 const FONT_PX = 48;
@@ -30,7 +31,7 @@ export class LabelFactory {
     const context = canvas.getContext("2d");
     if (!context) throw new Error("2D context unavailable for label rendering");
 
-    const font = `600 ${FONT_PX}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    const font = `600 ${FONT_PX}px ${FONT_FAMILY}`;
     context.font = font;
     const metrics = context.measureText(text);
     canvas.width = Math.ceil(metrics.width + PADDING_X * 2);

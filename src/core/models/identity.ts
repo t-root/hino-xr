@@ -7,5 +7,8 @@ import type { Locale } from "@/shared/contracts/locale";
  */
 export const ASSISTANT_NAME: string = identity.name;
 
+/** What it says the moment it hears its name and nothing else, so the wearer knows it listens. */
+export const ACK: Readonly<Record<Locale, string>> = identity.ack;
+
 /** What the assistant says first, per language, until the wearer writes their own. */
 export const DEFAULT_GREETING: Readonly<Record<Locale, string>> = identity.greeting;

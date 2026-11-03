@@ -1,3 +1,4 @@
+import { createVoiceControls } from "@/core/models/VoiceControls";
 import { createVrRuntime } from "@/core/bootstrap/createVrRuntime";
 import { sessionBootReady } from "@/core/bootstrap/sessionBoot";
 import { useRuntimeStore, type RuntimeUiState } from "@/core/state/RuntimeStore";
@@ -37,6 +38,16 @@ export const mountApp = (host: HTMLElement): () => void => {
   let start: ReturnType<typeof StartOverlay> | null = null;
 
   const layout = runtime.renderer.layout;
+
+  // The menu, worked by voice: "raise the speaking speed", "turn off diagnostics", "open the lens section".
+  runtime.models.setControlHost(
+    createVoiceControls({
+      settings: () => useRuntimeStore.getState().settings,
+      apply: (settings) => runtime.applySettings(settings),
+      stereoOn: () => runtime.renderer.currentMode === "stereo",
+      setStereo: (on) => runtime.renderer.setMode(on ? "stereo" : "mono"),
+    }),
+  );
 
   /**
    * The system proper: hands, the assistant, the boot log, the menu. Only runs

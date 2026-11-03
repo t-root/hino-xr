@@ -58,7 +58,7 @@ class VoiceTuningTest(unittest.TestCase):
         client = (SRC / "core/models/ModelClient.ts").read_text(encoding="utf-8")
         bridge = (SRC / "core/models/ModelBridge.ts").read_text(encoding="utf-8")
         self.assertEqual(client.count("voiceQuery(voice)"), 4)  # complete, wake, talk, preview
-        self.assertEqual(bridge.count("this.voice()"), 4)  # wake, ask, talk, preview
+        self.assertEqual(bridge.count("this.voice()"), 5)  # wake, ask, talk, preview, acknowledge
 
 
 class GreetingTest(unittest.TestCase):

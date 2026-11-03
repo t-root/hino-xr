@@ -70,6 +70,8 @@ export type SharedUiState = {
   settingsDrag: number;
   /** The read-only figures in the corner of each eye; off until asked for. */
   diagnosticsOpen: boolean;
+  /** What the wearer chose, kept across boots and reloads; `diagnosticsOpen` is what is on screen now. */
+  diagnosticsWanted: boolean;
   /**
    * Scroll offset in px of every scrollable region, keyed by a logical id.
    *
@@ -127,6 +129,25 @@ const RESET = {
  * pointer happened to be in. Such state lives here instead: one value, read by
  * both copies, so they cannot diverge.
  */
+const DIAGNOSTICS_KEY = "hino.diagnosticsOpen";
+
+/** Whether the wearer last left the figures on. Shown the first time, since there is nothing to remember yet. */
+const savedDiagnostics = (): boolean => {
+  try {
+    return localStorage.getItem(DIAGNOSTICS_KEY) !== "0";
+  } catch {
+    return true;
+  }
+};
+
+const saveDiagnostics = (on: boolean): void => {
+  try {
+    localStorage.setItem(DIAGNOSTICS_KEY, on ? "1" : "0");
+  } catch {
+    /* private mode: the choice lasts the session only */
+  }
+};
+
 export const useSharedUiStore = createStore<SharedUiState>((set) => ({
   armed: false,
   starting: false,
@@ -137,11 +158,17 @@ export const useSharedUiStore = createStore<SharedUiState>((set) => ({
   settingsDetail: false,
   settingsDrag: 0,
   diagnosticsOpen: false,
+  diagnosticsWanted: savedDiagnostics(),
   scroll: {},
 
   setArmed: (armed) => set({ armed, ...(armed ? { menuOpen: false, diagnosticsOpen: false } : {}) }),
+  // Hidden while the system boots; afterwards back as the wearer left it.
   setStarting: (starting) =>
-    set({ starting, bootOutro: false, ...(starting ? { menuOpen: false, diagnosticsOpen: false } : {}) }),
+    set((state) => ({
+      starting,
+      bootOutro: false,
+      ...(starting ? { menuOpen: false, diagnosticsOpen: false } : { diagnosticsOpen: state.diagnosticsWanted }),
+    })),
   setBootOutro: (bootOutro) => set((state) => (state.starting || !bootOutro ? { bootOutro } : state)),
 
   setSettingsSlot: (settingsSlot) =>
@@ -151,9 +178,17 @@ export const useSharedUiStore = createStore<SharedUiState>((set) => ({
   setSettingsDrag: (settingsDrag) => set({ settingsDrag }),
 
   setDiagnosticsOpen: (diagnosticsOpen) =>
-    set((state) => (state.starting && diagnosticsOpen ? state : { diagnosticsOpen })),
+    set((state) => {
+      if (state.starting && diagnosticsOpen) return state;
+      saveDiagnostics(diagnosticsOpen);
+      return { diagnosticsOpen, diagnosticsWanted: diagnosticsOpen };
+    }),
   toggleDiagnostics: () =>
-    set((state) => (state.starting ? state : { diagnosticsOpen: !state.diagnosticsOpen })),
+    set((state) => {
+      if (state.starting) return state;
+      saveDiagnostics(!state.diagnosticsOpen);
+      return { diagnosticsOpen: !state.diagnosticsOpen, diagnosticsWanted: !state.diagnosticsOpen };
+    }),
 
   setScroll: (key, offset) => set((state) => ({ scroll: { ...state.scroll, [key]: offset } })),
   resetScroll: (key) => set((state) => ({ scroll: { ...state.scroll, [key]: 0 } })),

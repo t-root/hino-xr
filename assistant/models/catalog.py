@@ -54,7 +54,8 @@ _load_env()
 
 _REPO = Path(__file__).resolve().parents[2]
 _DEFAULT_GGUF = "assistant/weights/qwen2.5-3b-instruct-q4_k_m.gguf"
-_DEFAULT_WHISPER = "assistant/weights/ggml-small.bin"
+_DEFAULT_WHISPER = "assistant/weights/ggml-large-v3-q5_0.bin"
+_DEFAULT_WHISPER_WAKE = "assistant/weights/ggml-small.bin"
 _DEFAULT_VOICE_VI = "assistant/weights/vits-piper-vi_VN-vais1000-medium"
 
 
@@ -106,6 +107,13 @@ def get_spec(model_id: str) -> ModelSpec | None:
 
 def whisper_path() -> Path:
     raw = _env("VR_WHISPER_PATH") or _DEFAULT_WHISPER
+    path = Path(raw)
+    return path if path.is_absolute() else _REPO / path
+
+
+def whisper_wake_path() -> Path:
+    """The small, quick Whisper that only listens for the call; the big one hears what is asked."""
+    raw = _env("VR_WHISPER_WAKE_PATH") or _DEFAULT_WHISPER_WAKE
     path = Path(raw)
     return path if path.is_absolute() else _REPO / path
 

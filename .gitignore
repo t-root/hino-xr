@@ -28,3 +28,6 @@ Thumbs.db
 **/__pycache__/
 *.py[cod]
 assistant/weights/
+
+# AI-written plugin drafts wait here for approval.
+plugins-pending/

@@ -10,6 +10,10 @@ import { ModelClient } from "./ModelClient";
 const CALL_MAX_MS = 5000;
 /** Words after the call that mean the question came with it. */
 const QUESTION_WORDS = 2;
+/** The level readout is refreshed this often, not on every audio block. */
+const LEVEL_EVERY_MS = 250;
+/** Speech sits around 0.05 to 0.2 of full scale; this puts a firm voice near the top of 0 to 99. */
+const LEVEL_SCALE = 500;
 /** After the assistant stops speaking, wait for the room to go quiet before listening again. */
 const TAIL_MS = 500;
 
@@ -46,7 +50,17 @@ export class WakeController {
   private unsubscribe: (() => void) | null = null;
   private disposed = false;
 
-  constructor(private readonly bridge: ModelBridge) {}
+  private lastLevelMs = 0;
+
+  constructor(private readonly bridge: ModelBridge) {
+    // Shown in the corner readout: the mode, and how loud the room is to the microphone.
+    this.listener.onLevel = (level) => {
+      const now = performance.now();
+      if (now - this.lastLevelMs < LEVEL_EVERY_MS) return;
+      this.lastLevelMs = now;
+      useRuntimeStore.getState().setDiagnostics({ micLevel: Math.min(99, Math.round(level * LEVEL_SCALE)) });
+    };
+  }
 
   /** Opens the microphone and waits for "system call". Throws if there is no microphone. */
   async listenForSystemCall(onCall: () => void): Promise<void> {
@@ -70,7 +84,7 @@ export class WakeController {
     this.watchAssistant();
     this.enter("sleep");
     // The greeting may still be playing as the system comes up: do not hear it as the wearer.
-    if (this.bridge.busy()) this.listener.setPaused(true);
+    if (this.bridge.talking()) this.listener.setPaused(true);
   }
 
   /** Settings changed: follow the assistant being switched on or off. */
@@ -109,6 +123,8 @@ export class WakeController {
   }
 
   private enter(mode: Mode): void {
+    if (mode !== this.mode) this.logger.info(`mode ${this.mode} -> ${mode}`);
+    useRuntimeStore.getState().setDiagnostics({ micMode: mode });
     this.mode = mode;
     this.clearTimers();
     this.listener.setMaxMs(mode === "awake" ? MAX_TALK_MS : CALL_MAX_MS);
@@ -136,7 +152,8 @@ export class WakeController {
       const was = previous.assistant.state;
       const now = state.assistant.state;
       if (now === was || this.mode === "off" || this.mode === "system") return;
-      const talking = now === "speaking" || now === "generating" || now === "loading";
+      // Loading the model is not the assistant talking: the name must still be heard meanwhile.
+      const talking = now === "speaking" || now === "generating";
       if (talking) {
         this.listener.setPaused(true);
         return;
@@ -151,17 +168,18 @@ export class WakeController {
     if (this.resumeTimer !== null) clearTimeout(this.resumeTimer);
     this.resumeTimer = setTimeout(() => {
       this.resumeTimer = null;
-      if (this.disposed || this.bridge.busy()) return;
+      if (this.disposed || this.bridge.talking()) return;
       if (this.mode === "sleep" || this.mode === "awake") this.listener.setPaused(false);
     }, TAIL_MS);
   }
 
   private async onHeard(heard: Heard): Promise<void> {
+    this.logger.info(`mic picked up a line`, { ms: Math.round(heard.durationMs), mode: this.mode, skipped: this.checking });
     if (this.checking || this.disposed) return;
     if (this.mode === "system") {
       await this.checkSystemCall(heard);
     } else if (this.mode === "sleep") {
-      if (this.bridge.busy()) return;
+      if (this.bridge.talking()) return;
       await this.checkAssistantCall(heard);
     } else if (this.mode === "awake") {
       await this.takeQuestion(heard);
@@ -172,6 +190,7 @@ export class WakeController {
     this.checking = true;
     try {
       const verdict = await this.client.listen(heard.blob, "system", currentLocale());
+      this.logger.info("system call check", { heard: verdict.heard, matched: verdict.matched });
       if (this.mode !== "system" || !verdict.matched) return;
       this.enter("off");
       const call = this.onSystemCall;
@@ -188,7 +207,10 @@ export class WakeController {
     this.checking = true;
     try {
       const verdict = await this.client.listen(heard.blob, "wake", currentLocale());
-      if (this.mode !== "sleep" || !verdict.matched || this.bridge.busy()) return;
+      this.logger.info("name check", { heard: verdict.heard, matched: verdict.matched, wordsAfter: verdict.after });
+      if (this.mode !== "sleep" || !verdict.matched || this.bridge.talking()) return;
+      // Heard: a tone at once, before anything slower, so the wearer knows.
+      this.bridge.cue();
       if (verdict.after >= QUESTION_WORDS) {
         // "hino, what time is it": the question is already in this line.
         await this.answer(heard);
@@ -196,9 +218,8 @@ export class WakeController {
       }
       this.enter("awake");
       this.bridge.markListening(true);
-      this.bridge.cue();
       this.listener.setPaused(true);
-      await this.bridge.quiet();
+      await this.bridge.acknowledge();
       if (this.mode === "awake") this.listener.setPaused(false);
     } catch (error) {
       this.logger.warn("call check failed", { message: error instanceof Error ? error.message : String(error) });
@@ -219,6 +240,7 @@ export class WakeController {
   /** Sends the line to be understood and answered, then keeps listening for a follow-up. */
   private async answer(heard: Heard): Promise<void> {
     this.enter("busy");
+    this.logger.info("sending the line to be answered", { ms: Math.round(heard.durationMs) });
     this.bridge.markListening(false);
     await this.bridge.answerSpeech(heard.blob);
     if (this.disposed) return;

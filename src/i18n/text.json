@@ -65,22 +65,6 @@
   "colour.lightness": { "vi": "Độ sáng", "en": "Lightness" },
   "colour.opacity": { "vi": "Độ trong", "en": "Opacity" },
 
-  "diagnostics.pinch": { "vi": "Chụm ngón", "en": "Pinch" },
-  "diagnostics.noHand": { "vi": "Chưa thấy bàn tay nào", "en": "No hand seen yet" },
-  "diagnostics.pinchGap": {
-    "vi": "hở {ratio}, gần nhất {closest}, vào dưới {enter}, nhả trên {exit}",
-    "en": "gap {ratio}, closest {closest}, enter under {enter}, release over {exit}"
-  },
-  "diagnostics.probeTarget": { "vi": "đang chỉ vào {target}", "en": "on {target}" },
-  "diagnostics.probeNothing": {
-    "vi": "không chỉ vào thứ gì bấm được",
-    "en": "not on anything pressable"
-  },
-  "diagnostics.snap": { "vi": "Búng tay", "en": "Snap" },
-  "diagnostics.snapGap": {
-    "vi": "{state} · ngón cái–giữa {gap}, ngón giữa–lòng {curl}",
-    "en": "{state} · thumb–middle {gap}, middle–palm {curl}"
-  },
   "gesture.snap": { "vi": "Búng tay để bật tắt cài đặt", "en": "Finger snap toggles settings" },
 
   "unit.fps": { "vi": "{value} khung/giây", "en": "{value} FPS" },
@@ -134,15 +118,20 @@
   },
   "assistant.empty": { "vi": "Chưa có câu trả lời.", "en": "No reply yet." },
 
+  "assistant.ack": { "vi": "Câu đáp khi được gọi", "en": "Reply when called" },
+  "assistant.ackHint": {
+    "vi": "Trợ lý nói câu này ngay khi nghe thấy tên của mình mà chưa có câu hỏi. Để trống thì chỉ phát tiếng báo.",
+    "en": "The assistant says this as soon as it hears its name with no question yet. Leave it empty for the tone alone."
+  },
   "assistant.greeting": { "vi": "Lời chào đầu tiên", "en": "First greeting" },
   "assistant.greetingHint": {
     "vi": "Trợ lý đọc đúng câu này khi hệ thống khởi động. Để trống nếu không muốn nó chào.",
     "en": "The assistant says exactly this when the system starts. Leave it empty for no greeting."
   },
-  "assistant.listenWindow": { "vi": "Thời gian nghe tiếp", "en": "Listening time" },
+  "assistant.listenWindow": { "vi": "Thời gian ngủ khi im lặng", "en": "Sleep after silence" },
   "assistant.listenHint": {
-    "vi": "Gọi \"{name}\" để trợ lý nghe. Sau khi gọi hoặc sau mỗi câu trả lời, trợ lý nghe thêm trong khoảng này rồi ngủ lại.",
-    "en": "Say \"{name}\" to wake the assistant. After the call, and after each answer, it keeps listening for this long, then sleeps."
+    "vi": "Gọi \"{name}\" để trợ lý nghe. Sau khi gọi hoặc sau mỗi câu trả lời, nếu bạn im lặng quá khoảng này, trợ lý ngừng nghe và ngủ; muốn nói tiếp phải gọi tên lại.",
+    "en": "Say \"{name}\" to wake the assistant. After the call, and after each answer, if you stay silent this long it stops listening and sleeps; call its name again to talk."
   },
   "assistant.voiceTitle": { "vi": "Giọng đọc", "en": "Voice" },
   "assistant.voiceNote": {
@@ -218,21 +207,15 @@
     "en": "permissions not granted: {list}"
   },
 
+  "diagnostics.assistant": { "vi": "Trợ lý", "en": "Assistant" },
+  "diagnostics.mic.off": { "vi": "tắt", "en": "off" },
+  "diagnostics.mic.system": { "vi": "chờ gọi hệ thống", "en": "waiting for system call" },
+  "diagnostics.mic.sleep": { "vi": "ngủ", "en": "asleep" },
+  "diagnostics.mic.awake": { "vi": "đang nghe", "en": "listening" },
+  "diagnostics.mic.busy": { "vi": "đang xử lý", "en": "working" },
   "diagnostics.toggle": {
     "vi": "Khung chẩn đoán ở góc",
     "en": "Diagnostics panel in the corner"
-  },
-  "diagnostics.render": { "vi": "Dựng hình", "en": "Render" },
-  "diagnostics.frame": { "vi": "Khung", "en": "Frame" },
-  "diagnostics.dropped": { "vi": "Rớt", "en": "Dropped" },
-  "diagnostics.detections": { "vi": "Nhận diện", "en": "Detections" },
-  "diagnostics.hand": { "vi": "Tay", "en": "Hand" },
-  "diagnostics.lastGesture": { "vi": "Cử chỉ gần nhất: {event}", "en": "Last gesture: {event}" },
-  "diagnostics.noGesture": { "vi": "chưa có", "en": "none yet" },
-  "diagnostics.modules": { "vi": "Mô-đun", "en": "Modules" },
-  "diagnostics.noModules": {
-    "vi": "Chưa có mô-đun nào đang chạy.",
-    "en": "No module is running yet."
   },
 
   "hand.idle": { "vi": "chưa bật", "en": "off" },

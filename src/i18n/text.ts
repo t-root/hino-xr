@@ -79,6 +79,8 @@ export const pluginStateKey = (state: PluginPaletteItemState): MessageKey => `pl
 
 export const permissionKey = (permission: ModulePermission): MessageKey => `permission.${permission}`;
 
+export const micModeKey = (mode: string): MessageKey => `diagnostics.mic.${mode}` as MessageKey;
+
 export const handStateKey = (status: HandTrackingStatus): MessageKey => `hand.${status}`;
 
 export const assistantStateKey = (state: ModelState): MessageKey => `assistant.${state}`;

@@ -1,0 +1,370 @@
+{
+  "lens.ipd": {
+    "vi": [
+      "khoảng cách hai mắt",
+      "độ rộng hai mắt"
+    ],
+    "en": [
+      "eye distance",
+      "ipd"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "lens.eyeGap": {
+    "vi": [
+      "khe giữa hai mắt",
+      "khoảng đen giữa hai mắt"
+    ],
+    "en": [
+      "eye gap"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "lens.fov": {
+    "vi": [
+      "góc nhìn",
+      "trường nhìn"
+    ],
+    "en": [
+      "field of view",
+      "fov"
+    ],
+    "unit": {
+      "vi": "độ",
+      "en": "degrees"
+    }
+  },
+  "lens.frameScale": {
+    "vi": [
+      "kích thước khung hình",
+      "cỡ khung camera"
+    ],
+    "en": [
+      "frame size",
+      "frame scale"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "lens.center": {
+    "vi": [
+      "tâm thấu kính"
+    ],
+    "en": [
+      "lens center"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "lens.uiDistance": {
+    "vi": [
+      "khoảng cách giao diện",
+      "độ xa giao diện"
+    ],
+    "en": [
+      "interface distance",
+      "ui distance"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "gesture.sensitivity": {
+    "vi": [
+      "độ nhạy cử chỉ",
+      "độ nhạy tay",
+      "độ nhạy"
+    ],
+    "en": [
+      "gesture sensitivity",
+      "sensitivity"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "gesture.drag": {
+    "vi": [
+      "ngưỡng kéo"
+    ],
+    "en": [
+      "drag threshold"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "gesture.hold": {
+    "vi": [
+      "thời gian giữ để kéo",
+      "thời gian giữ"
+    ],
+    "en": [
+      "hold time"
+    ],
+    "unit": {
+      "vi": "mili giây",
+      "en": "milliseconds"
+    }
+  },
+  "cursor.opacity": {
+    "vi": [
+      "độ mờ con trỏ",
+      "độ đậm con trỏ"
+    ],
+    "en": [
+      "cursor opacity"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "cursor.size": {
+    "vi": [
+      "kích thước con trỏ",
+      "cỡ con trỏ"
+    ],
+    "en": [
+      "cursor size"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "pipeline.handFps": {
+    "vi": [
+      "tốc độ theo dõi tay"
+    ],
+    "en": [
+      "hand tracking rate"
+    ],
+    "unit": {
+      "vi": "khung hình trên giây",
+      "en": "frames per second"
+    }
+  },
+  "pipeline.moduleFps": {
+    "vi": [
+      "tốc độ chạy tiện ích",
+      "tốc độ chạy plugin"
+    ],
+    "en": [
+      "plugin rate",
+      "module rate"
+    ],
+    "unit": {
+      "vi": "khung hình trên giây",
+      "en": "frames per second"
+    }
+  },
+  "pipeline.analysisSize": {
+    "vi": [
+      "kích thước ảnh phân tích",
+      "độ phân giải phân tích"
+    ],
+    "en": [
+      "analysis size"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "assistant.listen": {
+    "vi": [
+      "thời gian ngủ",
+      "thời gian nghe",
+      "thời gian chờ"
+    ],
+    "en": [
+      "sleep time",
+      "listening time"
+    ],
+    "unit": {
+      "vi": "giây",
+      "en": "seconds"
+    }
+  },
+  "voice.pitch": {
+    "vi": [
+      "cao độ giọng",
+      "độ cao giọng",
+      "độ cao của giọng"
+    ],
+    "en": [
+      "voice pitch",
+      "pitch"
+    ],
+    "unit": {
+      "vi": "héc",
+      "en": "hertz"
+    }
+  },
+  "voice.speed": {
+    "vi": [
+      "tốc độ đọc",
+      "tốc độ nói",
+      "tốc độ giọng"
+    ],
+    "en": [
+      "speaking speed",
+      "voice speed",
+      "speech rate"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "voice.expression": {
+    "vi": [
+      "biểu cảm giọng",
+      "độ biểu cảm"
+    ],
+    "en": [
+      "voice expression",
+      "expression"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "voice.rhythm": {
+    "vi": [
+      "nhịp điệu giọng",
+      "nhịp giọng"
+    ],
+    "en": [
+      "voice rhythm",
+      "rhythm"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "voice.pause": {
+    "vi": [
+      "khoảng nghỉ giữa câu",
+      "độ ngắt câu"
+    ],
+    "en": [
+      "pause between sentences",
+      "pause"
+    ],
+    "unit": {
+      "vi": "",
+      "en": ""
+    }
+  },
+  "menu": {
+    "vi": [
+      "menu",
+      "thực đơn",
+      "cài đặt"
+    ],
+    "en": [
+      "menu",
+      "settings"
+    ]
+  },
+  "diagnostics": {
+    "vi": [
+      "chẩn đoán",
+      "thông số",
+      "khung chẩn đoán"
+    ],
+    "en": [
+      "diagnostics",
+      "stats"
+    ]
+  },
+  "stereo": {
+    "vi": [
+      "chế độ hai mắt",
+      "chế độ 3d",
+      "chia hai mắt"
+    ],
+    "en": [
+      "stereo",
+      "two eye mode",
+      "3d mode"
+    ]
+  },
+  "autoRotate": {
+    "vi": [
+      "tự động xoay",
+      "xoay tự động"
+    ],
+    "en": [
+      "auto rotate",
+      "automatic rotation"
+    ]
+  },
+  "snap": {
+    "vi": [
+      "búng tay",
+      "cử chỉ búng tay"
+    ],
+    "en": [
+      "snap gesture",
+      "finger snap"
+    ]
+  },
+  "mirror": {
+    "vi": [
+      "lật gương camera",
+      "gương camera",
+      "lật camera"
+    ],
+    "en": [
+      "mirror camera",
+      "mirror"
+    ]
+  },
+  "locale": {
+    "vi": [
+      "ngôn ngữ"
+    ],
+    "en": [
+      "language"
+    ],
+    "options": [
+      {
+        "value": "vi",
+        "vi": [
+          "tiếng việt",
+          "việt nam"
+        ],
+        "en": [
+          "vietnamese"
+        ]
+      },
+      {
+        "value": "en",
+        "vi": [
+          "tiếng anh"
+        ],
+        "en": [
+          "english"
+        ]
+      }
+    ]
+  }
+}

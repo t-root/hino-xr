@@ -11,9 +11,7 @@ export const map3dCss = (): string => `
 .map3d,
 .map3d * {
   box-sizing: content-box;
-  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto,
-    "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 .map3d {
@@ -203,7 +201,7 @@ export const map3dCss = (): string => `
   border-radius: 0.6rem;
   border: 0.1rem solid ${c(221, 221, 221)};
   box-shadow: ${c(147, 148, 158, 0.25)} 0px 7px 40px;
-  font-family: "Noto Sans KR", sans-serif;
+  font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* The original scrolled here; a scroll offset lives in one copy only (rules.md). */
   overflow: hidden;
   word-break: break-all;
@@ -332,7 +330,7 @@ export const map3dCss = (): string => `
   display: grid;
   gap: 0.28rem;
   color: ${c(169, 250, 255)};
-  font-family: "Courier New", monospace;
+  font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.12em;
   text-shadow: 0 0 12px ${c(54, 235, 255, 0.82)};
   pointer-events: none;
@@ -376,7 +374,7 @@ export const map3dCss = (): string => `
   color: ${c(216, 254, 255)};
   background: ${c(0, 30, 44, 0.84)};
   box-shadow: 0 0 18px ${c(57, 231, 255, 0.32)}, inset 0 0 12px ${c(94, 245, 255, 0.12)};
-  font-family: "Courier New", monospace;
+  font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.08em;
 }
 
@@ -394,7 +392,7 @@ export const map3dCss = (): string => `
   border-left: 2px solid ${c(108, 248, 255)};
   background: ${c(0, 22, 35, 0.74)};
   box-shadow: 0 0 14px ${c(37, 223, 246, 0.22)};
-  font: 0.58rem/1.2 "Courier New", monospace;
+  font: 0.58rem/1.2 "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.08em;
   pointer-events: none;
 }
@@ -405,7 +403,7 @@ export const map3dCss = (): string => `
   right: 1rem;
   bottom: 1rem;
   color: ${c(159, 248, 255, 0.6)};
-  font: 0.48rem "Courier New", monospace;
+  font: 0.48rem "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.06em;
   text-decoration: none;
   text-shadow: 0 0 7px ${c(61, 234, 255, 0.42)};
@@ -462,7 +460,7 @@ export const map3dCss = (): string => `
   border-radius: 0 !important;
   background: ${c(0, 29, 44, 0.9)} !important;
   box-shadow: 0 0 12px ${c(34, 231, 249, 0.38)} !important;
-  font: 0.55rem "Courier New", monospace !important;
+  font: 0.55rem "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
   letter-spacing: 0.07em;
 }
 

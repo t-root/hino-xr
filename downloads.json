@@ -12,8 +12,17 @@
     },
     {
       "id": "stt",
-      "what": "Whisper small (nghe)",
+      "what": "Whisper large-v3 q5 (nghe cau hoi va lenh)",
       "env": "VR_WHISPER_PATH",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
+      "to": "assistant/weights/ggml-large-v3-q5_0.bin",
+      "bytes": 1081140203,
+      "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    },
+    {
+      "id": "stt-wake",
+      "what": "Whisper small (nghe tu goi Hino, nhanh)",
+      "env": "VR_WHISPER_WAKE_PATH",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
       "to": "assistant/weights/ggml-small.bin",
       "bytes": 487601967,

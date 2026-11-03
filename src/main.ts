@@ -1,6 +1,7 @@
 import { captureConsole } from "./core/observability/ConsoleLog";
 import { currentLocale } from "./core/state/LocaleStore";
 import { loadSettings } from "./core/state/settings";
+import { loadInterfaceFont } from "./ui/font";
 import { applyTheme } from "./ui/theme";
 import { mountApp } from "./app/App";
 
@@ -18,4 +19,5 @@ applyTheme(loadSettings().theme);
 // screen readers go by this attribute, not by what the file was written in.
 document.documentElement.lang = currentLocale();
 
-mountApp(container);
+// Canvas labels are drawn once and kept, so the font has to be there before the first one is.
+void loadInterfaceFont().then(() => mountApp(container));

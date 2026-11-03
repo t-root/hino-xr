@@ -1,6 +1,25 @@
 import { MODEL_API } from "@/core/config";
 import type { ChatMessage, ModelInfo } from "@/shared/contracts/model";
+import type { SpokenControl } from "./VoiceControls";
 import { DEFAULT_VOICE, voiceQuery, type VoiceSettings } from "@/shared/contracts/voice";
+
+/** A plugin as the model server needs it to hear "turn on the map plugin". */
+export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enabled: boolean }>;
+
+/** What the wearer asked the headset to do, rather than the model to answer. */
+export type SpokenCommand = Readonly<{
+  action: "enable" | "disable" | "create" | "approve" | "reject" | "setting" | "none";
+  id: string | null;
+  /** For `create`: what the new plugin should do, in the wearer's words. */
+  description: string;
+  /** For `setting`: the finished value the server worked out (number, on/off, option, or true for a page). */
+  value: unknown;
+}>;
+
+/** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
+export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
+
+const COMMANDS = new Set(["enable", "disable", "create", "approve", "reject", "setting", "none"]);
 
 type TalkResult = Readonly<{
   transcript: string;
@@ -93,12 +112,20 @@ export class ModelClient {
     voice: VoiceSettings = DEFAULT_VOICE,
     onAudio?: (audio: Blob) => void,
     stripWake = false,
+    plugins: readonly SpokenPlugin[] = [],
+    controls: readonly SpokenControl[] = [],
+    onCommand?: (command: SpokenCommand) => void,
   ): Promise<TalkResult> {
     const headers: Record<string, string> = { Accept: "text/event-stream" };
     let body: BodyInit = wav;
-    if (history.length > 0) {
+    if (history.length > 0 || plugins.length > 0 || controls.length > 0) {
       headers["Content-Type"] = "application/json";
-      body = JSON.stringify({ audio: await blobToBase64(wav), messages: history });
+      body = JSON.stringify({
+        audio: await blobToBase64(wav),
+        ...(history.length > 0 ? { messages: history } : {}),
+        plugins,
+        controls,
+      });
     } else {
       headers["Content-Type"] = "audio/wav";
     }
@@ -113,7 +140,7 @@ export class ModelClient {
     );
     if (!response) throw new Error("offline");
     if (!response.ok || !response.body) throw new Error(await readDetail(response));
-    return readSse(response.body, { onToken, onTranscript, onAudio }, signal);
+    return readSse(response.body, { onToken, onTranscript, onAudio, onCommand }, signal);
   }
 
   /**
@@ -134,6 +161,34 @@ export class ModelClient {
     if (!response) throw new Error("offline");
     if (!response.ok) throw new Error(await readDetail(response));
     return (await response.json()) as { heard: string; matched: boolean; after: number };
+  }
+
+  private pluginsBase(): string {
+    return `${this.base.replace(/\/models$/, "")}/plugins`;
+  }
+
+  /** Has the assistant write a plugin. Slow with the local model: minutes, not seconds. */
+  async draftPlugin(description: string, locale: string): Promise<PluginOutcome> {
+    return this.postPlugin(`${this.pluginsBase()}/draft`, { description, locale });
+  }
+
+  /** Installs a draft the wearer approved; the server rebuilds the app before it answers. */
+  async approvePlugin(id: string, locale: string): Promise<PluginOutcome> {
+    return this.postPlugin(`${this.pluginsBase()}/${encodeURIComponent(id)}/approve?locale=${encodeURIComponent(locale)}`);
+  }
+
+  async rejectPlugin(id: string): Promise<void> {
+    await this.send(`${this.pluginsBase()}/${encodeURIComponent(id)}/reject`, { method: "POST" });
+  }
+
+  private async postPlugin(url: string, body?: object): Promise<PluginOutcome> {
+    const response = await this.send(url, {
+      method: "POST",
+      ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+    });
+    if (!response) throw new Error("offline");
+    if (!response.ok) throw new Error(await readDetail(response));
+    return (await response.json()) as PluginOutcome;
   }
 
   private voiceBase(): string {
@@ -178,6 +233,7 @@ type SseHandlers = Readonly<{
   onToken?: (text: string) => void;
   onTranscript?: (text: string) => void;
   onStatus?: (state: string) => void;
+  onCommand?: ((command: SpokenCommand) => void) | undefined;
   onAudio?: ((audio: Blob) => void) | undefined;
 }>;
 
@@ -209,10 +265,14 @@ const readSse = async (
         .map((line) => line.slice(5).trim())
         .join("");
       if (!data) continue;
-      let event: { type?: string; text?: string; error?: string; mime?: string; data?: string; state?: string };
+      let event: { type?: string; action?: string; id?: string | null; description?: string; value?: unknown; text?: string; error?: string; mime?: string; data?: string; state?: string };
       try {
         event = JSON.parse(data) as {
           type?: string;
+          action?: string;
+          id?: string | null;
+          description?: string;
+          value?: unknown;
           text?: string;
           error?: string;
           mime?: string;
@@ -234,6 +294,14 @@ const readSse = async (
         const piece = decodeAudio(event.data, event.mime ?? "audio/wav");
         audio.push(piece);
         handlers.onAudio?.(piece);
+      }
+      if (event.type === "command" && event.action && COMMANDS.has(event.action)) {
+        handlers.onCommand?.({
+          action: event.action as SpokenCommand["action"],
+          id: event.id ?? null,
+          description: event.description ?? "",
+          value: event.value,
+        });
       }
       if (event.type === "status" && event.state) handlers.onStatus?.(event.state);
       if (event.type === "error" && event.error) throw new Error(event.error);

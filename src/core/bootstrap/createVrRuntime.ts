@@ -157,6 +157,15 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
 
   const palette = new PluginPaletteController(moduleRegistry, modules);
 
+  // "Turn on the map plugin", said aloud, ends here.
+  models.setPluginHost({
+    list: () =>
+      palette.items().map((item) => ({ id: item.id, vi: item.title.vi, en: item.title.en, enabled: item.enabled })),
+    set: (id, on) => {
+      if (modules.isEnabled(id) !== on) void (on ? modules.enable(id) : modules.disable(id));
+    },
+  });
+
   // The settings menu lists plugins. There is no 3D palette of cards.
   const publishPlugins = () => useRuntimeStore.getState().setPlugins(palette.items());
   publishPlugins();
@@ -170,6 +179,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
 
   handTracking.onHands((hands) => interaction.ingest(hands));
 
+  const rate = { camera: 0, hand: 0, module: 0 };
   const unsubscribes = [
     bus.on("camera.state", ({ state, error, deviceLabel }) => {
       const message = error ? localizedTextOf(error) : null;
@@ -181,7 +191,11 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
       useRuntimeStore.getState().setModuleStatuses(modules.statuses());
       publishPlugins();
     }),
+    bus.on("hand.tracked", () => {
+      rate.hand += 1;
+    }),
     bus.on("frame.available", ({ frameId, timestampMs, width, height }) => {
+      rate.camera += 1;
       if (lastFrameId > 0) {
         const delta = timestampMs - lastFrameTimestampMs;
         if (delta > 0) frameIntervalMs = frameIntervalMs * 0.9 + delta * 0.1;
@@ -191,6 +205,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
       renderer.setImageAspect(width / height);
     }),
     bus.on("detection.batch", (batch) => {
+      rate.module += 1;
       overlay.submit(batch, performance.now(), lastFrameId, frameIntervalMs);
       useRuntimeStore.getState().setDiagnostics({ detections: batch.detections.length });
     }),
@@ -216,7 +231,26 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   const PROBE_INTERVAL_MS = 100;
   let lastProbeMs = 0;
 
+  // Frames per second of each stage, counted over one-second windows: render alone says
+  // little when the camera or the hand tracker is what is slow.
+  let rateSince = 0;
+  const publishRates = (nowMs: number): void => {
+    if (rateSince === 0) rateSince = nowMs;
+    const seconds = (nowMs - rateSince) / 1000;
+    if (seconds < 1) return;
+    useRuntimeStore.getState().setDiagnostics({
+      cameraFps: Math.round(rate.camera / seconds),
+      handFps: Math.round(rate.hand / seconds),
+      moduleFps: Math.round(rate.module / seconds),
+    });
+    rate.camera = 0;
+    rate.hand = 0;
+    rate.module = 0;
+    rateSince = nowMs;
+  };
+
   const offTick = renderer.onTick(({ nowMs, deltaMs }) => {
+    publishRates(nowMs);
     videoLayer.syncSize();
     interaction.update(nowMs);
     overlay.setState({ hoveredId: interaction.hoveredTargetId, selectedId: interaction.selectedId });

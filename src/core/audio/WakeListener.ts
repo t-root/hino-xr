@@ -3,9 +3,9 @@ import { encodeWav } from "./wav";
 /** Speech shorter than this is a cough or a knock, not a word. */
 const MIN_SPEECH_MS = 250;
 /** Quiet this long ends a line. */
-const END_SILENCE_MS = 700;
+const END_SILENCE_MS = 1000;
 /** Blocks kept from before the voice crossed the threshold, so the first sound is not cut. */
-const PRE_ROLL_BLOCKS = 3;
+const PRE_ROLL_BLOCKS = 5;
 /** Loud blocks in a row that count as the start of speech. */
 const START_BLOCKS = 2;
 /** What Whisper reads. */
@@ -38,6 +38,9 @@ export class WakeListener {
   private lengthMs = 0;
   private preRoll: Float32Array[] = [];
   private segment: Float32Array[] = [];
+
+  /** Loudness of every block the microphone delivers, even while paused: it says the microphone is alive. */
+  onLevel: ((level: number) => void) | null = null;
 
   constructor(private readonly onHeard: (heard: Heard) => void) {}
 
@@ -107,8 +110,9 @@ export class WakeListener {
   }
 
   private hear(block: Float32Array, rate: number): void {
-    if (this.paused) return;
     const level = rms(block);
+    this.onLevel?.(level);
+    if (this.paused) return;
     const blockMs = (block.length / rate) * 1000;
     if (!this.inSpeech) {
       // The room's own noise, followed slowly and only while nobody is speaking.

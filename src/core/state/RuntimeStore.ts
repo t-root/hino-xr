@@ -13,11 +13,18 @@ import type { Turn } from "../view/orientation";
 
 type DiagnosticsSnapshot = Readonly<{
   renderFps: number;
+  /** Frames per second the camera delivers, the hand tracker finishes and plugins report. */
+  cameraFps: number;
+  handFps: number;
+  moduleFps: number;
   frameMs: number;
   droppedFrames: number;
   handInferenceMs: number;
   moduleInferenceMs: Readonly<Record<string, number>>;
   detections: number;
+  /** What the microphone is doing (off, system, sleep, awake, busy) and how loud it hears, 0 to 99. */
+  micMode: string;
+  micLevel: number;
 }>;
 
 /**
@@ -73,11 +80,16 @@ export type RuntimeUiState = {
 
 const EMPTY_DIAGNOSTICS: DiagnosticsSnapshot = {
   renderFps: 0,
+  cameraFps: 0,
+  handFps: 0,
+  moduleFps: 0,
   frameMs: 0,
   droppedFrames: 0,
   handInferenceMs: 0,
   moduleInferenceMs: {},
   detections: 0,
+  micMode: "off",
+  micLevel: 0,
 };
 
 /**

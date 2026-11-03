@@ -29,6 +29,7 @@ BUILT_AT_RUNTIME = (
     "plugin.state.",
     "permission.",
     "hand.",
+    "diagnostics.mic.",
     "language.name.",
     "assistant.",
 )

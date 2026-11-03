@@ -14,6 +14,9 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from models import pluginsmith
+from models.commands import parse_plugins, say_for
+from models.controls import parse_controls
 from models.catalog import assistant_name, catalog
 from models.engine import engine, parse_messages, resolve, sse
 from models.speech import speech
@@ -169,6 +172,8 @@ async def talk(
     if not raw:
         raise HTTPException(status_code=400, detail="empty audio")
     history: list[dict[str, str]] = []
+    plugins: list[dict[str, Any]] = []
+    controls: list[dict[str, Any]] = []
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         try:
@@ -182,6 +187,8 @@ async def talk(
             wav = base64.b64decode(audio)
         except ValueError as error:
             raise HTTPException(status_code=400, detail="invalid audio") from error
+        plugins = parse_plugins(payload.get("plugins")) if isinstance(payload, dict) else []
+        controls = parse_controls(payload.get("controls")) if isinstance(payload, dict) else []
         messages = payload.get("messages") if isinstance(payload, dict) else None
         if messages:
             try:
@@ -194,7 +201,44 @@ async def talk(
         raise HTTPException(status_code=400, detail="empty audio")
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
-    return _sse(engine.talk(spec, wav, _locale(locale), history, tuning, stripWake))
+    return _sse(engine.talk(spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls))
+
+
+class DraftBody(BaseModel):
+    description: str = Field(min_length=3, max_length=400)
+    locale: str = "vi"
+
+
+@app.get("/api/plugins/pending")
+def pending_plugins() -> dict:
+    return {"pending": pluginsmith.pending(), "source": pluginsmith.source()}
+
+
+@app.post("/api/plugins/draft")
+async def draft_plugin(body: DraftBody) -> dict[str, Any]:
+    """Has the assistant write a plugin. It lands in plugins-pending/ and runs only once approved."""
+    locale = _locale(body.locale)
+    try:
+        made = await run_in_threadpool(pluginsmith.draft, body.description, locale)
+    except pluginsmith.DraftError:
+        return {"ok": False, "say": say_for(locale, "draft_failed")}
+    return {"ok": True, "id": made["id"], "say": say_for(locale, "drafted", name=made["name"])}
+
+
+@app.post("/api/plugins/{plugin_id}/approve")
+async def approve_plugin(plugin_id: str, locale: str = "vi") -> dict[str, Any]:
+    named = next((item for item in pluginsmith.pending() if item["id"] == plugin_id), None)
+    try:
+        await run_in_threadpool(pluginsmith.approve, plugin_id)
+    except pluginsmith.DraftError:
+        return {"ok": False, "say": say_for(_locale(locale), "approve_failed")}
+    name = named["vi" if _locale(locale) == "vi" else "en"] if named else plugin_id
+    return {"ok": True, "say": say_for(_locale(locale), "approved", name=name)}
+
+
+@app.post("/api/plugins/{plugin_id}/reject")
+def reject_plugin(plugin_id: str) -> dict[str, bool]:
+    return {"ok": pluginsmith.reject(plugin_id)}
 
 
 @app.post("/api/voice/preview")
@@ -235,7 +279,7 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
             break
         try:
             heard = await run_in_threadpool(
-                speech.transcribe, wav, _locale(locale), language, f"{phrase.title()}."
+                speech.transcribe, wav, _locale(locale), language, f"{phrase.title()}.", False, True
             )
         except Exception as error:  # noqa: BLE001
             raise HTTPException(status_code=503, detail=str(error)) from error
@@ -246,4 +290,5 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
     return {"heard": heard, "matched": matched, "after": len(after)}
 
 
+pluginsmith.default_source()
 attach_frontend(app)
