@@ -69,6 +69,17 @@ export class WakeController {
     this.enter("system");
   }
 
+  /** Debug: stands in for the wearer saying "system call". Returns false if the system is not waiting for it. */
+  simulateSystemCall(): boolean {
+    if (this.mode !== "system") return false;
+    this.logger.info("system call simulated");
+    this.enter("off");
+    const call = this.onSystemCall;
+    this.onSystemCall = null;
+    call?.();
+    return true;
+  }
+
   /** The system is up: from now on the assistant answers to its name. */
   async listenForAssistant(): Promise<void> {
     if (!this.assistantOn()) {

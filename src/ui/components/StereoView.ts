@@ -1,6 +1,7 @@
 import type { CoordinateMapper } from "@/core/rendering/CoordinateMapper";
 import type { StereoLayout, StereoState } from "@/core/rendering/StereoLayout";
 import { useRuntimeStore } from "@/core/state/RuntimeStore";
+import { useSharedUiStore } from "@/core/state/SharedUiStore";
 import { markTwins } from "@/core/sync";
 import { el, empty } from "../dom";
 
@@ -44,6 +45,18 @@ const placeFrame = (
   mapper: CoordinateMapper,
   eye: { width: number; height: number },
 ): void => {
+  // A full-screen plugin view takes the whole eye, not just the camera square.
+  const fill = useSharedUiStore.getState().fillFrame;
+  node.dataset.fill = String(fill);
+  if (fill) {
+    Object.assign(node.style, {
+      left: `${EYE_BLEED}px`,
+      top: `${EYE_BLEED}px`,
+      width: `${eye.width}px`,
+      height: `${eye.height}px`,
+    });
+    return;
+  }
   const box = mapper.framePx(eye);
   Object.assign(node.style, {
     left: `${Number.parseInt(box.left, 10) + EYE_BLEED}px`,
@@ -124,6 +137,9 @@ export const StereoView = (
   paint();
   const stopLayout = options.layout?.subscribe(paint) ?? (() => {});
   const stopMapper = options.mapper.subscribe(paint);
+  const stopFill = useSharedUiStore.subscribe((state, prev) => {
+    if (state.fillFrame !== prev.fillFrame) paint();
+  });
   const stopTurn = useRuntimeStore.subscribe((state, prev) => {
     if (state.viewTurn !== prev.viewTurn) paint();
   });
@@ -133,6 +149,7 @@ export const StereoView = (
       stopLayout();
       stopMapper();
       stopTurn();
+      stopFill();
       host.removeEventListener("pointerover", onPointerOver);
       host.removeEventListener("pointerout", onPointerOut);
       for (const stop of copies) stop();

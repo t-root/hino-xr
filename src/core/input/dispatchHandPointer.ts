@@ -63,7 +63,7 @@ export const dispatchHandPointer = (
   element.dispatchEvent(new MouseEvent(type, init));
 };
 
-const isHandPointerId = (pointerId: number): boolean =>
+export const isHandPointerId = (pointerId: number): boolean =>
   pointerId === HAND_POINTER_ID.left || pointerId === HAND_POINTER_ID.right;
 
 /**

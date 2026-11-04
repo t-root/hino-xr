@@ -60,6 +60,8 @@ export type SharedUiState = {
   bootOutro: boolean;
   /** The one panel of the interface: the menu, centred in each eye. */
   menuOpen: boolean;
+  /** A full-screen plugin view is up: `.camera-frame` is the whole eye instead of the camera square. */
+  fillFrame: boolean;
   /** Slot of the centred entry on the endless band; grows and shrinks freely. */
   settingsSlot: number;
   /** Always `categoryAt(settingsSlot)`; kept here so readers need no maths. */
@@ -84,6 +86,7 @@ export type SharedUiState = {
   setArmed: (armed: boolean) => void;
   setStarting: (starting: boolean) => void;
   setBootOutro: (outro: boolean) => void;
+  setFillFrame: (fill: boolean) => void;
   setMenuOpen: (open: boolean) => void;
   toggleMenu: () => void;
   /** Moves the band without opening anything: swiping browses, it does not choose. */
@@ -153,6 +156,7 @@ export const useSharedUiStore = createStore<SharedUiState>((set) => ({
   starting: false,
   bootOutro: false,
   menuOpen: false,
+  fillFrame: false,
   settingsSlot: DEFAULT_SLOT,
   settingsCategory: DEFAULT_CATEGORY,
   settingsDetail: false,
@@ -169,6 +173,7 @@ export const useSharedUiStore = createStore<SharedUiState>((set) => ({
       bootOutro: false,
       ...(starting ? { menuOpen: false, diagnosticsOpen: false } : { diagnosticsOpen: state.diagnosticsWanted }),
     })),
+  setFillFrame: (fillFrame) => set({ fillFrame }),
   setBootOutro: (bootOutro) => set((state) => (state.starting || !bootOutro ? { bootOutro } : state)),
 
   setSettingsSlot: (settingsSlot) =>

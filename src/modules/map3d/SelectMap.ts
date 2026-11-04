@@ -4,7 +4,7 @@
 import * as L from "./vendor/leaflet/dist/leaflet-src.esm.js";
 import "./vendor/leaflet/dist/leaflet.css";
 import { CanvasMirror, CopySync, SharedState } from "@/core/sync";
-import { c } from "./palette";
+import { isHandPointerId } from "@/core/input/dispatchHandPointer";
 import { h, icon, show, type Words } from "./ui";
 
 /** The few Leaflet shapes the plugin touches. */
@@ -184,6 +184,7 @@ export class MapModel {
   }
 
   touchStart(latlng: LeafletLatLng): void {
+    this.lastLatlng = null;
     if (!this.state.get().isDrag) this.firstPoint = latlng;
   }
 
@@ -271,7 +272,6 @@ export class MapView {
     private readonly model: MapModel,
     private readonly words: Words,
   ) {
-    const caption = h("div", "map-holo-caption", words.node("caption"));
     const credit = h("a", "map-credit", words.node("credit"));
     credit.href = "https://www.openstreetmap.org/copyright";
     credit.target = "_blank";
@@ -290,7 +290,7 @@ export class MapView {
 
     const tools = h("div", "m3-map__tools", this.locateButton, this.removeButton, this.modeButton);
     this.container = h("div", "m3-map__leaflet hologram-map");
-    this.root = h("div", "m3-map", caption, credit, tools, this.container);
+    this.root = h("div", "m3-map", credit, tools, this.container);
 
     const start = model.view.view;
     this.map = L.map(this.container, {
@@ -325,6 +325,14 @@ export class MapView {
     this.container.addEventListener("touchstart", this.handleTouchStart);
     this.container.addEventListener("touchmove", this.handleTouchMove);
     this.container.addEventListener("touchend", this.handleTouchEnd);
+    // A hand is pressed in as pointer events, which Leaflet 1.9 does not turn into
+    // mouse events: it neither pans nor reports a drawn box. So the hand's
+    // pointers are worked here, the same way for drawing and for panning.
+    this.container.setAttribute("data-hand-target", "");
+    this.container.addEventListener("pointerdown", this.handleHandDown);
+    this.container.addEventListener("pointermove", this.handleHandMove);
+    this.container.addEventListener("pointerup", this.handleHandUp);
+    this.container.addEventListener("pointercancel", this.handleHandUp);
     this.resizeObserver = new ResizeObserver(() => this.invalidate());
     this.resizeObserver.observe(this.container);
 
@@ -359,6 +367,10 @@ export class MapView {
     this.container.removeEventListener("touchstart", this.handleTouchStart);
     this.container.removeEventListener("touchmove", this.handleTouchMove);
     this.container.removeEventListener("touchend", this.handleTouchEnd);
+    this.container.removeEventListener("pointerdown", this.handleHandDown);
+    this.container.removeEventListener("pointermove", this.handleHandMove);
+    this.container.removeEventListener("pointerup", this.handleHandUp);
+    this.container.removeEventListener("pointercancel", this.handleHandUp);
     this.map.remove();
     this.root.remove();
   }
@@ -397,6 +409,37 @@ export class MapView {
     this.model.touchEnd();
   };
 
+  /** Where the hand last was while panning; null when it is not holding the map. */
+  private handPan: { x: number; y: number } | null = null;
+  private handDrawing = false;
+
+  private readonly handleHandDown = (event: PointerEvent): void => {
+    if (!isHandPointerId(event.pointerId)) return;
+    if (this.model.state.get().isDrag) {
+      this.handPan = { x: event.clientX, y: event.clientY };
+    } else {
+      this.handDrawing = true;
+      this.model.touchStart(this.map.mouseEventToLatLng(event));
+    }
+  };
+
+  private readonly handleHandMove = (event: PointerEvent): void => {
+    if (!isHandPointerId(event.pointerId)) return;
+    if (this.handDrawing) {
+      this.model.touchMove(this.map.mouseEventToLatLng(event));
+    } else if (this.handPan) {
+      this.map.panBy([this.handPan.x - event.clientX, this.handPan.y - event.clientY], { animate: false });
+      this.handPan = { x: event.clientX, y: event.clientY };
+    }
+  };
+
+  private readonly handleHandUp = (event: PointerEvent): void => {
+    if (!isHandPointerId(event.pointerId)) return;
+    if (this.handDrawing) this.model.touchEnd();
+    this.handDrawing = false;
+    this.handPan = null;
+  };
+
   /** The drawn box is shown exactly while there is one. */
   private renderRectangle(bounds: LeafletBounds | null): void {
     if (!bounds) {
@@ -404,7 +447,8 @@ export class MapView {
       this.rectangle = null;
       return;
     }
-    const style = { color: c(112, 248, 255), weight: 2, fillColor: c(21, 223, 243), fillOpacity: 0.18 };
+    // Colours come from `.m3-box` in the stylesheet, so they follow the theme.
+    const style = { weight: 1, className: "m3-box" };
     if (this.rectangle) {
       this.rectangle.setBounds(bounds);
       this.rectangle.setStyle(style);

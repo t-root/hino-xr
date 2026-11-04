@@ -1,13 +1,14 @@
 import { SharedState } from "@/core/sync";
+import { useSharedUiStore } from "@/core/state/SharedUiStore";
 import { queryOverpass } from "./overpass";
 import { MapModel, type LatLng, type MapView } from "./SelectMap";
-import { SpaceCore, type Building, type SpaceView } from "./Space";
+import { SpaceCore, type Building, type HandTool, type SpaceView } from "./Space";
 import { map3dCss } from "./styles";
 import { h, icon, MODAL_CLOSE_DELAY_MS, MODAL_CLOSED, ModalView, show, type ModalState, type Words } from "./ui";
 
 const PRETENDARD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css";
 
-type ModalKey = "warn" | "export";
+type ModalKey = "warn";
 
 /** What every copy of the screen shows. */
 type AppState = Readonly<{
@@ -33,13 +34,13 @@ export class Map3dApp {
     step: 0,
     isNextButtonDisabled: true,
     isFetchingBuildings: false,
-    modals: { warn: MODAL_CLOSED, export: MODAL_CLOSED },
+    modals: { warn: MODAL_CLOSED },
   });
 
   /** The chosen area; not drawn by the copies, only used to load it. */
   private areaData: [LatLng, LatLng] | null = null;
   private readonly views = new Set<AppView>();
-  private readonly modalTimers: Record<ModalKey, number> = { warn: 0, export: 0 };
+  private readonly modalTimers: Record<ModalKey, number> = { warn: 0 };
   private active = false;
   private disposed = false;
 
@@ -70,6 +71,7 @@ export class Map3dApp {
   setActive(active: boolean): void {
     this.active = active;
     this.space.setRunning(active);
+    this.syncFill();
     if (!active) return;
     this.words.refresh();
     for (const view of this.views) view.activate();
@@ -84,6 +86,7 @@ export class Map3dApp {
 
   dispose(): void {
     this.disposed = true;
+    useSharedUiStore.getState().setFillFrame(false);
     for (const key of Object.keys(this.modalTimers) as ModalKey[]) window.clearTimeout(this.modalTimers[key]);
     for (const view of [...this.views]) view.dispose();
     this.views.clear();
@@ -95,6 +98,12 @@ export class Map3dApp {
   private update(patch: Partial<AppState>): void {
     this.state.set(patch);
     this.space.setShowPlatform(this.state.get().step === 2);
+    this.syncFill();
+  }
+
+  /** The 3D view is the whole eye; the map step stays in the camera square. */
+  private syncFill(): void {
+    useSharedUiStore.getState().setFillFrame(this.active && this.state.get().step !== 0);
   }
 
   private setModal(key: ModalKey, modal: ModalState): void {
@@ -206,10 +215,11 @@ class AppView {
   private readonly fullscreen: HTMLDivElement;
   private readonly prevButton: HTMLButtonElement;
   private readonly nextButton: HTMLButtonElement;
-  private readonly exportButton: HTMLButtonElement;
   private readonly warnNextButton: HTMLButtonElement;
+  private readonly tools: HTMLDivElement;
+  private readonly toolButtons = new Map<HandTool, HTMLButtonElement>();
+  private readonly stopTool: () => void;
   private readonly warnModal: ModalView;
-  private readonly exportModal: ModalView;
   private readonly stopState: () => void;
 
   constructor(
@@ -231,9 +241,6 @@ class AppView {
     this.nextButton = h("button", "m3-next", words.node("nextStep"), " ", icon("chevronRight"));
     this.nextButton.addEventListener("click", () => void app.handleClickNextStep());
 
-    this.exportButton = h("button", "m3-next", words.node("exportGlb"), " ", icon("download"));
-    this.exportButton.addEventListener("click", () => app.openModal("export"));
-
     this.warnNextButton = h("button", "m3-button", words.node("nextStep"), " ", icon("chevronRight"));
     this.warnNextButton.addEventListener("click", () => app.proceedFromWarning());
     this.warnModal = new ModalView(
@@ -249,15 +256,28 @@ class AppView {
       () => app.closeModal("warn"),
     );
 
-    const download = h("button", "m3-button", words.node("glbDownload"), " ", icon("download"));
-    download.addEventListener("click", () => app.space.exportGlb());
-    this.exportModal = new ModalView(
-      [h("div", "m3-column", h("p", "m3-title", words.node("export")), h("div", "m3-row", download))],
-      () => app.closeModal("export"),
-    );
-
     const closeButton = h("button", "m3-close", words.node("close"));
     closeButton.addEventListener("click", () => app.close());
+
+    // What a hand's pinch-and-drag does in the 3D view: one button per tool.
+    const toolKeys = [
+      ["orbit", "toolOrbit"],
+      ["pan", "toolPan"],
+      ["zoom", "toolZoom"],
+      ["move", "toolMove"],
+      ["height", "toolHeight"],
+      ["width", "toolWidth"],
+    ] as const;
+    this.tools = h("div", "m3-tools");
+    for (const [tool, key] of toolKeys) {
+      const button = h("button", "m3-tool", words.node(key));
+      button.addEventListener("click", () => app.space.tool.set({ tool }));
+      this.toolButtons.set(tool, button);
+      this.tools.append(button);
+    }
+    this.stopTool = app.space.tool.subscribe(({ tool }) => {
+      for (const [id, button] of this.toolButtons) button.dataset.active = String(id === tool);
+    });
 
     this.spaceView = app.space.createView(words);
     this.root = h(
@@ -268,10 +288,9 @@ class AppView {
       this.fullscreen,
       this.prevButton,
       this.nextButton,
-      this.exportButton,
       this.warnModal.root,
-      this.exportModal.root,
       this.spaceView.root,
+      this.tools,
       closeButton,
     );
     this.stopState = app.state.subscribe((state) => this.render(state));
@@ -282,14 +301,14 @@ class AppView {
     this.fullscreen.hidden = state.step !== 0;
     if (wasHidden && !this.fullscreen.hidden) this.mapView.invalidate();
 
+    this.root.dataset.step = state.step === 0 ? "map" : "city";
+    show(this.tools, state.step === 2 && !state.isFetchingBuildings);
     show(this.prevButton, state.step !== 0);
     show(this.nextButton, state.step !== 2);
     this.nextButton.disabled = state.isNextButtonDisabled || state.isFetchingBuildings;
-    show(this.exportButton, state.step === 2 && !state.isFetchingBuildings);
     show(this.warnNextButton, state.step !== 2);
     this.warnNextButton.disabled = state.isNextButtonDisabled;
     this.warnModal.render(state.modals.warn);
-    this.exportModal.render(state.modals.export);
   }
 
   /** Became visible: Leaflet measures again and the readouts catch up. */
@@ -304,6 +323,7 @@ class AppView {
 
   dispose(): void {
     this.stopState();
+    this.stopTool();
     this.app.map.dropView(this.mapView);
     this.app.space.dropView(this.spaceView);
     this.words.dispose();

@@ -105,9 +105,13 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   const overlay = new OverlayRenderer(renderer.renderScene.overlayRoot, renderer.mapper, registry);
   overlay.setMaxBatchAge(settings.render.maxBatchAgeMs);
   const hitTest = new HitTestService(registry, renderer.centerCamera, renderer.mapper);
-  const surface = new DomPointerSurface(container.ownerDocument, (point) =>
-    renderer.mapper.imageToFrame({ x: point.x, y: point.y }),
-  );
+  const surface = new DomPointerSurface(container.ownerDocument, (point) => {
+    const image = { x: point.x, y: point.y };
+    if (!useSharedUiStore.getState().fillFrame) return renderer.mapper.imageToFrame(image);
+    // The frame is the whole eye: the hand lands where the cursor is drawn, in eye space.
+    const ndc = renderer.mapper.displayToNdc(renderer.mapper.imageToDisplay(image));
+    return { x: (ndc.x + 1) / 2, y: (1 - ndc.y) / 2 };
+  });
   const interaction = new InteractionManager(
     bus,
     registry,

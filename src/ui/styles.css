@@ -451,17 +451,24 @@ input[type="checkbox"]:checked {
  * edges and the track slides sideways to bring the chosen one to the middle,
  * where the lens is sharpest. Entries beyond the visible width are still drawn,
  * so the loop is never seen being stitched (`MenuStrip`).
+ *
+ * Each entry is a name over a slanted segment. The chosen one's segment is long
+ * and bright; the rest are short and dim. Nothing else is drawn.
  */
 .strip {
   /* `--slot` is set from `MenuStrip`, which owns the slot width. */
   position: relative;
   width: min(100%, calc(var(--slot) * 5));
-  height: 34px;
+  height: 44px;
   overflow: hidden;
   margin-bottom: 12px;
-  /* Fade at the edges instead of a hard cut, so the band reads as continuing. */
-  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  /* The frame: the interface colour, very faint, with a hairline above and below. */
+  background-color: color-mix(in srgb, var(--ui-color) calc(14% * var(--ui-color-alpha)), transparent);
+  border-top: 1px solid color-mix(in srgb, var(--ui-color) calc(35% * var(--ui-color-alpha)), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-color) calc(35% * var(--ui-color-alpha)), transparent);
+  /* Frame and names fade away together at both sides, so the band reads as continuing. */
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
   /* The band is swiped, so the browser must not claim the horizontal gesture. */
   touch-action: pan-y;
   cursor: grab;
@@ -469,27 +476,6 @@ input[type="checkbox"]:checked {
 
 .strip[data-dragging="true"] {
   cursor: grabbing;
-}
-
-/*
- * The frame stays put in the middle and the entries run through it, the way a
- * dial reads against a fixed mark. Framing the entry itself would send the box
- * sliding off with it, which says "this moved" where the truth is "this is the
- * one that counts".
- */
-.strip::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: var(--slot);
-  transform: translateX(-50%);
-  border: 1px solid var(--ui-ink);
-  background: var(--surface-strong);
-  box-shadow: inset 0 0 12px color-mix(in srgb, var(--ui-color) calc(10% * var(--ui-color-alpha)), transparent);
-  z-index: 0;
-  pointer-events: none;
 }
 
 /*
@@ -502,8 +488,6 @@ input[type="checkbox"]:checked {
   left: 50%;
   top: 0;
   height: 100%;
-  /* Above the fixed frame, so entries read as passing in front of it. */
-  z-index: 1;
   transition-property: transform;
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -512,9 +496,9 @@ input[type="checkbox"]:checked {
  * Placed by slot number rather than by document order: a slot may be negative,
  * and the same entry comes round again a lap further along.
  *
- * Names that do not fit the centre frame are cut with an ellipsis. The slot
- * width is fixed (stereo: both eyes share the same arithmetic), so a long
- * label must never grow the box.
+ * Names that do not fit the slot are cut with an ellipsis. The slot width is
+ * fixed (stereo: both eyes share the same arithmetic), so a long label must
+ * never grow the box.
  */
 .strip__item {
   position: absolute;
@@ -522,12 +506,14 @@ input[type="checkbox"]:checked {
   display: block;
   width: var(--slot);
   height: 100%;
-  padding: 6px 6px;
+  /* A button centres its text vertically, so the text's own box is set to sit in the upper part. */
+  padding: 0 6px 12px;
   border: none;
   background: transparent;
   color: var(--text-dim);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  line-height: 30px;
+  letter-spacing: 0.14em;
   text-align: center;
   text-transform: uppercase;
   white-space: nowrap;
@@ -536,28 +522,27 @@ input[type="checkbox"]:checked {
   transition: color 220ms ease-out;
 }
 
-/* Hairline ticks between slots, drawn as rules rather than characters. */
-.strip__item + .strip__item::before {
+/* The slanted segment under every name. */
+.strip__item::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 50%;
-  width: 1px;
-  height: 12px;
-  transform: translateY(-50%);
-  background: var(--hairline);
-}
-
-/* No tick where the fixed frame already draws an edge. */
-.strip__item[data-active="true"]::before,
-.strip__item[data-active="true"] + .strip__item::before {
-  display: none;
+  left: 50%;
+  bottom: 8px;
+  width: 30px;
+  height: 4px;
+  transform: translateX(-50%);
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  background: color-mix(in srgb, var(--ui-color) calc(35% * var(--ui-color-alpha)), transparent);
+  transition: width 300ms ease-out, background-color 220ms ease-out;
 }
 
 /* Depth by alpha: the further from the centre, the fainter. */
-.strip__item[data-distance="2"],
+.strip__item[data-distance="2"] {
+  opacity: 0.6;
+}
+
 .strip__item[data-distance="3"] {
-  color: var(--text-faint);
+  opacity: 0.3;
 }
 
 .strip__item:hover,
@@ -565,9 +550,15 @@ input[type="checkbox"]:checked {
   color: var(--text);
 }
 
-/* The frame is drawn by the band, so the centred entry only brightens. */
+/* The chosen entry: brighter name over a long, solid segment. */
 .strip__item[data-active="true"] {
   color: var(--ui-ink);
+  font-size: 12px;
+}
+
+.strip__item[data-active="true"]::before {
+  width: 78px;
+  background: var(--text);
 }
 
 .menu__title {
@@ -738,6 +729,11 @@ input[type="checkbox"]:checked {
   overflow: hidden;
   /* What the plugin measures itself against, rather than the whole frame. */
   container-type: size;
+}
+
+/* A full-screen view (the 3D city) uses the whole eye, not half the camera square. */
+.camera-frame[data-fill="true"] .module-screen {
+  --module-screen-side: 100%;
 }
 
 .module-screen[hidden] {

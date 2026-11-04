@@ -2,7 +2,7 @@ import { holdPointer } from "@/core/input/dispatchHandPointer";
 import { el } from "../dom";
 
 /** Slot width in px. Handed to the stylesheet as `--slot`, so there is one copy. */
-const SLOT_PX = 110;
+export const SLOT_PX = 110;
 
 /** How long the band takes to bring an entry to the middle. */
 const SLIDE_MS = 300;

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { CanvasMirror, frameClock } from "@/core/sync";
+import { CanvasMirror, SharedState, frameClock } from "@/core/sync";
+import { isHandPointerId } from "@/core/input/dispatchHandPointer";
 import { queryOverpass, type OsmElement } from "./overpass";
 import { cHex } from "./palette";
 import type { LatLng } from "./SelectMap";
@@ -80,7 +80,6 @@ class BuildingView {
     private readonly host: BuildingHost,
   ) {
     this.depth = depth;
-    this.group.userData.exportToGLB = true;
     this.group.position.set(position.x, position.y, position.z);
     this.group.scale.set(buildingScale.x, buildingScale.y, buildingScale.z);
 
@@ -128,7 +127,8 @@ class BuildingView {
   }
 
   applyLook(): void {
-    const hovered = this.hovered;
+    // A selected building stays lit, as under the mouse, so it is plain which one the tools act on.
+    const hovered = this.hovered || this.selected;
     const material = this.mesh.material;
     material.color.setHex(hovered ? cHex(185, 252, 255) : cHex(12, 152, 184));
     material.emissive.setHex(hovered ? cHex(105, 248, 255) : cHex(0, 107, 136));
@@ -244,12 +244,46 @@ class BuildingView {
     }
   }
 
+  /** Hand tools: where the building stands and how big it is, set directly. */
+  get position(): THREE.Vector3 {
+    return this.group.position;
+  }
+
+  get size(): Vec3 {
+    return { ...this.buildingScale };
+  }
+
+  placeAt(x: number, z: number): void {
+    this.group.position.set(x, 0, z);
+    this.host.setBuildingPosition(this.id, { x, y: 0, z });
+  }
+
+  resize(value: Vec3): void {
+    this.applyScale(value);
+  }
+
   private applyScale(value: Vec3): void {
     this.buildingScale = value;
     this.group.scale.set(value.x, value.y, value.z);
     this.host.setBuildingScale(this.id, value);
   }
 }
+
+/** What a hand's pinch-and-drag does. */
+export type HandTool = "orbit" | "pan" | "zoom" | "move" | "height" | "width";
+
+type HandDrag = {
+  pointerId: number;
+  tool: HandTool;
+  view: SpaceView;
+  lastX: number;
+  lastY: number;
+  startX: number;
+  startY: number;
+  building: BuildingView | null;
+  offset: THREE.Vector3 | null;
+  startSize: Vec3 | null;
+};
 
 /** Where one building's label goes this frame; the same for every eye. */
 type LabelPlacement = Readonly<{
@@ -302,6 +336,10 @@ export class SpaceCore implements BuildingHost {
   private controlsEnabled = true;
   private cursor = "default";
 
+  /** What a hand's pinch-and-drag does; the same for every eye. */
+  readonly tool = new SharedState<{ tool: HandTool }>({ tool: "orbit" });
+
+  private hand: HandDrag | null = null;
   private readonly captures = new Map<number, { building: BuildingView; view: SpaceView }>();
   private hoveredView: BuildingView | null = null;
   private downAt: { x: number; y: number } | null = null;
@@ -353,6 +391,25 @@ export class SpaceCore implements BuildingHost {
   setAreas(areas: readonly Building[]): void {
     this.areas = areas;
     this.rebuildBuildings();
+    this.frameCity();
+  }
+
+  /** Puts the loaded city in the middle of the view, whatever part of the box the buildings fill. */
+  private frameCity(): void {
+    if (this.buildings.length === 0) return;
+    const box = new THREE.Box3();
+    for (const building of this.buildings) box.expandByObject(building.group);
+    if (box.isEmpty()) return;
+    const centre = box.getCenter(new THREE.Vector3());
+    centre.y = 0;
+    const extent = box.getSize(new THREE.Vector3());
+    const span = Math.max(Math.hypot(extent.x, extent.z), 10);
+    const offset = this.camera.position.clone().sub(this.target);
+    const fit = (span * 0.62) / Math.tan((this.camera.fov * DEG) / 2);
+    offset.setLength(clamp(fit, 5, this.radius * 3));
+    this.target.copy(centre);
+    this.camera.position.copy(centre).add(offset);
+    this.camera.lookAt(this.target);
   }
 
   setShowPlatform(show: boolean): void {
@@ -378,28 +435,6 @@ export class SpaceCore implements BuildingHost {
     for (const building of this.buildings) building.applyLook();
     this.rebuildRoads();
     this.rebuildPlatform();
-  }
-
-  /** Everything marked for export, as one binary glTF, downloaded. */
-  exportGlb(): void {
-    const exportRoot = new THREE.Group();
-    this.scene.traverse((child) => {
-      if (child.userData?.exportToGLB) exportRoot.add(child.clone(true));
-    });
-    new GLTFExporter().parse(
-      exportRoot,
-      (result) => {
-        if (!(result instanceof ArrayBuffer)) return;
-        const blob = new Blob([result], { type: "model/gltf-binary" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "hologram-city.glb";
-        link.click();
-        URL.revokeObjectURL(link.href);
-      },
-      (error) => console.error(error),
-      { binary: true, embedImages: true },
-    );
   }
 
   dispose(): void {
@@ -495,6 +530,121 @@ export class SpaceCore implements BuildingHost {
     if (this.captures.size === 0) this.setCameraControl(true);
   }
 
+  // ---- a hand: pinch and drag, worked by the tool chosen on the buttons ----
+
+  handDown(event: PointerEvent, view: SpaceView): void {
+    if (this.hand) return;
+    this.eventView = view;
+    const hit = this.pick(event, view);
+    const selected = this.selectedView();
+    // A pinch on a building that is not selected selects it and goes no further.
+    if (hit && hit !== selected) {
+      this.select(hit.id);
+      return;
+    }
+    const tool = this.tool.get().tool;
+    const drag: HandDrag = {
+      pointerId: event.pointerId,
+      tool,
+      view,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      building: selected,
+      offset: null,
+      startSize: selected?.size ?? null,
+    };
+    if (tool === "move" && selected) {
+      const ground = this.groundPoint(event);
+      if (ground) drag.offset = selected.position.clone().sub(ground);
+    }
+    this.hand = drag;
+  }
+
+  handMove(event: PointerEvent): void {
+    const drag = this.hand;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.lastX;
+    const dy = event.clientY - drag.lastY;
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
+    const { height } = drag.view.size();
+    const h = Math.max(height, 1);
+    switch (drag.tool) {
+      case "orbit":
+        this.orbitBy((dx / h) * Math.PI * 1.5, (dy / h) * Math.PI);
+        break;
+      case "pan":
+        this.panBy(dx, dy, h);
+        break;
+      case "zoom":
+        this.zoomBy(Math.exp((dy / h) * 2.5));
+        break;
+      case "move": {
+        if (!drag.building || !drag.offset) break;
+        this.eventView = drag.view;
+        const ground = this.groundPoint(event);
+        if (ground) drag.building.placeAt(ground.x + drag.offset.x, ground.z + drag.offset.z);
+        break;
+      }
+      case "height":
+        if (drag.building && drag.startSize) {
+          const up = (drag.startY - event.clientY) / h;
+          drag.building.resize({ ...drag.building.size, y: clamp(drag.startSize.y + up * 6, 0.3, 6) });
+        }
+        break;
+      case "width":
+        if (drag.building && drag.startSize) {
+          const out = (event.clientX - drag.startX) / h;
+          const width = clamp(drag.startSize.x + out * 3.5, 0.35, 3.5);
+          drag.building.resize({ ...drag.building.size, x: width, z: width });
+        }
+        break;
+    }
+  }
+
+  handUp(event: PointerEvent): void {
+    if (this.hand?.pointerId === event.pointerId) this.hand = null;
+  }
+
+  private selectedView(): BuildingView | null {
+    if (this.selectedBuilding === null) return null;
+    return this.buildings.find((building) => building.id === this.selectedBuilding) ?? null;
+  }
+
+  /** Turns the one shared camera about the target; the angle is kept clear of straight up and the ground. */
+  private orbitBy(yaw: number, pitch: number): void {
+    const offset = this.camera.position.clone().sub(this.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+    spherical.theta -= yaw;
+    spherical.phi = clamp(spherical.phi - pitch, 0.05, Math.PI / 2.04);
+    offset.setFromSpherical(spherical);
+    this.camera.position.copy(this.target).add(offset);
+    this.camera.lookAt(this.target);
+  }
+
+  /** Slides the view over the ground, so the city follows the hand. */
+  private panBy(dx: number, dy: number, viewHeight: number): void {
+    const distance = this.camera.position.distanceTo(this.target);
+    const perPixel = (2 * distance * Math.tan((this.camera.fov * DEG) / 2)) / viewHeight;
+    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 0);
+    right.y = 0;
+    right.normalize();
+    const forward = new THREE.Vector3(-right.z, 0, right.x).negate();
+    const move = right.multiplyScalar(-dx * perPixel).add(forward.multiplyScalar(-dy * perPixel));
+    this.camera.position.add(move);
+    this.target.add(move);
+    this.camera.lookAt(this.target);
+  }
+
+  private zoomBy(factor: number): void {
+    const offset = this.camera.position.clone().sub(this.target);
+    const length = clamp(offset.length() * factor, 5, this.radius * 3);
+    offset.setLength(length);
+    this.camera.position.copy(this.target).add(offset);
+  }
+
   pointerLeave(): void {
     if (this.captures.size === 0) this.setHovered(null);
   }
@@ -562,8 +712,8 @@ export class SpaceCore implements BuildingHost {
       this.camera.position.set(radius * 1.05, radius * 0.83, radius * 1.1);
       this.camera.lookAt(this.target);
       for (const view of this.views) view.controls.maxDistance = radius * 3;
-      this.fog.near = radius * 1.7;
-      this.fog.far = radius * 4.2;
+      this.fog.near = radius * 3;
+      this.fog.far = radius * 7;
       this.rebuildPlatform();
     }
     this.rebuildBuildings();
@@ -629,7 +779,13 @@ export class SpaceCore implements BuildingHost {
       if (!north || !south) return;
       const controller = new AbortController();
       this.roadsAbort = controller;
-      const query = `[out:json][timeout:25];(way["highway"](${south.lat},${south.lng},${north.lat},${north.lng}););out body geom;`;
+      // The floor ring is wider than the drawn box (its circumscribed circle), so roads are
+      // asked for the ring's whole square: otherwise they stop at the box and the city looks framed.
+      const { refLat, refLng, radius } = this.reference();
+      const reach = radius * 2;
+      const dLat = reach / scale;
+      const dLng = reach / (scale * Math.max(Math.cos(refLat * DEG), 0.01));
+      const query = `[out:json][timeout:25];(way["highway"](${refLat - dLat},${refLng - dLng},${refLat + dLat},${refLng + dLng}););out body geom;`;
       queryOverpass(query, controller.signal)
         .then((data) => {
           this.roads = data.elements || [];
@@ -655,7 +811,6 @@ export class SpaceCore implements BuildingHost {
         new THREE.BufferGeometry().setFromPoints(road.geometry.map((point) => project(point.lat, point.lon))),
         new THREE.LineBasicMaterial({ color: cHex(36, 205, 228), transparent: true, opacity: 0.55 }),
       );
-      line.userData.exportToGLB = true;
       this.roadsGroup.add(line);
     }
   }
@@ -677,7 +832,6 @@ export class SpaceCore implements BuildingHost {
     // HoloFloor
     const floor = new THREE.Group();
     floor.rotation.x = -Math.PI / 2;
-    floor.add(new THREE.Mesh(new THREE.CircleGeometry(radius, 96), basic(11, 201, 229, 0.18)));
     for (const fraction of [0.28, 0.48, 0.7, 0.93]) {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(radius * fraction - 0.018, radius * fraction + 0.018, 96),
@@ -781,7 +935,6 @@ export class SpaceView {
 
   private readonly wrap: HTMLDivElement;
   private readonly detachCanvas: () => void;
-  private readonly linked: HTMLElement;
   private readonly labels = new Map<number, LabelNodes>();
 
   constructor(
@@ -789,26 +942,11 @@ export class SpaceView {
     private readonly words: Words,
   ) {
     const vignette = h("div", "holo-vignette");
-    this.linked = h("small");
-    const left = h(
-      "div",
-      "holo-readout holo-readout-left",
-      h("span", "", words.node("systemStatus")),
-      h("strong", "", words.node("live")),
-      this.linked,
-    );
-    const right = h(
-      "div",
-      "holo-readout holo-readout-right",
-      h("span", "", words.node("visualizer")),
-      h("strong", "", words.node("urbanModel")),
-      h("small", "", words.node("orbitHint")),
-    );
     const copy = core.mirror.attach();
     this.canvas = copy.canvas;
     this.detachCanvas = copy.detach;
     this.wrap = h("div", "holo-canvas", this.canvas);
-    this.root = h("div", "hologram-stage", vignette, left, right, this.wrap);
+    this.root = h("div", "hologram-stage", vignette, this.wrap);
     words.bind(() => this.renderReadout());
 
     // Registered before the orbit controls: a press on a building has to switch
@@ -820,6 +958,9 @@ export class SpaceView {
     this.wrap.addEventListener("pointerleave", this.onLeave);
     this.wrap.addEventListener("click", this.onClick);
     this.controls = new OrbitControls(core.camera, this.wrap);
+    // The hand is a pointer the orbit controls cannot hold (it cannot be captured), so the
+    // hand's events are worked here, first, and kept from reaching them.
+    this.wrap.setAttribute("data-hand-target", "");
   }
 
   size(): { width: number; height: number } {
@@ -827,7 +968,7 @@ export class SpaceView {
   }
 
   renderReadout(): void {
-    this.linked.textContent = this.words.get("linked", { count: String(this.core.count).padStart(3, "0") });
+    // No readout is drawn any more: the 3D view carries the picture and the tools, nothing else.
   }
 
   capture(pointerId: number): void {
@@ -882,9 +1023,30 @@ export class SpaceView {
     return nodes;
   }
 
-  private readonly onDown = (event: PointerEvent) => this.core.pointerDown(event, this);
-  private readonly onMove = (event: PointerEvent) => this.core.pointerMove(event, this);
-  private readonly onUp = (event: PointerEvent) => this.core.pointerUp(event, this);
+  private readonly onDown = (event: PointerEvent) => {
+    if (isHandPointerId(event.pointerId)) {
+      event.stopImmediatePropagation();
+      this.core.handDown(event, this);
+      return;
+    }
+    this.core.pointerDown(event, this);
+  };
+  private readonly onMove = (event: PointerEvent) => {
+    if (isHandPointerId(event.pointerId)) {
+      event.stopImmediatePropagation();
+      this.core.handMove(event);
+      return;
+    }
+    this.core.pointerMove(event, this);
+  };
+  private readonly onUp = (event: PointerEvent) => {
+    if (isHandPointerId(event.pointerId)) {
+      event.stopImmediatePropagation();
+      this.core.handUp(event);
+      return;
+    }
+    this.core.pointerUp(event, this);
+  };
   private readonly onLeave = () => this.core.pointerLeave();
   private readonly onClick = (event: MouseEvent) => this.core.click(event, this);
 }

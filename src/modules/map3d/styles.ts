@@ -23,7 +23,7 @@ export const map3dCss = (): string => `
   -webkit-user-select: none;
   user-select: none;
   overflow: hidden;
-  color: ${c(0, 0, 0)};
+  color: var(--text);
 }
 
 .map3d button:disabled { opacity: 1; }
@@ -56,68 +56,88 @@ export const map3dCss = (): string => `
   padding: 0;
   height: 100%;
   width: 100%;
-  color: ${c(185, 251, 255)};
+  color: var(--text);
 }
 
-/* ---- BottomButton: NextButton / PrevButton / Button ---- */
+/* ---- Buttons: the interface's own chip look, square and see-through ---- */
+.map3d .m3-next,
+.map3d .m3-prev,
+.map3d .m3-button,
+.map3d .m3-close,
+.map3d .m3-locate,
+.map3d .m3-remove,
+.map3d .m3-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: none;
+}
 .map3d .m3-next,
 .map3d .m3-prev {
   position: absolute;
   z-index: 9999;
   bottom: 2rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  font-weight: 300;
-  font-size: 14px;
-  cursor: pointer;
-  transition: 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
-.map3d .m3-next {
-  right: 2rem;
-  color: ${c(215, 254, 255)};
-  background-color: ${c(3, 93, 119, 0.86)};
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid ${c(101, 241, 255, 0.74)};
-  box-shadow: 0 0 20px ${c(43, 225, 247, 0.24)};
-  letter-spacing: 0.04em;
-}
-.map3d .m3-next:hover, .map3d .m3-next[data-twin-hover] { background-color: ${c(8, 136, 166, 0.96)}; }
-.map3d .m3-next:disabled { background-color: ${c(8, 54, 68, 0.78)}; cursor: not-allowed; }
-.map3d .m3-prev {
-  left: 2rem;
-  color: ${c(0, 0, 0)};
-  background-color: ${c(255, 255, 255, 0.588)};
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: none;
-  outline: ${c(240, 240, 244, 0.51)} solid 0.1rem;
-}
+.map3d .m3-next { right: 2rem; }
+.map3d .m3-prev { left: 2rem; }
+.map3d .m3-button { z-index: 9999; }
+.map3d .m3-next:hover, .map3d .m3-next[data-twin-hover],
 .map3d .m3-prev:hover, .map3d .m3-prev[data-twin-hover],
-.map3d .m3-prev:disabled { background-color: ${c(235, 238, 240, 0.761)}; }
-.map3d .m3-prev:disabled { cursor: not-allowed; }
-.map3d .m3-button {
-  z-index: 9999;
-  color: ${c(0, 0, 0)};
-  background-color: ${c(255, 255, 255, 0.588)};
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: none;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  font-weight: 300;
-  font-size: 14px;
-  outline: ${c(240, 240, 244, 0.51)} solid 0.1rem;
-  cursor: pointer;
-  transition: 0.2s;
-  gap: 0.5rem;
-}
 .map3d .m3-button:hover, .map3d .m3-button[data-twin-hover],
-.map3d .m3-button:disabled { background-color: ${c(235, 238, 240, 0.761)}; }
-.map3d .m3-button:disabled { cursor: not-allowed; }
+.map3d .m3-close:hover, .map3d .m3-close[data-twin-hover],
+.map3d .m3-locate:hover, .map3d .m3-locate[data-twin-hover],
+.map3d .m3-mode:hover, .map3d .m3-mode[data-twin-hover] {
+  color: var(--text);
+  background: var(--surface-strong);
+}
+.map3d .m3-next:disabled,
+.map3d .m3-prev:disabled,
+.map3d .m3-button:disabled { opacity: 0.4; cursor: not-allowed; }
+.map3d .m3-tools {
+  position: absolute;
+  z-index: 9999;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.map3d .m3-tool {
+  padding: 0.3rem 0.6rem;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  cursor: pointer;
+}
+.map3d .m3-tool:hover, .map3d .m3-tool[data-twin-hover] { color: var(--text); background: var(--surface-strong); }
+.map3d .m3-tool[data-active="true"] { color: var(--ui-ink); border-color: var(--ui-ink); background: var(--surface-strong); }
+/* The 3D view is small: every button is a compact chip tucked against an edge. */
+.map3d[data-step="city"] .m3-close,
+.map3d[data-step="city"] .m3-prev,
+.map3d[data-step="city"] .m3-next {
+  padding: 0.3rem 0.6rem;
+  font-size: 11px;
+}
+.map3d[data-step="city"] .m3-close { top: 0.75rem; left: 0.75rem; }
+.map3d[data-step="city"] .m3-prev { left: 0.75rem; bottom: 0.75rem; }
+.map3d[data-step="city"] .m3-next { right: 0.75rem; bottom: 0.75rem; }
+.map3d[data-step="city"] .holo-readout { top: 3.4rem; }
+.map3d[data-step="city"] .holo-readout-left { left: 0.75rem; }
+.map3d[data-step="city"] .holo-readout-right { right: 0.75rem; }
 .map3d [data-show="false"] { display: none !important; }
 
 /* Leaving the screen: not in the original, which was the whole page. */
@@ -127,32 +147,21 @@ export const map3dCss = (): string => `
   top: 1rem;
   /* Beside Leaflet's zoom buttons, clear of the tools on the right. */
   left: 3.6rem;
-  color: ${c(216, 254, 255)};
-  background-color: ${c(2, 37, 53, 0.85)};
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid ${c(83, 239, 255, 0.7)};
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: 0.2s;
 }
-.map3d .m3-close:hover, .map3d .m3-close[data-twin-hover] { background-color: ${c(10, 77, 97, 0.96)}; }
 
 /* ---- Column / Row / Title / Description ---- */
 .map3d .m3-column { display: flex; flex-direction: column; gap: 0.5rem; justify-content: unset; height: auto; }
 .map3d .m3-row { display: flex; flex-direction: row; gap: 0.5rem; justify-content: unset; overflow: visible; }
 .map3d .m3-title {
   margin: 0;
-  color: ${c(186, 250, 255)};
+  color: var(--text);
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.08em;
-  text-shadow: 0 0 14px ${c(64, 232, 255, 0.52)};
 }
 .map3d .m3-description {
   margin: 0;
-  color: ${c(176, 244, 250, 0.72)};
+  color: var(--text-dim);
   font-size: 1rem;
   font-weight: 400;
 }
@@ -197,10 +206,10 @@ export const map3dCss = (): string => `
   height: auto;
   margin: 2rem;
   padding: 1.6rem 1.6rem;
-  background-color: ${c(255, 255, 255)};
-  border-radius: 0.6rem;
-  border: 0.1rem solid ${c(221, 221, 221)};
-  box-shadow: ${c(147, 148, 158, 0.25)} 0px 7px 40px;
+  background-color: var(--surface-strong);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  color: var(--text);
   font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* The original scrolled here; a scroll offset lives in one copy only (rules.md). */
   overflow: hidden;
@@ -233,52 +242,15 @@ export const map3dCss = (): string => `
   pointer-events: none;
 }
 .map3d .m3-map__tools > * { pointer-events: auto; }
-.map3d .m3-locate {
-  color: ${c(216, 254, 255)};
-  background-color: ${c(2, 37, 53, 0.85)};
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid ${c(83, 239, 255, 0.7)};
-  padding: 0.5rem 0.85rem;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
+/* Locate and mode are plain chips; remove is the one accent-coloured control. */
 .map3d .m3-locate:disabled { cursor: wait; }
 .map3d .m3-remove {
-  display: flex;
-  color: ${c(217, 254, 255)};
-  background-color: ${a(105, 29, 47, 0.8)};
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid ${a(255, 101, 132, 0.76)};
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: 0.2s;
-  align-items: center;
-  gap: 0.5rem;
+  color: var(--accent-text);
+  background: var(--accent-surface);
+  border-color: var(--accent-hairline);
 }
-.map3d .m3-remove:hover, .map3d .m3-remove[data-twin-hover] { background-color: ${a(158, 34, 62, 0.92)}; }
-.map3d .m3-mode {
-  color: ${c(216, 254, 255)};
-  background-color: ${c(2, 37, 53, 0.85)};
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid ${c(83, 239, 255, 0.7)};
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.map3d .m3-mode:hover, .map3d .m3-mode[data-twin-hover] { background-color: ${c(10, 77, 97, 0.96)}; }
-.map3d .m3-mode[data-drag="true"] { background-color: ${c(4, 113, 142, 0.92)}; }
-.map3d .m3-mode[data-drag="true"]:hover, .map3d .m3-mode[data-drag="true"][data-twin-hover] { background-color: ${c(8, 146, 180, 0.98)}; }
+.map3d .m3-remove:hover, .map3d .m3-remove[data-twin-hover] { border-color: var(--accent-ink); color: var(--accent-ink); }
+.map3d .m3-mode[data-drag="true"] { color: var(--ui-ink); border-color: var(--ui-ink); }
 .map3d .m3-map__leaflet { height: 100%; width: 100%; }
 
 /* ---- index.css ---- */
@@ -286,33 +258,10 @@ export const map3dCss = (): string => `
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 50%, ${c(11, 70, 92, 0.33)}, transparent 45%),
-    ${c(2, 9, 19, 0.5)};
+  background: none;
 }
-
-.map3d .hologram-stage::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.23;
-  background-image:
-    linear-gradient(${c(101, 239, 255, 0.11)} 1px, transparent 1px),
-    linear-gradient(90deg, ${c(101, 239, 255, 0.11)} 1px, transparent 1px);
-  background-size: 54px 54px;
-  mask-image: radial-gradient(circle, black 0%, transparent 71%);
-  -webkit-mask-image: radial-gradient(circle, black 0%, transparent 71%);
-}
-
-.map3d .holo-vignette {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 38%, ${c(0, 4, 12, 0.38)} 100%);
-}
+.map3d .hologram-stage::before { content: none; }
+.map3d .holo-vignette { display: none; }
 
 .map3d .holo-canvas {
   position: relative;
@@ -329,10 +278,9 @@ export const map3dCss = (): string => `
   top: 5.25rem;
   display: grid;
   gap: 0.28rem;
-  color: ${c(169, 250, 255)};
+  color: var(--text);
   font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.12em;
-  text-shadow: 0 0 12px ${c(54, 235, 255, 0.82)};
   pointer-events: none;
 }
 
@@ -342,8 +290,7 @@ export const map3dCss = (): string => `
   top: -0.55rem;
   width: 2.8rem;
   height: 1px;
-  background: ${c(99, 246, 255)};
-  box-shadow: 0 0 10px ${c(36, 221, 236)};
+  background: var(--ui-ink);
 }
 
 .map3d .holo-readout-left { left: 2.2rem; }
@@ -369,11 +316,9 @@ export const map3dCss = (): string => `
   padding: 0.68rem 0.82rem;
   display: grid;
   gap: 0.28rem;
-  border: 1px solid ${c(102, 249, 255, 0.85)};
-  border-left: 3px solid ${c(226, 254, 255)};
-  color: ${c(216, 254, 255)};
-  background: ${c(0, 30, 44, 0.84)};
-  box-shadow: 0 0 18px ${c(57, 231, 255, 0.32)}, inset 0 0 12px ${c(94, 245, 255, 0.12)};
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  background: var(--surface);
   font-family: "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.08em;
 }
@@ -388,10 +333,9 @@ export const map3dCss = (): string => `
   left: 1rem;
   bottom: 1rem;
   padding: 0.45rem 0.58rem;
-  color: ${c(184, 252, 255)};
-  border-left: 2px solid ${c(108, 248, 255)};
-  background: ${c(0, 22, 35, 0.74)};
-  box-shadow: 0 0 14px ${c(37, 223, 246, 0.22)};
+  color: var(--text-dim);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
   font: 0.58rem/1.2 "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.08em;
   pointer-events: none;
@@ -402,14 +346,13 @@ export const map3dCss = (): string => `
   z-index: 700;
   right: 1rem;
   bottom: 1rem;
-  color: ${c(159, 248, 255, 0.6)};
+  color: var(--text-faint);
   font: 0.48rem "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.06em;
   text-decoration: none;
-  text-shadow: 0 0 7px ${c(61, 234, 255, 0.42)};
 }
 
-.map3d .map-credit:hover, .map3d .map-credit[data-twin-hover] { color: ${c(215, 254, 255)}; }
+.map3d .map-credit:hover, .map3d .map-credit[data-twin-hover] { color: var(--text); }
 
 .map3d .holo-location-marker {
   width: 42px !important;
@@ -426,23 +369,21 @@ export const map3dCss = (): string => `
   inset: 50%;
   display: block;
   content: "";
-  border-radius: 50%;
+  border-radius: 0;
   transform: translate(-50%, -50%);
 }
 
 .map3d .holo-location-beacon {
   width: 11px;
   height: 11px;
-  background: ${c(213, 255, 255)};
-  box-shadow: 0 0 7px ${c(86, 247, 255)}, 0 0 18px ${c(23, 221, 236)};
+  background: var(--ui-ink);
 }
 
 .map3d .holo-location-beacon::before,
 .map3d .holo-location-beacon::after {
   width: 22px;
   height: 22px;
-  border: 1.5px solid ${c(100, 250, 255)};
-  box-shadow: 0 0 10px ${c(50, 232, 245)};
+  border: 1px solid var(--ui-ink);
   animation: m3-location-pulse 2.1s ease-out infinite;
 }
 
@@ -455,20 +396,20 @@ export const map3dCss = (): string => `
 
 .map3d .holo-location-tooltip {
   padding: 0.28rem 0.42rem !important;
-  color: ${c(188, 253, 255)} !important;
-  border: 1px solid ${c(93, 244, 255, 0.7)} !important;
+  color: var(--text) !important;
+  border: 1px solid var(--hairline) !important;
   border-radius: 0 !important;
-  background: ${c(0, 29, 44, 0.9)} !important;
-  box-shadow: 0 0 12px ${c(34, 231, 249, 0.38)} !important;
+  background: var(--surface-strong) !important;
+  box-shadow: none !important;
   font: 0.55rem "ct-squarefont-vn", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
   letter-spacing: 0.07em;
 }
 
-.map3d .holo-location-tooltip::before { border-top-color: ${c(93, 244, 255, 0.7)} !important; }
+.map3d .holo-location-tooltip::before { border-top-color: var(--hairline) !important; }
 
 .map3d .hologram-map {
   background: transparent !important;
-  box-shadow: inset 0 0 56px ${c(31, 228, 247, 0.22)}, inset 0 0 120px ${c(0, 0, 0, 0.82)};
+  box-shadow: none;
 }
 
 .map3d .hologram-map .leaflet-tile-pane {
@@ -484,26 +425,33 @@ export const map3dCss = (): string => `
   background: transparent !important;
 }
 
+/* Leaflet's zoom: the same square chip as every other button. */
+.map3d .hologram-map .leaflet-bar { border: none; box-shadow: none; border-radius: 0; }
 .map3d .hologram-map .leaflet-control-zoom a {
-  color: ${c(189, 252, 255)};
-  background: ${c(1, 30, 44, 0.88)};
-  border-bottom-color: ${c(72, 237, 255, 0.3)};
-  text-shadow: 0 0 9px ${c(77, 239, 255, 0.6)};
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  text-shadow: none;
 }
+.map3d .hologram-map .leaflet-control-zoom a + a { margin-top: -1px; }
 
 .map3d .hologram-map .leaflet-control-zoom a:hover, .map3d .hologram-map .leaflet-control-zoom a[data-twin-hover] {
-  color: ${c(255, 255, 255)};
-  background: ${c(8, 104, 127, 0.92)};
+  color: var(--text);
+  background: var(--surface-strong);
 }
 
 .map3d .hologram-map .leaflet-control-attribution {
-  color: ${c(166, 244, 250, 0.72)};
-  background: ${c(1, 19, 31, 0.72)};
+  color: var(--text-dim);
+  background: var(--surface);
 }
 
 .map3d .hologram-map .leaflet-control-attribution a {
-  color: ${c(114, 248, 255)};
+  color: var(--text);
 }
+
+/* The box being drawn: outline and a faint fill, in the theme's colour. */
+.map3d .m3-box { stroke: var(--ui-ink); fill: var(--surface-strong); fill-opacity: 1; }
 
 @container (max-width: 640px) {
   .map3d .holo-readout { top: 4.6rem; }

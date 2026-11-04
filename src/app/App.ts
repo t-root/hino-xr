@@ -1,4 +1,6 @@
 import { createVoiceControls } from "@/core/models/VoiceControls";
+import { installDebugKeys } from "@/app/debugKeys";
+import { installImuMenu } from "@/app/ImuMenu";
 import { createVrRuntime } from "@/core/bootstrap/createVrRuntime";
 import { sessionBootReady } from "@/core/bootstrap/sessionBoot";
 import { useRuntimeStore, type RuntimeUiState } from "@/core/state/RuntimeStore";
@@ -197,6 +199,10 @@ export const mountApp = (host: HTMLElement): () => void => {
     layout.subscribe(() => {
       stage.dataset.mode = stereoState(layout).mode;
     }),
+    // Debug: S = "system call", M = finger snap (menu).
+    installDebugKeys({ systemCall: () => runtime.wake.simulateSystemCall() }),
+    // Head turns left and right run the menu band.
+    installImuMenu(),
   ];
 
   return () => {
