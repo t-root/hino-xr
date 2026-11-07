@@ -295,25 +295,5 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
     return {"heard": heard, "matched": matched, "after": len(after)}
 
 
-# --- TEMP: speech-to-text test page (public/abc/stt.html). Delete with that folder. ---
-@app.post("/api/voice/transcribe")
-async def transcribe_only(
-    request: Request, locale: str = "vi", careful: bool = True, quick: bool = False
-) -> dict[str, Any]:
-    """Whisper on its own: audio in, the text it heard out. No wake word, no language model."""
-    wav = await request.body()
-    if not wav:
-        raise HTTPException(status_code=400, detail="empty audio")
-    if len(wav) > MAX_WAV:
-        raise HTTPException(status_code=413, detail="audio too large")
-    try:
-        heard = await run_in_threadpool(speech.transcribe, wav, _locale(locale), None, None, careful, quick)
-    except Exception as error:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=str(error)) from error
-    return {"heard": heard}
-
-
-# --- end TEMP ---
-
 pluginsmith.default_source()
 attach_frontend(app)
