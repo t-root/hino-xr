@@ -27,11 +27,11 @@ class VoiceTuning:
     speed: float
     """Speaking rate. Also applies to the English voice."""
     expression: float
-    """Piper noise_scale: how much the melody varies."""
+    """VieNeu temperature: how much the melody varies."""
     rhythm: float
-    """Piper noise_scale_w: how much the length of each sound varies."""
+    """VieNeu top_p: how wide a choice of sounds it draws from; lower is steadier."""
     pause: float
-    """Piper silence_scale: the gap between sentences."""
+    """VieNeu silence_p: how likely a pause is between phrases."""
 
 
 def default_tuning() -> VoiceTuning:

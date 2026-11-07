@@ -1,3 +1,5 @@
+import { queryVectorTiles } from "./vectorTiles";
+
 /** A way as Overpass returns it with `out body geom`. */
 export type OsmElement = {
   id: number;
@@ -19,6 +21,13 @@ function getBounds(query: string) {
   if (!match) return null;
   return { south: match[1], west: match[2], north: match[3], east: match[4] };
 }
+
+const numeric = (bounds: { south: string; west: string; north: string; east: string }) => ({
+  south: Number(bounds.south),
+  west: Number(bounds.west),
+  north: Number(bounds.north),
+  east: Number(bounds.east),
+});
 
 async function queryOsmMap(query: string, signal?: AbortSignal): Promise<OsmResult> {
   const bounds = getBounds(query);
@@ -60,17 +69,35 @@ async function queryOsmMap(query: string, signal?: AbortSignal): Promise<OsmResu
  * instances occasionally become saturated, so a timeout on one should not
  * prevent the map viewer from loading its data.
  */
+let osmApiUnreachable = false;
+
 export async function queryOverpass(query: string, signal?: AbortSignal): Promise<OsmResult> {
   let lastError: unknown;
 
   // The normal OSM map API is available from the same service used for map
   // tiles and is usually more reliable on restricted networks. It returns all
   // map data inside the selected box; we keep only the requested feature type.
-  try {
-    return await queryOsmMap(query, signal);
-  } catch (error) {
-    lastError = error;
-    if (signal?.aborted) throw error;
+  // A network that blocks it refuses every time, so once it has failed to connect it is not asked again.
+  if (!osmApiUnreachable) {
+    try {
+      return await queryOsmMap(query, signal);
+    } catch (error) {
+      lastError = error;
+      if (signal?.aborted) throw error;
+      if (error instanceof TypeError) osmApiUnreachable = true;
+    }
+  }
+
+  // Some networks block the OpenStreetMap API and every Overpass server alike. OpenFreeMap serves
+  // the same data as plain tiles from a CDN, so it is tried before the slow, often saturated, servers.
+  const bounds = getBounds(query);
+  if (bounds) {
+    try {
+      return await queryVectorTiles(query.includes('["building"]') ? "building" : "highway", numeric(bounds), signal);
+    } catch (error) {
+      lastError = error;
+      if (signal?.aborted) throw error;
+    }
   }
 
   for (const endpoint of OVERPASS_ENDPOINTS) {

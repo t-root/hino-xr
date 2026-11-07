@@ -6,7 +6,7 @@ Mọi giao diện bán trong suốt, một màu, góc vuông, vẽ chồng lên 
 
 ## Chạy nhanh
 
-Cần **Python 3**. Không dùng Node.js, không `npm`, không `node_modules`.
+Cần **Python 3.11 trở lên** (`run.bat` tự chọn bản 3.11). Không dùng Node.js, không `npm`, không `node_modules`.
 
 ```bash
 python run.py        # https://127.0.0.1:5173
@@ -17,7 +17,7 @@ Trên Windows bấm đúp `run.bat` (chỉ gọi `run.py`). `run.py` cài gói P
 
 - **Điện thoại:** cùng Wi-Fi, mở `https://<địa-chỉ-máy>:5173` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
 - **Lần chạy đầu cần mạng** để tải thư viện (Three.js, MediaPipe, esbuild dạng file thực thi), mô hình thị giác và mô hình trợ lý. Mọi thứ cần tải khai báo trong `downloads.json` và `vendor.json`; file có sẵn thì bỏ qua, bị ngắt thì tải tiếp, sai sha256 thì tải lại. Lần sau chạy offline.
-- Mô hình trợ lý nặng vài GB, nằm trong `assistant/weights/` (không đưa vào git).
+- Mô hình trợ lý nặng vài GB, nằm trong `assistant/weights/` (không đưa vào git). Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
 
 ## Cách dùng
 
@@ -86,7 +86,7 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 |---|---|
 | Trả lời | Qwen 2.5 3B (GGUF, llama.cpp, CPU mặc định). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. |
 | Nghe | Whisper chép chữ. `ggml-small` nghe từ gọi cho nhanh, `ggml-large-v3` nghe câu hỏi và lệnh. |
-| Nói tiếng Việt | Piper `vi_VN-vais1000-medium` qua `sherpa-onnx`, chạy cục bộ. |
+| Nói tiếng Việt | VieNeu-TTS v3 Turbo (ONNX, CPU), clone từ giọng mẫu `assistant/voices/hino.wav`. Tải về `assistant/weights/vieneu/` qua `downloads.json`, chạy cục bộ, không cần mạng. |
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
 
@@ -107,7 +107,7 @@ Nguồn viết mã: `VR_CODE_SOURCE=local` (mặc định, ngoại tuyến, ch�
 
 ### Cấu hình trợ lý
 
-Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_MODEL_PATH`, `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH`, `VR_VOICE_VI_PATH` (dùng file riêng thì không tải), `VR_N_THREADS`, `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU), `VR_N_CTX`, `VR_CHAT_FORMAT`, `VR_CODE_SOURCE`, `VR_ANTHROPIC_KEY`, `VR_CODE_MODEL`, `VR_AGENT_MODEL`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
+Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_MODEL_PATH`, `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_N_THREADS`, `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU), `VR_N_CTX`, `VR_CHAT_FORMAT`, `VR_CODE_SOURCE`, `VR_ANTHROPIC_KEY`, `VR_CODE_MODEL`, `VR_AGENT_MODEL`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
 
 API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/voice/preview`, `/api/voice/listen`.
 
@@ -129,7 +129,7 @@ Các plugin nhận diện chạy trong worker, trả về hộp và nhãn cho Co
 
 Hai bước:
 
-1. **Chọn vùng trên bản đồ.** Bản đồ Leaflet (ô bản đồ OpenStreetMap). Kéo để di chuyển; bấm **Chọn vùng** rồi kéo ra một hình chữ nhật; **Xoá vùng**; **Vị trí của tôi** bay tới vị trí thiết bị. Dùng được bằng chuột, cảm ứng và tay (chụm rồi kéo). Bước này nằm trong khung camera vuông.
+1. **Chọn vùng trên bản đồ.** Bản đồ Leaflet (ô bản đồ từ máy chủ OpenStreetMap Đức). Kéo để di chuyển; bấm **Chọn vùng** rồi kéo ra một hình chữ nhật; **Xoá vùng**; **Vị trí của tôi** bay tới vị trí thiết bị. Dùng được bằng chuột, cảm ứng và tay (chụm rồi kéo). Bước này nằm trong khung camera vuông.
 2. **Thành phố 3D.** Bấm Bước tiếp: tải toà nhà và đường phố của vùng (Overpass/OpenStreetMap), dựng thành cảnh 3D lấp đầy cả mắt, tự đặt camera vào tâm cụm nhà. Đường phố được tải cho cả vòng tròn bao quanh vùng chọn.
 
 Trong cảnh 3D, cột nút ở cạnh phải chọn việc mà chụm-rồi-kéo làm:
@@ -145,7 +145,7 @@ Trong cảnh 3D, cột nút ở cạnh phải chọn việc mà chụm-rồi-ké
 
 Chụm vào một tòa nhà để chọn; tòa được chọn **sáng lên như khi rê chuột**. Với chuột và cảm ứng: kéo để xoay, lăn để phóng, kéo tòa đã chọn để dời, hai ngón để đổi cỡ.
 
-Plugin cần mạng (`network`): gửi vùng bạn chọn tới OpenStreetMap, tải ô bản đồ và phông Pretendard từ jsDelivr. Không có khung camera nào rời máy.
+Plugin cần mạng (`network`): gửi vùng bạn chọn tới OpenStreetMap, tải ô bản đồ từ openstreetmap.de và phông Pretendard từ jsDelivr. Không có khung camera nào rời máy.
 
 ## Giao diện
 
@@ -172,7 +172,7 @@ camera → FrameHub ─┬→ HandTracking → làm mượt → GestureStateMach
                    └→ ModuleManager → plugin (worker, MediaPipe) → DetectionBatch → OverlayRenderer
                                          StereoRenderer vẽ scene hai lần (mắt trái, mắt phải)
 
-micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisper + Piper)
+micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisper + VieNeu)
 ```
 
 | Đường dẫn | Nội dung |
@@ -191,7 +191,7 @@ micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisp
 | `src/modules/*` | Một thư mục một plugin |
 | `src/shared` | Hợp đồng dùng chung, `assistant.json`, `wake.json`, `voice.json`, `voice-controls.json` |
 | `src/i18n` | `text.json` và lớp gắn kiểu |
-| `assistant/` | Tiến trình Python: trang + `/api`, llama.cpp, Whisper, Piper, lệnh giọng nói, viết plugin |
+| `assistant/` | Tiến trình Python: trang + `/api`, llama.cpp, Whisper, VieNeu, lệnh giọng nói, viết plugin |
 | `run.py`, `run.bat` | Khởi động; `downloads.json`, `vendor.json` ghim những gì cần tải |
 | `public/` | Mô hình thị giác, WASM, JS đã đóng gói; sinh ra nên không nằm trong git |
 | `rules.md` | Quy tắc bắt buộc cho Core và plugin |
@@ -223,7 +223,7 @@ export default definePlugin({
 - Camera chỉ mở sau cú bấm dấu vân tay.
 - Khung hình **không rời máy** và không được lưu. Telemetry chỉ là số liệu tổng hợp, đi qua `redactRecord`.
 - Mô hình thị giác chạy trong trình duyệt từ `public/`; trợ lý chạy trên máy tính của bạn.
-- Ngoại lệ có ghi quyền: `map3d` gọi OpenStreetMap, Overpass và jsDelivr (xem trên). Nguồn viết mã `api` gửi mô tả plugin tới API của Anthropic nếu bạn bật.
+- Ngoại lệ có ghi quyền: `map3d` gọi OpenStreetMap, openstreetmap.de (ô bản đồ), Overpass và jsDelivr (xem trên). Nguồn viết mã `api` gửi mô tả plugin tới API của Anthropic nếu bạn bật.
 - Mã trợ lý viết ra chỉ chạy sau khi bạn duyệt.
 
 ## Kiểm thử

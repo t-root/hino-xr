@@ -203,6 +203,7 @@ class Engine:
         if strip_wake:
             # Said as "hino, what time is it": the name is a call, not part of the question.
             heard = drop_leading_phrase(heard, assistant_name())
+        print(f"  talk     heard {heard!r}", flush=True)
         if not heard:
             yield {"type": "error", "error": "no speech"}
             return

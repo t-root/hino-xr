@@ -1,8 +1,8 @@
 {
-  "nativeHz": 238,
-  "pitchHz": { "min": 100, "max": 300, "step": 5, "default": 215 },
+  "nativeHz": 138,
+  "pitchHz": { "min": 80, "max": 250, "step": 5, "default": 138 },
   "speed": { "min": 0.6, "max": 1.6, "step": 0.05, "default": 1 },
-  "expression": { "min": 0, "max": 1.2, "step": 0.01, "default": 0.67 },
-  "rhythm": { "min": 0, "max": 1.2, "step": 0.01, "default": 0.8 },
-  "pause": { "min": 0, "max": 1, "step": 0.05, "default": 0.2 }
+  "expression": { "min": 0.3, "max": 1.2, "step": 0.01, "default": 0.8 },
+  "rhythm": { "min": 0.5, "max": 1, "step": 0.01, "default": 0.95 },
+  "pause": { "min": 0, "max": 1, "step": 0.05, "default": 0.15 }
 }

@@ -207,11 +207,10 @@
     "en": "permissions not granted: {list}"
   },
 
-  "diagnostics.assistant": { "vi": "Trợ lý", "en": "Assistant" },
   "diagnostics.mic.off": { "vi": "tắt", "en": "off" },
   "diagnostics.mic.system": { "vi": "chờ gọi hệ thống", "en": "waiting for system call" },
-  "diagnostics.mic.sleep": { "vi": "ngủ", "en": "asleep" },
-  "diagnostics.mic.awake": { "vi": "đang nghe", "en": "listening" },
+  "diagnostics.mic.sleep": { "vi": "kiểm tra tên", "en": "name check" },
+  "diagnostics.mic.awake": { "vi": "mô hình đang nghe", "en": "model listening" },
   "diagnostics.mic.busy": { "vi": "đang xử lý", "en": "working" },
   "diagnostics.toggle": {
     "vi": "Khung chẩn đoán ở góc",

@@ -20,6 +20,21 @@ def _load():
 wake = _load()
 
 
+class MadeUpTest(unittest.TestCase):
+    def test_what_whisper_writes_on_noise_is_not_a_question(self) -> None:
+        for line in (
+            "Hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn",
+            "Hãy đăng ký kênh để không bỏ lỡ video",
+            "Thanks for watching!",
+            "♪♪",
+        ):
+            self.assertTrue(wake.is_made_up(line), line)
+
+    def test_real_questions_are_kept(self) -> None:
+        for line in ("Mấy giờ rồi?", "Mở bản đồ", "What time is it?", ""):
+            self.assertFalse(wake.is_made_up(line), line)
+
+
 class PhraseTest(unittest.TestCase):
     def test_the_system_call_is_english_and_stays_that_way(self) -> None:
         spec = json.loads((SRC / "shared/wake.json").read_text(encoding="utf-8"))

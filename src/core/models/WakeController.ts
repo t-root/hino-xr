@@ -231,7 +231,13 @@ export class WakeController {
       this.bridge.markListening(true);
       this.listener.setPaused(true);
       await this.bridge.acknowledge();
-      if (this.mode === "awake") this.listener.setPaused(false);
+      if (this.mode === "awake") {
+        // The time to speak starts now, not while the acknowledgement was still playing.
+        if (this.windowTimer !== null) clearTimeout(this.windowTimer);
+        this.openWindow();
+        this.listener.setPaused(false);
+        this.logger.info("listening for the question");
+      }
     } catch (error) {
       this.logger.warn("call check failed", { message: error instanceof Error ? error.message : String(error) });
     } finally {

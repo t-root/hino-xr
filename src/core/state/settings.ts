@@ -263,6 +263,14 @@ export const DEFAULT_SETTINGS: Settings = {
 const STORAGE_KEY = "vr-core.settings.v1";
 
 /**
+ * Pitch, expression and the rest were saved for the old Piper voice, where a pitch of 215 Hz
+ * was natural. On the VieNeu voice (about 138 Hz) the same number is a chipmunk. Saves made
+ * before this marker existed take today's defaults; once settings are saved under it, they stay.
+ */
+const VOICE_MODEL_KEY = "vr-core.voice-model";
+const VOICE_MODEL = "vieneu-turbo";
+
+/**
  * 250 ms was the old default for `maxBatchAgeMs`, saved with everything else
  * although nothing in the menu sets it. On a phone running a detector on its
  * CPU, a result is often older than that by the time it lands, and every box
@@ -270,6 +278,9 @@ const STORAGE_KEY = "vr-core.settings.v1";
  */
 const migrateRender = (render: RenderSettings): RenderSettings =>
   render.maxBatchAgeMs === 250 ? { ...render, maxBatchAgeMs: DEFAULT_SETTINGS.render.maxBatchAgeMs } : render;
+
+const migrateVoice = (assistant: AssistantSettings): AssistantSettings =>
+  localStorage.getItem(VOICE_MODEL_KEY) === VOICE_MODEL ? assistant : { ...assistant, voice: DEFAULT_VOICE };
 
 export const loadSettings = (): Settings => {
   if (typeof localStorage === "undefined") return DEFAULT_SETTINGS;
@@ -326,7 +337,7 @@ export const loadSettings = (): Settings => {
       lens: parseLens(parsed.lens),
       pipeline: { ...DEFAULT_SETTINGS.pipeline, ...parsed.pipeline },
       flags: { ...DEFAULT_SETTINGS.flags, ...parsed.flags },
-      assistant: parseAssistant((parsed as { assistant?: unknown }).assistant),
+      assistant: migrateVoice(parseAssistant((parsed as { assistant?: unknown }).assistant)),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -395,6 +406,7 @@ export const persistSettings = (settings: Settings): void => {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(VOICE_MODEL_KEY, VOICE_MODEL);
   } catch {
     // Storage may be unavailable in private mode; settings stay session-only.
   }

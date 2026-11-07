@@ -1,8 +1,8 @@
 """Speech in and speech out on Core. The web sends a WAV and plays a WAV.
 
-STT is a local Whisper GGML/GGUF file (whisper.cpp). TTS is a local Piper
-voice for Vietnamese and the machine's own SAPI voice for English. Neither
-path loads a remote checkpoint.
+STT is a local Whisper GGML/GGUF file (whisper.cpp). TTS is VieNeu-TTS v3 Turbo
+(ONNX, on the CPU) for Vietnamese, cloned from assistant/voices/hino.wav, and the
+machine's own SAPI voice for English. Neither path loads a remote checkpoint.
 """
 
 from __future__ import annotations
@@ -20,8 +20,9 @@ from array import array
 from pathlib import Path
 from typing import Any
 
-from .catalog import _env, voice_vi_dir, whisper_path, whisper_wake_path
+from .catalog import _env, voice_reference, voice_vi_dir, whisper_path, whisper_wake_path
 from .tuning import VoiceTuning, default_tuning, voice_spec
+from .wake import is_made_up
 
 MAX_SPEAK_CHARS = 400
 
@@ -37,8 +38,6 @@ class Speech:
         self._wake_run = threading.Lock()
         self._tts_lock = threading.Lock()
         self._tts_vi: Any = None
-        # Noise and silence are fixed when the Piper model is built, so a change rebuilds it.
-        self._tts_vi_key: tuple[float, float, float] | None = None
         self.state = "idle"
         self.error: str | None = None
 
@@ -59,6 +58,17 @@ class Speech:
                 self.error = str(error)
                 self._stt = None
                 raise
+
+    def warm(self) -> None:
+        """Load Whisper and the voice now, in the background, so the first greeting is not a minute late."""
+        try:
+            self.ensure()
+            with self._tts_lock:
+                if self._tts_vi is None:
+                    self._tts_vi = _load_vieneu(voice_vi_dir(), voice_reference())
+            print("  voice    ready", flush=True)
+        except Exception as error:  # noqa: BLE001
+            print(f"  voice    could not warm up: {error}", flush=True)
 
     def _load_unlocked(self) -> None:
         self._stt = _load_whisper(whisper_path(), "VR_WHISPER_PATH")
@@ -91,7 +101,15 @@ class Speech:
             raise RuntimeError(self.error or "speech is not ready")
         language = language or ("vi" if locale == "vi" else "en")
         wav_bytes = _pad_wav(_clean(_to_16k_mono(wav_bytes)))
-        options: dict[str, Any] = {"language": language, "audio_ctx": _audio_ctx(wav_bytes)}
+        # Without a token cap Whisper can loop on a short line ("Màm-en-nâu? Màm-en-nâu? ..."), and
+        # with the lock held that one line freezes every later one for minutes.
+        options: dict[str, Any] = {
+            "language": language,
+            "audio_ctx": _audio_ctx(wav_bytes),
+            "single_segment": True,
+            "no_context": True,
+            "max_tokens": MAX_TOKENS_CAREFUL if careful else MAX_TOKENS_QUICK,
+        }
         if prompt:
             options["initial_prompt"] = prompt
         if careful:
@@ -102,7 +120,7 @@ class Speech:
             with run_lock:
                 segments = stt.transcribe(str(dest), **options)
         if isinstance(segments, str):
-            return segments.strip()
+            return "" if is_made_up(segments) else segments.strip()
         parts = []
         for segment in segments or []:
             if isinstance(segment, dict):
@@ -111,7 +129,11 @@ class Speech:
                 text = str(getattr(segment, "text", None) or "")
             if text.strip():
                 parts.append(text.strip())
-        return " ".join(parts).strip()
+        heard = " ".join(parts).strip()
+        if is_made_up(heard):
+            print(f"  stt      dropped a made-up line: {heard!r}", flush=True)
+            return ""
+        return heard
 
     def synthesize(self, text: str, locale: str, tuning: VoiceTuning | None = None) -> bytes:
         spoken = speakable(text)
@@ -119,24 +141,30 @@ class Speech:
             return b""
         tuning = tuning or default_tuning()
         if locale == "vi":
-            return self._piper_vi(spoken, tuning)
+            return self._vieneu_vi(spoken, tuning)
         return _sapi(spoken, locale, tuning)
 
-    def _piper_vi(self, spoken: str, tuning: VoiceTuning) -> bytes:
-        """Windows ships no Vietnamese SAPI voice, so Vietnamese is a local Piper VITS."""
-        key = (tuning.expression, tuning.rhythm, tuning.pause)
+    def _vieneu_vi(self, spoken: str, tuning: VoiceTuning) -> bytes:
+        """Windows ships no Vietnamese SAPI voice, so Vietnamese is VieNeu cloned from the assistant's own voice."""
         with self._tts_lock:
-            if self._tts_vi is None or self._tts_vi_key != key:
-                self._tts_vi = _load_piper(voice_vi_dir(), tuning)
-                self._tts_vi_key = key
-            # Synthesize slower, play back faster: pitch moves by `ratio`, duration does not.
-            ratio = tuning.pitch_hz / voice_spec()["nativeHz"]
-            audio = self._tts_vi.generate(spoken, sid=0, speed=tuning.speed / ratio)
-        return _pcm16_wav(audio.samples, round(audio.sample_rate * ratio))
+            if self._tts_vi is None:
+                self._tts_vi = _load_vieneu(voice_vi_dir(), voice_reference())
+            audio = self._tts_vi.infer(
+                text=spoken,
+                voice=VOICE_NAME,
+                temperature=tuning.expression,
+                top_p=tuning.rhythm,
+                silence_p=tuning.pause,
+            )
+        return _shifted_wav(audio, VIENEU_RATE, tuning)
 
 
 STT_RATE = 16_000
+VIENEU_RATE = 48_000
+VOICE_NAME = "hino"
 BEAM_SIZE = 5
+MAX_TOKENS_CAREFUL = 80  # a spoken question; also what a looping decode is cut off at
+MAX_TOKENS_QUICK = 20  # the call word, a name and a few more
 
 
 def _load_whisper(path: Path, variable: str) -> Any:
@@ -228,6 +256,44 @@ def _clean(wav_bytes: bytes) -> bytes:
     return buffer.getvalue()
 
 
+VOICE_FRAME = 512
+VOICE_HOP = 256
+MIN_VOICED_FRAMES = 5  # about 80 ms of a voice: a short "hino" has 8 or more, noise has none
+
+
+def has_voice(wav_bytes: bytes) -> bool:
+    """Is there a voice in this 16 kHz mono line, as opposed to noise, a click or a breath?
+
+    A voice has a pitch: within a frame, the sound repeats every 2.5 to 14 ms (400 to 70 Hz).
+    Noise does not, whatever its loudness. Frames are counted that are above the room's level
+    and repeat like that. Whatever is not 16-bit PCM passes, as it cannot be judged.
+    """
+    import numpy as np
+
+    try:
+        with wave.open(io.BytesIO(wav_bytes)) as clip:
+            if clip.getsampwidth() != 2 or clip.getnchannels() != 1:
+                return True
+            samples = np.frombuffer(clip.readframes(clip.getnframes()), dtype="<i2").astype(np.float32) / 32768
+    except (wave.Error, EOFError):
+        return True
+    if samples.size < VOICE_FRAME:
+        return False
+    count = 1 + (samples.size - VOICE_FRAME) // VOICE_HOP
+    index = np.arange(VOICE_FRAME)[None, :] + VOICE_HOP * np.arange(count)[:, None]
+    frames = samples[index] * np.hanning(VOICE_FRAME)
+    frames -= frames.mean(axis=1, keepdims=True)
+    level = np.sqrt((frames**2).mean(axis=1))
+    power = np.abs(np.fft.rfft(frames, 2 * VOICE_FRAME, axis=1)) ** 2
+    repeat = np.fft.irfft(power, axis=1)[:, :VOICE_FRAME]
+    repeat /= np.maximum(repeat[:, :1], 1e-12)
+    low, high = STT_RATE // 400, STT_RATE // 70
+    dip = np.minimum.accumulate(repeat[:, :high], axis=1)
+    pitched = (repeat[:, low:high] - dip[:, low:high]).max(axis=1) > 0.5
+    loud = level > max(float(np.percentile(level, 20)) * 2.0, 0.002)
+    return int((pitched & loud).sum()) >= MIN_VOICED_FRAMES
+
+
 MIN_STT_SECONDS = 1.5
 LEAD_SECONDS = 0.35
 _HISS = 130  # about 0.4% of full scale: room noise, not silence
@@ -280,26 +346,51 @@ def _audio_ctx(wav_bytes: bytes) -> int:
     return max(250, min(1500, int(seconds * 50) + 100))
 
 
-def _load_piper(folder: Path, tuning: VoiceTuning) -> Any:
-    import sherpa_onnx
-
-    models = sorted(folder.glob("*.onnx"))
-    if not models or not (folder / "tokens.txt").is_file():
+def _load_vieneu(folder: Path, reference: Path) -> Any:
+    """VieNeu Turbo from files on disk only, with the assistant's voice enrolled from `reference`."""
+    needed = [folder / "turbo" / "denoiser.onnx", folder / "codec" / "moss_audio_tokenizer_decode_full.onnx", reference]
+    missing = [path for path in needed if not path.is_file()]
+    if missing:
         raise FileNotFoundError(
-            f"Vietnamese voice not found: {folder}. Put the Piper vi_VN folder there or set VR_VOICE_VI_PATH."
+            f"Vietnamese voice not found: {missing[0]}. Run run.py to download it (downloads.json) or set VR_VOICE_VI_PATH."
         )
-    vits = sherpa_onnx.OfflineTtsVitsModelConfig(
-        model=str(models[0]),
-        tokens=str(folder / "tokens.txt"),
-        data_dir=str(folder / "espeak-ng-data"),
-        noise_scale=tuning.expression,
-        noise_scale_w=tuning.rhythm,
+    os.environ["HF_HUB_OFFLINE"] = "1"  # every file is already here; never go looking for them elsewhere
+    from vieneu import Vieneu
+    from vieneu._v3_turbo_engine import onnx_runtime_lite
+
+    class _Engine(onnx_runtime_lite.OnnxV3LiteEngine):
+        """The package takes the audio codec from the Hub; this points it at the folder."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, codec_dir=str(folder / "codec"), **kwargs)
+
+    onnx_runtime_lite.OnnxV3LiteEngine = _Engine
+    tts = Vieneu(
+        mode="v3turbo",
+        backbone_repo=str(folder / "turbo"),
+        onnx_dir=str(folder / "turbo" / "onnx_update"),
+        threads=int(_env("VR_N_THREADS") or 0),
     )
-    config = sherpa_onnx.OfflineTtsConfig(
-        model=sherpa_onnx.OfflineTtsModelConfig(vits=vits, num_threads=2),
-        silence_scale=tuning.pause,
-    )
-    return sherpa_onnx.OfflineTts(config)
+    tts.add_voice(name=VOICE_NAME, ref_audio=str(reference))
+    return tts
+
+
+def _shifted_wav(audio: Any, rate: int, tuning: VoiceTuning) -> bytes:
+    """Pitch and speed apart: slow or quicken the sound first, then play it back at a shifted rate.
+
+    Playing at `ratio` times the rate raises the pitch by `ratio` and shortens the sound by
+    the same, so the sound is first stretched by `speed / ratio` to leave only `speed`.
+    """
+    import numpy as np
+
+    samples = np.asarray(audio, dtype=np.float32)
+    ratio = tuning.pitch_hz / voice_spec()["nativeHz"]
+    stretch = tuning.speed / ratio
+    if samples.size > 1 and abs(stretch - 1.0) > 0.01:
+        import librosa
+
+        samples = librosa.effects.time_stretch(samples, rate=stretch)
+    return _pcm16_wav(samples, round(rate * ratio))
 
 
 def _pcm16_wav(samples: Any, sample_rate: int) -> bytes:

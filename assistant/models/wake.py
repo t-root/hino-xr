@@ -31,6 +31,29 @@ def letters(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", plain.lower())
 
 
+# Whisper was trained on subtitled video, so on noise or a breath it writes what videos end with
+# instead of nothing. Said to the assistant these become questions it then answers.
+_MADE_UP = (
+    "subscribe",
+    "dangkykenh",
+    "ghienmigo",
+    "thanksforwatching",
+    "thankyouforwatching",
+    "camondaxem",
+    "camoncacbandatheodoi",
+    "henganlaicacban",
+    "hengaplaicacban",
+    "likeandshare",
+    "amaraorg",
+)
+
+
+def is_made_up(text: str) -> bool:
+    """True for a line that is Whisper's habit on noise, not something the wearer said."""
+    plain = letters(text)
+    return any(phrase in plain for phrase in _MADE_UP) or (not plain and bool(text.strip()))
+
+
 def find_phrase(heard: str, phrase: str, threshold: float | None = None) -> tuple[bool, list[str]]:
     """Whether `phrase` is in `heard`, and the words that came after it.
 

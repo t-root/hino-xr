@@ -1,7 +1,7 @@
 import { sessionBootStep, type SessionBootStep } from "@/core/bootstrap/sessionBoot";
 import { useRuntimeStore } from "@/core/state/RuntimeStore";
 import { useSharedUiStore } from "@/core/state/SharedUiStore";
-import type { MessageKey } from "@/i18n/text";
+import { TEXT, type MessageKey } from "@/i18n/text";
 import { el, watch } from "../dom";
 import { t, watchLocale } from "../i18n/useText";
 
@@ -37,7 +37,8 @@ const milestones = (step: SessionBootStep): readonly Milestone[] => {
   return entries;
 };
 
-const labelFor = (key: Milestone["key"]): string => (key === "init" ? t("boot.log.init") : t(STEP_LABEL[key]));
+/** The boot console is English in every language, like the filler lines between the milestones. */
+const labelFor = (key: Milestone["key"]): string => TEXT[key === "init" ? "boot.log.init" : STEP_LABEL[key]].en;
 
 /**
  * Filler chatter between the real milestones, never localised: a real boot

@@ -187,6 +187,15 @@ Người dùng đổi ở menu (hoặc nói "chuyển sang tiếng Anh"), lựa 
 chữ Whisper nghe ra, có khớp tên không, lệnh, câu trả lời. Thêm bước nào vào luồng nghe
 thì thêm một dòng log cho bước đó; im lặng không báo lỗi là lỗi.
 
+**E9.** Giọng đọc tiếng Việt là VieNeu-TTS v3 Turbo (ONNX, CPU), clone từ `assistant/voices/hino.wav`;
+tiếng Anh dùng SAPI. Dự án chạy bằng Python 3.11 trở lên (`run.py` kiểm tra). Model nằm trong
+`assistant/weights/vieneu/` và khai ở `downloads.json` (nhiều file, id bắt đầu bằng `voice-vi`); mã nạp
+chúng từ đĩa và đặt `HF_HUB_OFFLINE=1`, không để thư viện tự tìm trên mạng hay trong cache của máy.
+Gói `vieneu` cài bằng `--no-deps` (nó đòi gradio, ta không dùng); thư viện nó cần ghi ở `requirements.txt`.
+Ba thanh trượt Biểu cảm / Nhịp / Ngắt nghỉ lần lượt là `temperature`, `top_p`, `silence_p` của VieNeu; độ cao và tốc độ
+do `_shifted_wav` làm (đổi tốc độ phát lại, bù bằng kéo giãn thời gian). `nativeHz` trong `voice.json` là độ cao thật
+của giọng mẫu: thay mẫu thì đo lại (librosa.pyin) và sửa. Lần nạp đầu mất cả phút nên `main.py` làm nóng trong nền (`speech.warm`).
+
 ---
 
 ## F. Điều khiển bằng giọng nói

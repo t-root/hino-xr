@@ -26,8 +26,8 @@ const IMPLICIT: readonly ModulePermission[] = ["camera-frame"];
  * interface, rather than only returning boxes for Core to draw.
  */
 const PERMISSION_GRANTS: Readonly<Record<string, readonly ModulePermission[]>> = {
-  // Sends the area the wearer picks on the map to OpenStreetMap (tiles, then
-  // buildings and roads there) and shows it on a screen of its own.
+  // Sends the area the wearer picks on the map to OpenStreetMap (buildings and
+  // roads there), loads map tiles from openstreetmap.de and shows it on a screen of its own.
   map3d: ["network", "screen"],
 };
 

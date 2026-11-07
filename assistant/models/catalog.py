@@ -56,7 +56,8 @@ _REPO = Path(__file__).resolve().parents[2]
 _DEFAULT_GGUF = "assistant/weights/qwen2.5-3b-instruct-q4_k_m.gguf"
 _DEFAULT_WHISPER = "assistant/weights/ggml-large-v3-q5_0.bin"
 _DEFAULT_WHISPER_WAKE = "assistant/weights/ggml-small.bin"
-_DEFAULT_VOICE_VI = "assistant/weights/vits-piper-vi_VN-vais1000-medium"
+_DEFAULT_VOICE_VI = "assistant/weights/vieneu"
+_VOICE_REFERENCE = "assistant/voices/hino.wav"
 
 
 def catalog() -> tuple[ModelSpec, ...]:
@@ -119,10 +120,15 @@ def whisper_wake_path() -> Path:
 
 
 def voice_vi_dir() -> Path:
-    """Folder of the Vietnamese Piper voice (.onnx, tokens.txt, espeak-ng-data)."""
+    """Folder of the Vietnamese voice model: turbo/ (VieNeu Turbo, ONNX) and codec/ (audio codec)."""
     raw = _env("VR_VOICE_VI_PATH") or _DEFAULT_VOICE_VI
     path = Path(raw)
     return path if path.is_absolute() else _REPO / path
+
+
+def voice_reference() -> Path:
+    """A few seconds of the assistant's own voice; the Vietnamese voice is cloned from it. Part of the repository."""
+    return _REPO / _VOICE_REFERENCE
 
 
 def assistant_greeting(locale: str) -> str:

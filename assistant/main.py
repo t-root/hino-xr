@@ -2,7 +2,7 @@ from pathlib import Path
 import os
 import sys
 import webbrowser
-from threading import Timer
+from threading import Thread, Timer
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
@@ -44,6 +44,9 @@ if __name__ == "__main__":
     prepare_frontend()
     cert, key = ensure_cert()
     _announce()
+    from models.speech import speech
+
+    Thread(target=speech.warm, daemon=True).start()
     Timer(1.2, _open_browser).start()
     uvicorn.run(
         "app:app",

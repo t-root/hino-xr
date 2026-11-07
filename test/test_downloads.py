@@ -97,10 +97,17 @@ class ListTest(unittest.TestCase):
     def test_the_assistant_looks_for_what_is_downloaded(self) -> None:
         catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
         by_id = {item["id"]: item for item in self.items}
-        for name in ("llm", "stt", "voice-vi"):
+        for name in ("llm", "stt"):
             item = by_id[name]
             self.assertIn(Path(item["to"]).name, catalog)
             self.assertIn(item["env"], catalog)
+        # The voice is many files under one folder, which is what the catalog names.
+        voice = [item for item in self.items if item["id"].startswith("voice-vi")]
+        self.assertGreater(len(voice), 1)
+        folder = re.search(r'_DEFAULT_VOICE_VI = "([^"]+)"', catalog).group(1)
+        for item in voice:
+            self.assertTrue(item["to"].startswith(folder + "/"), item["id"])
+        self.assertIn("VR_VOICE_VI_PATH", catalog)
 
     def test_the_hand_model_is_fetched_to_where_the_page_loads_it(self) -> None:
         item = next(item for item in self.items if item["id"] == "hand-landmarker")

@@ -414,7 +414,10 @@ export class ModelBridge {
    * heard the assistant's name, and the line may begin with it.
    */
   async answerSpeech(wav: Blob): Promise<void> {
-    if (!this.enabled || this.phase !== "idle") return;
+    if (!this.enabled || this.phase !== "idle") {
+      this.logger.warn("line dropped: assistant is not ready for it", { enabled: this.enabled, phase: this.phase });
+      return;
+    }
     this.phase = "sending";
     this.player.stop();
     await this.sendTalk(wav, true);
@@ -456,8 +459,11 @@ export class ModelBridge {
     const line = useRuntimeStore.getState().settings.assistant.ack[currentLocale()].trim();
     if (!line) return;
     try {
+      const started = Date.now();
       const audio = await this.client.preview(line, currentLocale(), this.voice());
+      this.logger.info("acknowledgement made", { bytes: audio.size, ms: Date.now() - started });
       await this.player.play(audio);
+      this.logger.info("acknowledgement played", { ms: Date.now() - started });
     } catch (error) {
       this.logger.warn("acknowledge failed", { message: error instanceof Error ? error.message : String(error) });
     }
@@ -529,6 +535,7 @@ export class ModelBridge {
       if (abort.signal.aborted) return;
       const message = error instanceof Error ? error.message : String(error);
       if (message === "no speech") {
+        this.logger.info("nothing was understood in that line");
         useRuntimeStore.getState().patchAssistant({ state: "ready", voiceIssue: "noSpeech" });
         return;
       }

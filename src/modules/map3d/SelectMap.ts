@@ -84,7 +84,8 @@ const adjustLng = (latlng: LatLng): LeafletLatLng => {
   return new L.LatLng(latlng.lat, adjustedLng);
 };
 
-const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors';
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, tiles by <a href="https://openstreetmap.de/">OpenStreetMap Germany</a>';
 const BEACON_HTML = '<span class="holo-location-beacon"></span>';
 
 type SelectMapOptions = Readonly<{
@@ -304,8 +305,12 @@ export class MapView {
       // the observer below re-measures every copy together instead.
       trackResize: false,
     });
-    new SharedTileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    // OpenStreetMap Germany serves the standard OpenStreetMap style from its own servers.
+    // tile.openstreetmap.org is blocked by some networks' DNS (it resolves to 127.0.0.1), and
+    // CARTO's free tiles now answer every request with an "API key required" picture.
+    new SharedTileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", {
       attribution: OSM_ATTRIBUTION,
+      maxZoom: 18,
     }).addTo(this.map);
 
     this.sync = model.view.register((view) => this.goTo(view));

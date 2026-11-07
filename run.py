@@ -27,8 +27,12 @@ PACKAGES = (
     "llama_cpp",
     "pywhispercpp",
     "pyttsx3",
-    "sherpa_onnx",
+    "vieneu",
+    "librosa",
+    "soundfile",
 )
+VIENEU = "vieneu==3.8.3"
+MIN_PYTHON = (3, 11)
 
 
 def _configure_stdio() -> None:
@@ -75,6 +79,9 @@ def _ensure_packages() -> bool:
         [sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS)],
         cwd=ROOT,
     )
+    if result.returncode == 0:
+        # Its own list of requirements names gradio, which is large and never used here.
+        result = subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", VIENEU], cwd=ROOT)
     if result.returncode == 0 and _packages_ok():
         _say()
         return True
@@ -295,6 +302,11 @@ def main() -> int:
     _say("  VR Core - may chu Python")
     _say("================================================")
     _say()
+    if sys.version_info < MIN_PYTHON:
+        _say(f"[LOI] Can Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} tro len (dang la {sys.version.split()[0]}).")
+        _say("Cai o https://www.python.org roi chay lai bang run.bat.")
+        _say()
+        return 1
     if not _ensure_packages():
         return 1
     _ensure_downloads()

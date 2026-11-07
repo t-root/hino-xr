@@ -110,7 +110,12 @@ export class SpeechPlayer {
       this.finishCurrent = done;
       this.el.addEventListener("ended", done);
       this.el.addEventListener("error", done);
-      this.el.play().catch(done);
+      this.el.play().catch((error: unknown) => {
+        // A piece cut off by stop() ends in an AbortError, which is not a block. A real block is
+        // the browser's autoplay rule: no tap on the page yet, so no sound is allowed.
+        if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("speech playback blocked", error);
+        done();
+      });
     });
   }
 
