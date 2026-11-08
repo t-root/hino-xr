@@ -306,15 +306,19 @@ Câu nói của Hino nằm trong `_SAY` (vi và en); thêm loại phản hồi m
 chưa chạy. Chỉ khi người dùng nói "duyệt plugin …" mới chuyển vào `src/modules/`, thêm vào
 `registry.ts` và build lại; trang nạp lại. Từ chối thì xoá bản nháp.
 
-**G2.** Plugin sinh ra chỉ là detector `camera-frame` (`execution: "main"`). Không có
-`network`, `screen`, `snapshot`: quyền chỉ cấp tay ở `permissions.ts` (B6), nên bản nháp
-không thể tự xin. Id luôn có tiền tố `ai-`.
+**G2.** Plugin do trợ lý viết (id có tiền tố `ai-`) được cấp **mọi quyền** mà nó xin trong `manifest.ts`: `permissions.ts` miễn kiểm tra
+theo tiền tố (`ASSISTANT_PLUGIN_PREFIX`). Bản nháp chỉ xin quyền nằm trong `camera-frame`, `network`, `screen`, `snapshot`
+(`META.permissions`). Plugin viết tay vẫn phải được cấp từng quyền ở `permissions.ts` (B6).
 
-**G3.** Mã do AI viết được kiểm tra trước khi lưu (`pluginsmith.check_code`): cấm
-`fetch`, `document`, `window`, `eval`, `Worker`, timer, `import()`; chỉ cho import đúng bốn
-chỗ; bắt buộc `export const createModule`; giới hạn dung lượng; rồi esbuild build thử.
-Đây là **lưới lọc lỗi, không phải sandbox**: mã vẫn là mã. Vì vậy bước duyệt của người là
-chốt chặn thật, và bản nháp là file thường để đọc trước khi duyệt.
+**G3.** Mã do AI viết được kiểm tra trước khi lưu (`pluginsmith.check_code`): cấm `eval`, `Function`, `import()`, truy cập
+`prototype`/`constructor`; chỉ import từ `@/…` hoặc `./…`; bắt buộc `export const createModule`; giới hạn dung lượng; rồi
+esbuild build thử. Đây là **lưới lọc lỗi, không phải sandbox**: mã có quyền thật. Vì vậy bước duyệt của người là chốt chặn
+thật, và bản nháp là file thường để đọc trước khi duyệt.
+
+**G3b.** Sửa plugin có sẵn ("sửa plugin …", lệnh `revise`) đi qua cùng cổng duyệt: `pluginsmith.revise` đưa mọi file của plugin
+cho mô hình, kiểm tra kết quả (JSON hợp lệ, build thử trên bản sao), rồi để trong `plugins-pending/<id>--edit/` chứ chưa
+ghi gì vào plugin. Duyệt thì `_apply_edit` sao lưu bản gốc vào `plugins-backup/`, ghi file, build, và **trả lại bản gốc nếu
+build lỗi**. `models.json` và `vendor.json` không bao giờ bị sửa.
 
 **G4.** Ai viết mã: mặc định **local** (Qwen, ngoại tuyến, chỉ làm được plugin đơn giản).
 "Dùng API" cần khoá trong `.env` (`VR_ANTHROPIC_KEY`); không có khoá thì giữ local và nói

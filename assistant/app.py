@@ -226,6 +226,17 @@ async def draft_plugin(body: DraftBody) -> dict[str, Any]:
     return {"ok": True, "id": made["id"], "say": say_for(locale, "drafted", name=made["name"])}
 
 
+@app.post("/api/plugins/{plugin_id}/revise")
+async def revise_plugin(plugin_id: str, body: DraftBody) -> dict[str, Any]:
+    """Has the assistant change an installed plugin. The change waits in plugins-pending/ until approved."""
+    locale = _locale(body.locale)
+    try:
+        made = await run_in_threadpool(pluginsmith.revise, plugin_id, body.description, locale)
+    except pluginsmith.DraftError:
+        return {"ok": False, "say": say_for(locale, "revise_failed")}
+    return {"ok": True, "id": made["id"], "say": say_for(locale, "revised", name=made["name"])}
+
+
 @app.post("/api/plugins/{plugin_id}/approve")
 async def approve_plugin(plugin_id: str, locale: str = "vi") -> dict[str, Any]:
     named = next((item for item in pluginsmith.pending() if item["id"] == plugin_id), None)

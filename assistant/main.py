@@ -12,7 +12,7 @@ import asyncio
 
 import uvicorn
 
-from frontend import ensure_cert, lan_ips, prepare_frontend
+from frontend import ensure_cert, lan_ips, prepare_frontend, watch_frontend
 
 PORT = 5173
 HOST = "0.0.0.0"
@@ -38,12 +38,13 @@ def _announce() -> None:
 
 
 if __name__ == "__main__":
-    prepare_frontend()
+    esbuild = prepare_frontend()
     cert, key = ensure_cert()
     _announce()
     from models.speech import speech
 
     Thread(target=speech.warm, daemon=True).start()
+    Thread(target=watch_frontend, args=(esbuild,), daemon=True).start()
     Timer(1.2, _open_browser).start()
     server = uvicorn.Server(
         uvicorn.Config(

@@ -103,7 +103,9 @@ Hai nhóm lệnh được xử lý trước khi hỏi mô hình (`assistant/mode
 
 ### Trợ lý viết plugin
 
-Nói "tạo plugin đếm số người" rồi mô tả: trợ lý viết một bản nháp vào `plugins-pending/` (kiểm tra mã, biên dịch, **chưa cài**). Bạn nói "duyệt plugin …" để cài hoặc "từ chối plugin …" để bỏ. Bản nháp chỉ được chạy như plugin đọc khung hình camera; quyền `network`, `screen`, `snapshot` không bao giờ cấp tự động. Các bước kiểm tra là lưới đỡ lỗi chứ không phải hộp cát, nên bạn nên đọc thư mục nháp trước khi duyệt.
+Nói "tạo plugin đếm số người" rồi mô tả: trợ lý viết một bản nháp vào `plugins-pending/` (kiểm tra mã, biên dịch, **chưa cài**). Bạn nói "duyệt plugin …" để cài (server dựng lại, trang tự nạp lại, **không cần chạy lại server**) hoặc "từ chối plugin …" để bỏ. Plugin do trợ lý viết (id `ai-…`) được cấp **mọi quyền** mà nó xin: `network`, `screen`, `snapshot`; bản nháp ghi rõ quyền nó dùng trong `manifest.ts`. Các bước kiểm tra chỉ là lưới đỡ lỗi chứ không phải hộp cát (chỉ cấm `eval`, `Function`, `import()`), nên bạn nên đọc thư mục nháp trước khi duyệt.
+
+**Sửa plugin có sẵn bằng giọng nói:** "sửa plugin bản đồ, thêm nút phóng to" (hoặc "fix the 3D map plugin so …"). Trợ lý đọc các file của plugin (tối đa 60.000 ký tự, không đụng `models.json` và `vendor.json`), viết lại những file cần đổi và để chúng chờ trong `plugins-pending/<id>--edit/`. Nói "duyệt plugin …" thì bản gốc được sao lưu vào `plugins-backup/`, file mới được ghi, server dựng lại và trang nạp lại; dựng lỗi thì mọi thứ trả về như cũ. Chất lượng phụ thuộc vào người viết: mô hình trên máy chỉ sửa được việc nhỏ, "dùng API" (khoá trong `.env`) cho kết quả tốt hơn nhiều.
 
 Nguồn viết mã: `VR_CODE_SOURCE=local` (mặc định, ngoại tuyến, chỉ lệnh theo từ khoá) hoặc `api` (cần `VR_ANTHROPIC_KEY`; mô hình thêm hiểu những yêu cầu từ khoá không bắt được và làm menu bằng gọi công cụ). Nói "dùng API" hoặc "dùng local" để đổi khi đang chạy.
 

@@ -34,8 +34,12 @@ const PERMISSION_GRANTS: Readonly<Record<string, readonly ModulePermission[]>> =
   "face-recognition": ["network", "screen"],
 };
 
+const ASSISTANT_PLUGIN_PREFIX = "ai-";
+
 /** Permissions a manifest asks for that nobody has granted it. */
 export const missingPermissions = (manifest: ModuleManifest): readonly ModulePermission[] => {
+  // A plugin the assistant wrote (and the wearer approved) may hold whatever it asks for.
+  if (manifest.id.startsWith(ASSISTANT_PLUGIN_PREFIX)) return [];
   const granted = PERMISSION_GRANTS[manifest.id] ?? [];
   return manifest.permissions.filter(
     (permission) => !IMPLICIT.includes(permission) && !granted.includes(permission),

@@ -107,7 +107,10 @@ export class ModelBridge {
       }, false);
       return;
     }
-    if (command.action === "create") {
+    if (command.action === "revise" && command.id) {
+      const id = command.id;
+      void this.followUp(() => this.client.revisePlugin(id, command.description, currentLocale()), false);
+    } else if (command.action === "create") {
       void this.followUp(() => this.client.draftPlugin(command.description, currentLocale()), false);
     } else if (command.action === "approve" && command.id) {
       const id = command.id;

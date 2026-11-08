@@ -8,7 +8,7 @@ export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enable
 
 /** What the wearer asked the headset to do, rather than the model to answer. */
 export type SpokenCommand = Readonly<{
-  action: "enable" | "disable" | "create" | "approve" | "reject" | "setting" | "person" | "sight" | "none";
+  action: "enable" | "disable" | "create" | "revise" | "approve" | "reject" | "setting" | "person" | "sight" | "none";
   id: string | null;
   /** For `create`: what the new plugin should do, in the wearer's words. */
   description: string;
@@ -19,7 +19,7 @@ export type SpokenCommand = Readonly<{
 /** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
 export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
 
-const COMMANDS = new Set(["enable", "disable", "create", "approve", "reject", "setting", "person", "sight", "none"]);
+const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "reject", "setting", "person", "sight", "none"]);
 
 type TalkResult = Readonly<{
   transcript: string;
@@ -183,6 +183,11 @@ export class ModelClient {
   /** Has the assistant write a plugin. Slow with the local model: minutes, not seconds. */
   async draftPlugin(description: string, locale: string): Promise<PluginOutcome> {
     return this.postPlugin(`${this.pluginsBase()}/draft`, { description, locale });
+  }
+
+  /** Has the server change an installed plugin; the change waits for approval like a new plugin does. */
+  async revisePlugin(id: string, description: string, locale: string): Promise<PluginOutcome> {
+    return this.postPlugin(`${this.pluginsBase()}/${encodeURIComponent(id)}/revise`, { description, locale });
   }
 
   /** Installs a draft the wearer approved; the server rebuilds the app before it answers. */

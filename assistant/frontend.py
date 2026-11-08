@@ -387,7 +387,8 @@ def bundle(esbuild: Path) -> None:
         )
 
 
-def prepare_frontend() -> None:
+def prepare_frontend() -> Path:
+    """Gets the frontend ready and returns the esbuild that built it, for `watch_frontend`."""
     _log("Preparing frontend (no Node.js)")
     specs = _package_specs()
     for name in ("three", "zod", "zustand", "@mediapipe/tasks-vision"):
@@ -401,6 +402,45 @@ def prepare_frontend() -> None:
     esbuild = ensure_esbuild(specs["esbuild"])
     bundle(esbuild)
     _log("Frontend ready")
+    return esbuild
+
+
+def _newest_source() -> float:
+    """The modification time of the newest file the bundle is built from."""
+    newest = (ASSISTANT / "frontend.py").stat().st_mtime
+    for path in SRC.rglob("*"):
+        relative = path.relative_to(SRC).parts
+        if len(relative) > 3 and relative[0] == "modules" and relative[2] in {PLUGIN_VENDOR_DIR, PLUGIN_MODELS_DIR}:
+            continue
+        if path.suffix in {".ts", ".json", ".css"}:
+            newest = max(newest, path.stat().st_mtime)
+    return newest
+
+
+def watch_frontend(esbuild: Path, interval: float = 1.0) -> None:
+    """Rebuilds the bundle whenever a source file changes, so a page reload shows the edit without a restart.
+
+    A build that fails (a typing slip in the middle of an edit) is reported once and tried again at the next edit.
+    """
+    import time
+
+    failed_at = 0.0
+    while True:
+        time.sleep(interval)
+        try:
+            newest = _newest_source()
+            if newest == failed_at or not (
+                _needs_bundle(RUNTIME / "app.js") or any(not (RUNTIME / "workers" / Path(e).with_suffix(".js")).exists() or _needs_bundle(RUNTIME / "workers" / Path(e).with_suffix(".js")) for e in _worker_entries())
+            ):
+                continue
+            bundle(esbuild)
+            _log("  watch    rebuilt; reload the page")
+            failed_at = 0.0
+        except subprocess.CalledProcessError:
+            failed_at = newest
+            _log("  watch    build failed; fix the error above and save again")
+        except OSError:
+            continue
 
 
 def lan_ips() -> list[str]:

@@ -19,25 +19,27 @@ class CheckTest(unittest.TestCase):
     def test_the_example_the_model_is_shown_passes_its_own_checks(self) -> None:
         smith.check_code(GOOD)
 
-    def test_code_that_reaches_outside_is_refused(self) -> None:
+    def test_code_that_runs_text_or_climbs_out_is_refused(self) -> None:
         for bad in (
-            'fetch("https://x.test")',
-            "document.body.innerHTML = ''",
-            "setTimeout(() => 1, 5)",
             "eval('1')",
-            "const w = new Worker('a.js')",
-            "localStorage.setItem('a','b')",
+            "const f = new Function('return 1')",
             "const c = ({}).constructor",
             'await import("https://x.test/a.js")',
+            "const p = a.__proto__",
         ):
             with self.assertRaises(ValueError, msg=bad):
                 smith.check_code(GOOD + "\n" + bad)
 
-    def test_only_the_listed_imports_are_allowed(self) -> None:
+    def test_a_plugin_with_permissions_may_use_the_network_and_the_page(self) -> None:
+        for fine in ('await fetch("https://x.test")', "document.title", "setTimeout(() => 1, 5)", "localStorage.getItem('a')"):
+            smith.check_code(GOOD + "\n" + fine)
+
+    def test_only_imports_from_the_app_or_the_folder_are_allowed(self) -> None:
         with self.assertRaises(ValueError):
             smith.check_code('import { x } from "three";\n' + GOOD)
         with self.assertRaises(ValueError):
-            smith.check_code('import { x } from "@/core/state/RuntimeStore";\n' + GOOD)
+            smith.check_code('import { x } from "https://x.test/a.js";\n' + GOOD)
+        smith.check_code('import { x } from "@/core/state/RuntimeStore";\n' + GOOD)
 
     def test_a_file_must_export_the_factory_and_stay_small(self) -> None:
         with self.assertRaises(ValueError):
@@ -85,7 +87,29 @@ class InstallTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             smith._register("ai-people", smith._register("ai-people", source))
 
-    def test_drafts_cannot_ask_for_more_than_a_camera_frame(self) -> None:
+    def test_a_draft_gets_the_permissions_it_asked_for_and_only_those(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        meta = {k: {"vi": "x", "en": "y"} for k in ("displayName", "description", "label")}
+        meta["permissions"] = ["camera-frame", "network"]
+        with tempfile.TemporaryDirectory() as tmp:
+            smith._write(Path(tmp) / "ai-net", "ai-net", meta, GOOD)
+            manifest = (Path(tmp) / "ai-net" / "manifest.ts").read_text(encoding="utf-8")
+        self.assertIn('permissions: ["camera-frame", "network"]', manifest)
+        bad = (
+            'META: {"id":"x","displayName":{"vi":"a","en":"b"},"description":{"vi":"a","en":"b"},'
+            '"label":{"vi":"a","en":"b"},"permissions":["root"]}\n```ts\nx\n```'
+        )
+        with self.assertRaises(ValueError):
+            smith._parse(bad)
+
+    def test_assistant_plugins_are_granted_every_permission_by_their_prefix(self) -> None:
+        grants = (SRC / "core/modules/permissions.ts").read_text(encoding="utf-8")
+        self.assertIn('ASSISTANT_PLUGIN_PREFIX = "ai-"', grants)
+        self.assertIn("startsWith(ASSISTANT_PLUGIN_PREFIX)) return []", grants)
+
+    def test_drafts_default_to_a_camera_frame(self) -> None:
         import tempfile
         from pathlib import Path
 
