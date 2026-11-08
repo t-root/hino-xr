@@ -1,7 +1,6 @@
 import type { PluginEntry } from "@/core/modules/definePlugin";
 import type { ModuleRegistry } from "@/core/modules/module-registry";
-import demoMotion from "./demo-motion/plugin";
-import faceDetection from "./face-detection/plugin";
+import faceRecognition from "./face-recognition/plugin";
 import map3d from "./map3d/plugin";
 import objectDetection from "./object-detection/plugin";
 import personDetection from "./person-detection/plugin";
@@ -14,7 +13,7 @@ import personDetection from "./person-detection/plugin";
  * Sorted by path so the catalogue, and therefore the palette order, does not
  * depend on how the directory was walked.
  */
-const entries: ReadonlyArray<PluginEntry> = [demoMotion, faceDetection, map3d, objectDetection, personDetection];
+const entries: ReadonlyArray<PluginEntry> = [faceRecognition, map3d, objectDetection, personDetection];
 
 /**
  * Hands Core the plugins that exist.

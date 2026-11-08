@@ -70,6 +70,34 @@ export type GestureEvent = Readonly<{
   targetId?: string;
 }>;
 
+/**
+ * Both hands pinching at once, as one gesture. `scale` is how much the distance between the hands
+ * changed since the last step (above 1 is spreading apart), `rotation` how far the line between
+ * them turned in radians, `pan` how far their midpoint moved. Positions are image space.
+ */
+export type TwoHandEvent = Readonly<{
+  phase: "start" | "move" | "end";
+  center: Readonly<{ x: number; y: number }>;
+  /** Where each pinch is, in image space: the left hand's and the right hand's. */
+  left: Readonly<{ x: number; y: number }>;
+  right: Readonly<{ x: number; y: number }>;
+  distance: number;
+  scale: number;
+  rotation: number;
+  pan: Readonly<{ x: number; y: number }>;
+}>;
+
+/**
+ * What a widget receives in the `twohand` DOM event: the step, and where the midpoint of the hands
+ * falls on the page, so a widget can aim at what is under them without knowing about hands.
+ */
+export type TwoHandDomDetail = TwoHandEvent &
+  Readonly<{
+    client: Readonly<{ x: number; y: number }>;
+    /** Where each pinch falls on the page. */
+    hands: Readonly<{ left: Readonly<{ x: number; y: number }>; right: Readonly<{ x: number; y: number }> }>;
+  }>;
+
 /** Anything the hit-test service can resolve a pointer against. */
 export type InteractiveTargetKind = "ui" | "detection" | "palette";
 

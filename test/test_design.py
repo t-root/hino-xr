@@ -88,9 +88,10 @@ class DesignSystemTest(unittest.TestCase):
         styles = next(file["text"] for file in self.sources if file["id"] == "ui/styles.css")
         veil = styles.split(".start__veil {", 1)[1].split("}", 1)[0]
         self.assertIn("opacity: 0.5", veil)
-        cursor = next(file["text"] for file in self.sources if file["id"] == "core/rendering/CursorLayer.ts")
-        self.assertNotRegex(cursor, r"CircleGeometry|RingGeometry")
-        self.assertRegex(cursor, r"bracketsGeometry|squareRing")
+        # The cursor is square brackets and squares, never a circle (it would read as a mouse pointer).
+        cursor = next(file["text"] for file in self.sources if file["id"] == "ui/panels/CursorOverlay.ts")
+        self.assertRegex(cursor, r"cursor__corner")
+        self.assertNotRegex(styles.split(".cursor-layer {", 1)[1], r"border-radius")
         view = next(file["text"] for file in self.sources if file["id"] == "ui/components/StereoView.ts")
         self.assertIn("camera-frame", view)
         self.assertIn("options.mount(frame)", view)

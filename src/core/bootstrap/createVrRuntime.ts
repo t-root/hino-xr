@@ -91,12 +91,9 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   renderer.renderScene.videoRoot.add(videoLayer.mesh);
   renderer.renderScene.overlayRoot.visible = false;
   renderer.renderScene.uiRoot.visible = false;
-  renderer.renderScene.cursorRoot.visible = false;
 
   const cursors = new CursorLayer(
-    renderer.renderScene.cursorRoot,
     renderer.mapper,
-    () => settings.render.uiPlaneDistance * 0.95,
     () => settings.cursor.opacity,
     () => settings.cursor.scale,
   );
@@ -168,6 +165,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     set: (id, on) => {
       if (modules.isEnabled(id) !== on) void (on ? modules.enable(id) : modules.disable(id));
     },
+    command: (name, payload) => modules.command(name, payload),
   });
 
   // The settings menu lists plugins. There is no 3D palette of cards.
@@ -339,7 +337,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     videoLayer.mesh.visible = true;
     renderer.renderScene.overlayRoot.visible = true;
     renderer.renderScene.uiRoot.visible = true;
-    renderer.renderScene.cursorRoot.visible = true;
   };
 
   const applySettings = (next: Settings): void => {
@@ -353,7 +350,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     renderer.applyTheme();
     overlay.setMaxBatchAge(next.render.maxBatchAgeMs);
     overlay.applyTheme();
-    cursors.applyTheme();
     videoLayer.applyTheme();
     media.applyTheme();
     models.syncSettings(next);

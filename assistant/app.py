@@ -18,6 +18,7 @@ from models import pluginsmith
 from models.commands import parse_plugins, say_for
 from models.controls import parse_controls
 from models.catalog import assistant_name, catalog
+from models.people import PersonError, people
 from models.engine import engine, parse_messages, resolve, sse
 from models.speech import speech
 from models.tuning import VoiceTuning, voice_spec
@@ -293,6 +294,80 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
         heard = " | ".join(readings)
     after = [word for word in question_after(rest) if letters(word)]
     return {"heard": heard, "matched": matched, "after": len(after)}
+
+
+class PersonBody(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    year: Optional[int] = None
+    info: str = Field(default="", max_length=2000)
+    embedding: Optional[list[float]] = None
+
+
+class PersonPatch(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=200)
+    year: Optional[int] = None
+    info: Optional[str] = Field(default=None, max_length=2000)
+
+
+class SampleBody(BaseModel):
+    embedding: list[float]
+
+
+@app.get("/api/people")
+def list_people() -> dict[str, Any]:
+    return {"people": people.list()}
+
+
+@app.post("/api/people")
+def create_person(body: PersonBody) -> dict[str, Any]:
+    try:
+        return people.create(body.name, body.year, body.info, body.embedding)
+    except PersonError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.patch("/api/people/{person_id}")
+def update_person(person_id: str, body: PersonPatch) -> dict[str, Any]:
+    # Only what the request names changes: `year: null` clears it, a missing `year` leaves it.
+    fields = {key: getattr(body, key) for key in body.model_fields_set}
+    try:
+        return people.update(person_id, **fields)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="unknown person") from error
+    except PersonError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/api/people/{person_id}/samples")
+def add_person_sample(person_id: str, body: SampleBody) -> dict[str, Any]:
+    try:
+        return people.add_sample(person_id, body.embedding)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="unknown person") from error
+    except PersonError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.delete("/api/people/{person_id}")
+def delete_person(person_id: str) -> dict[str, bool]:
+    if not people.delete(person_id):
+        raise HTTPException(status_code=404, detail="unknown person")
+    return {"ok": True}
+
+
+@app.post("/api/voice/dictate")
+async def dictate(request: Request, locale: str = "vi") -> dict[str, str]:
+    """What was said, as text, for the on-screen keyboard's microphone key. No wake word, no model."""
+    wav = await request.body()
+    if not wav:
+        raise HTTPException(status_code=400, detail="empty audio")
+    if len(wav) > MAX_WAV:
+        raise HTTPException(status_code=413, detail="audio too large")
+    try:
+        text = await run_in_threadpool(speech.transcribe, wav, _locale(locale), None, None, True)
+    except Exception as error:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return {"text": text}
 
 
 pluginsmith.default_source()

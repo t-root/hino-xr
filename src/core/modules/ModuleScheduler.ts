@@ -8,10 +8,21 @@ export type ModuleBudget = Readonly<{
 }>;
 
 const DEFAULT_BUDGET: ModuleBudget = {
-  timeoutMs: 1500,
-  maxConsecutiveFailures: 3,
+  timeoutMs: 4000,
+  maxConsecutiveFailures: 5,
   retryDelayMs: 4000,
 };
+
+/**
+ * How long one frame may take, in frame intervals, and the least and most that allows (ms).
+ *
+ * A frame is only given to a module that is free (`FrameHub` skips a busy one), so waiting longer never builds a
+ * backlog: it only decides when a module counts as hung. Several workers share one machine with hand tracking, the
+ * camera and the speech models, and a model that takes half a second on a quiet machine takes two when they all
+ * run; that must slow it down, not switch it off.
+ */
+const FRAMES_ALLOWED = 8;
+const FLOOR_MS = 2500;
 
 /**
  * Per-module resource policy. Timeouts are derived from the module's own
@@ -21,7 +32,7 @@ export const budgetFor = (preferredFps: number, overrides: Partial<ModuleBudget>
   const frameIntervalMs = 1000 / Math.max(preferredFps, 1);
   return {
     ...DEFAULT_BUDGET,
-    timeoutMs: Math.min(Math.max(frameIntervalMs * 3, 400), DEFAULT_BUDGET.timeoutMs),
+    timeoutMs: Math.min(Math.max(frameIntervalMs * FRAMES_ALLOWED, FLOOR_MS), DEFAULT_BUDGET.timeoutMs),
     ...overrides,
   };
 };

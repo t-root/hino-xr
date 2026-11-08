@@ -15,6 +15,12 @@ Ba quy tắc gốc, không có ngoại lệ:
 
 ## A. Core render và đồng bộ hai mắt
 
+**A0. BẮT BUỘC: con trỏ tay luôn ở lớp cao nhất.** Con trỏ (`CursorOverlay`, vẽ bằng DOM, anh em của `.camera-frame` trong
+mỗi mắt) có `z-index: 2147483647` và `pointer-events: none`, nằm trên **mọi** thứ: menu, bàn phím ảo, màn hình plugin,
+hộp thoại, nhật ký khởi động. Không được đặt con trỏ trong cảnh 3D (mọi panel DOM sẽ che nó: con trỏ bị che là bàn tay
+không ngắm được) và **không z-index nào, ở Core hay plugin, được bằng hoặc lớn hơn** của `.cursor-layer`. Lớp mới chỉ được
+nằm dưới nó (xem thứ tự ở A12). Có test kiểm (`test_cursor.py`); sửa quy tắc này thì phải sửa cả test.
+
 **A1.** Màn hình được vẽ **một lần cho mỗi mắt**: hai cây DOM, đọc cùng một state.
 Cảnh 3D (camera, khung nhận diện, con trỏ) là một scene graph duy nhất,
 `StereoRenderer` vẽ hai lần bằng hai camera. Bất cứ thứ gì giữ giá trị hay đồng hồ
@@ -57,6 +63,41 @@ biến `--module-screen-side`, là size container). Plugin đo theo hộp đó b
 
 **A8.** Thiếu công cụ đồng bộ? Thêm vào `src/core/sync` (kèm test) rồi mới dùng.
 Không viết bản riêng trong plugin hay trong panel.
+
+**A9.** Cử chỉ tay chỉ được nhận ra **một chỗ**: `src/core/input/` (`GestureStateMachine` cho một ngón chụm,
+`TwoHandGesture` cho hai tay cùng chụm). Plugin và widget không đọc landmark, không tự đo hai tay. Chúng nhận
+cái cử chỉ *nghĩa là gì* dưới dạng sự kiện chúng đã hiểu: con trỏ (`pointerdown/move/up`), con lăn chuột
+(`wheel`, hai tay giang ra hoặc khép vào), hoặc sự kiện `twohand` trên bus (`scale`, `rotation`, `pan`) nếu cần
+xoay hay kéo. Cử chỉ mới thì thêm vào Core kèm test, rồi mọi nơi dùng chung; không viết bản riêng trong plugin.
+Khi hai tay bắt đầu cử chỉ chung, nút chụm riêng của từng tay bị bỏ (`machine.abort`), để hai tay không kéo
+cùng một thứ hai lần.
+
+**A10.** Bàn phím ảo là của Core (`KeyboardPanel`, `KeyboardStore`, `keyboardInput.ts`), một bản vẽ cho mỗi mắt từ một
+store. Nó **tự nổi lên** khi một ô chữ trong `.camera-frame` được chọn (`focusin`), bằng tay, ngón hay chuột, và giữ
+bàn phím của điện thoại xuống (`inputmode="none"`). Một tay chụm vào ô thì `DomPointerSurface` gọi `focus()` cho ô.
+Phím là `button` thường nên cử chỉ chụm bấm được; gõ vào ô bằng `setRangeText` rồi bắn `input`, nên ô của Core hay của
+plugin đều dùng được mà không phải sửa. Plugin không tự làm bàn phím.
+Bố cục như bàn phím điện thoại (`src/shared/keyboard.json`): hàng số ở trên, ba hàng chữ ở dưới; `?123` sang ký tự,
+`=\<` sang trang ký tự còn lại, `ABC` về chữ; mọi ký tự in được của bàn phím thường đều có đúng một phím (test kiểm).
+Phím chức năng (Hoa, Xóa, Cách, Xuống dòng, Trái, Phải, Xong, micro) vẽ **bằng biểu tượng** (`src/ui/icons.ts`, nét vuông, màu của chữ), không bằng chữ: chữ rộng hơn phím nên bị ngắt thành hai dòng; tên phím nằm ở `title` và `aria-label`. Phím `VI` / `EN` chọn cách gõ: `VI` là Telex (`Telex.ts`, hàm thuần; dấu theo chính tả hiện đại: hòa, thủy, khỏe),
+`EN` gõ nguyên chữ. Phím "Đọc chữ" đọc giọng thành chữ qua `/api/voice/dictate` (Whisper, không qua mô hình trả lời).
+Bàn phím tự cất khi ô bị gỡ hoặc bị ẩn (kiểm mỗi nửa giây), nên form đóng lại thì nó đi theo.
+
+**A13. Nút nằm giữa, không sát mép.** Mọi nút, ô nhập và thanh điều khiển nằm trong **vùng giữa** của khung: cách mỗi mép
+(trên, dưới, trái, phải) ít nhất **10%** chiều của khung, và ưu tiên gần giữa. Lý do: tay giơ trên không ngắm kém ở sát mép
+(nhận diện tay mất chính xác ở rìa ảnh, và thấu kính méo ở rìa), nên nút ở góc là nút khó bấm. Cách làm: đặt theo đơn vị
+của khung (`cqi`, `cqb`, `%`), không theo `rem` hay `px` tính từ mép; nhóm nút chính thành một cụm ở giữa (như Đóng, Quay lại, Bước tiếp và nút định vị của bản đồ thành một hàng ở giữa phía **trên**, nơi chúng không che bản đồ hay thành phố). Thư viện bên thứ ba tự đặt nút ở góc (Leaflet tự đặt nút ở góc, nên khi dùng nút của nó phải kéo vào; bản đồ hiện không vẽ nút +/−) thì phải kéo vào
+bằng `margin` theo `cqi` / `cqb`. Không áp cho thứ không bấm được (chữ trạng thái, dòng chẩn đoán). Có test kiểm
+(`test_ui_rules.py`).
+
+**A11.** Cử chỉ hai tay chỉ đến widget bằng sự kiện DOM `twohand` (hủy được; `detail` có `client`, vị trí điểm giữa hai
+tay trên trang). Widget không gọi `preventDefault` thì Core gửi tiếp thành con lăn chuột. Con trỏ của tay được
+**bắt ở pha capture và chặn lại trước thư viện bên thứ ba** (Leaflet biến con trỏ thành cảm ứng và sẽ kéo bản đồ
+theo): widget nào tự xử lý tay thì tự `stopImmediatePropagation`.
+
+**A12.** Thứ tự lớp trong `.camera-frame` (z-index): chẩn đoán 5, màn hình plugin 20, **menu 30** (kèm lớp đen 30% sau lưng
+để đọc được trên mọi nền), **bàn phím ảo 40**. Menu phải nằm trên màn hình plugin: menu là chỗ tắt plugin, nên không
+màn hình nào được che nó. Thêm lớp mới thì ghi vào đây.
 
 ---
 
@@ -114,6 +155,13 @@ plugin. Lỗi mạng / dữ liệu hỏng thì plugin tự bắt, báo bằng `L
 **B13.** Plugin nhận diện dùng `createDetectorModule` của Core. Nhãn theo ngôn ngữ
 truyền qua `label(locale, detection)`; worker không biết ngôn ngữ.
 
+**B14.** Một plugin chậm thì **chậm đi, không bị tắt**. `ModuleScheduler`: một khung được phép tốn tối thiểu 2,5 giây và
+tối đa 4 giây (`8` lần khoảng cách giữa các khung), và phải hỏng **năm khung liền** mới bị đặt vào trạng thái `failed`.
+`FrameHub` không đưa khung cho plugin đang bận nên chờ lâu hơn không dồn hàng đợi. Nhiều worker (tay, mặt, người, giọng
+nói) chạy chung một máy, nên một mô hình mất nửa giây lúc rảnh có thể mất hai giây lúc tất cả cùng chạy. Plugin bị đặt vào
+`failed` vì "Inference aborted" là dấu hiệu máy quá tải hoặc worker kẹt: xem số liệu `module.<id>.inference` trước khi nới
+ngân sách thêm.
+
 ---
 
 ## C. Trước khi coi là xong
@@ -125,6 +173,9 @@ truyền qua `label(locale, detection)`; worker không biết ngôn ngữ.
 3. Tắt rồi bật lại plugin: không rò listener, không còn vòng render chạy ngầm.
 4. Plugin nhận diện: chạy worker thật với ảnh có đáp án (I2) trước khi coi là hoạt động.
 5. Chạm vào luồng giọng nói: nói thử "Hino" rồi một lệnh, và đọc dòng log (E8).
+6. Chạm vào bàn phím ảo hay Telex: chụm vào một ô chữ, gõ vài từ có dấu, đổi `VI` / `EN`, bấm Xong.
+7. Chạm vào nhận diện mặt: đo lại cùng người và khác người bằng ảnh có đáp án (K2) trước khi tin ngưỡng.
+8. Chạm vào bản đồ hay thành phố 3D: kéo chọn vùng không được làm bản đồ dịch; đường phố không hiện ở bước bản đồ.
 
 ## D. Thêm plugin mới — từng bước
 
@@ -136,7 +187,7 @@ truyền qua `label(locale, detection)`; worker không biết ngôn ngữ.
    (file tự vào `models/` của plugin).
 6. Chạy test, rồi thử stereo.
 
-Ví dụ: `demo-motion` (không mô hình), `face-detection` / `person-detection` /
+Ví dụ: `face-recognition` / `person-detection` /
 `object-detection` (worker + MediaPipe, mô hình trong `models/` của từng plugin),
 `map3d` (màn hình riêng, Leaflet trong `vendor/` của nó, dùng đủ bộ `@/core/sync`).
 
@@ -176,6 +227,10 @@ trong `WakeListener`; chờ im lặng 1 giây mới kết thúc câu.
 mỗi ngôn ngữ một câu, để trống thì không nói. Giá trị mặc định ở `src/shared/assistant.json`
 (Python đọc cùng file). Không viết cứng câu nào trong mã.
 
+**E5b.** Thời gian chờ câu hỏi (`listenSeconds`) chỉ bắt đầu đếm **sau khi** câu đáp "Tôi nghe" phát xong và micro bật
+lại (`checkAssistantCall`), vì trong lúc đó micro tạm tắt. Log ghi `acknowledgement made / played` và
+`listening for the question`: thiếu dòng nào thì kẹt ở bước đó.
+
 **E6.** Thời gian ngủ khi im lặng (`listenSeconds`) chỉnh trong menu Trợ lý, mặc định
 10 giây, khoảng 2 đến 60 giây (`src/shared/wake.json`, Python và TypeScript đọc chung).
 
@@ -195,6 +250,20 @@ Gói `vieneu` cài bằng `--no-deps` (nó đòi gradio, ta không dùng); thư 
 Ba thanh trượt Biểu cảm / Nhịp / Ngắt nghỉ lần lượt là `temperature`, `top_p`, `silence_p` của VieNeu; độ cao và tốc độ
 do `_shifted_wav` làm (đổi tốc độ phát lại, bù bằng kéo giãn thời gian). `nativeHz` trong `voice.json` là độ cao thật
 của giọng mẫu: thay mẫu thì đo lại (librosa.pyin) và sửa. Lần nạp đầu mất cả phút nên `main.py` làm nóng trong nền (`speech.warm`).
+
+**E10.** Chống nghe nhầm tiếng ồn thành câu hỏi (`speech.py`, `wake.py`), vì Whisper gặp tiếng ồn thì **bịa** một câu
+quen thuộc ("Hãy subscribe cho kênh…", độ tin cậy vẫn 0,94, nên không lọc theo độ tin cậy được):
+1. `has_voice`: đoạn không có cao độ giọng nói (70 đến 400 Hz, đếm khung lặp theo nhịp) thì **không đưa cho Whisper**.
+   Đo: ồn trắng, ồn nâu, ồn trôi ra 0 khung; một từ "hino" 0,45 giây ra 8 khung trở lên. Quạt hay tiếng ù đều đều có
+   thể lọt.
+2. `is_made_up`: lớp phụ, bỏ các câu bịa đã biết ("subscribe", "đăng ký kênh", "thanks for watching"…).
+3. Giới hạn token (`MAX_TOKENS_CAREFUL` 80, `MAX_TOKENS_QUICK` 20), `single_segment`, `no_context`: không có giới hạn
+   thì Whisper có thể **lặp vòng** ("Màm-en-nâu? Màm-en-nâu?…") trên câu ngắn, giữ khóa nhận dạng và treo mọi câu sau.
+Câu nghe ra rỗng thì trả `no speech` và log `nothing was understood`; không bao giờ coi là câu hỏi.
+
+**E11.** Cài đặt giọng đã lưu trong trình duyệt (cao độ, biểu cảm…) gắn với một giọng đọc cụ thể: cao độ tính theo cao độ thật
+của giọng (`nativeHz` trong `voice.json`). `settings.ts` giữ cờ `vr-core.voice-model`; bản lưu mà cờ không khớp
+`VOICE_MODEL` thì giọng lấy mặc định. Đổi giọng đọc thì đổi giá trị `VOICE_MODEL` để mọi người bắt đầu lại từ mặc định.
 
 ---
 
@@ -256,8 +325,21 @@ rõ. Mỗi lần khởi động lại server là về local, trừ khi `VR_CODE_
 ## H. Giao diện chẩn đoán
 
 **H1.** Khung chẩn đoán là **một dòng** ở góc trên trái, chữ nhỏ, không chiếm chỗ:
-`FPS`, `FPS CAM`, `FPS HAND`, trạng thái tay, trạng thái trợ lý, `MIC <chế độ> <mức âm>`.
-Chỉ thêm thông tin vào khi thật cần để biết hệ thống đang làm gì; không quay lại khối nhiều dòng.
+`FPS`, `FPS CAM`, `FPS HAND`, `MIC <chế độ> <mức âm>`. Khung bị cắt ở 60% bề rộng mắt (`60cqi`, test giữ), nên thêm
+gì vào là phải bớt gì ra. Chỉ thêm thông tin khi thật cần để biết hệ thống đang làm gì; luôn là một dòng, không phải khối
+nhiều dòng.
+
+**H7. Không viền focus mặc định của trình duyệt, ở bất cứ đâu.** Viền đó là hai đường **trắng và đen**, hai màu duy nhất không
+thuộc giao diện và không đổi theo theme. `styles.css` tắt nó cho mọi phần tử (`:focus`, `:focus-visible` là
+`outline: none`) và chỉ báo focus bằng đường trong màu giao diện (`box-shadow: inset 0 0 0 1px var(--ui-ink)`: dùng bóng
+chứ không dùng `border`, để style đặt viền riêng không che mất nó). Mọi ô chữ (`text`, `search`, `url`, `email`, `tel`,
+`password`, `textarea`) có sẵn một kiểu chung (nền trong, viền `--hairline`, vuông). **Cấm**, ở Core và plugin: `outline`
+với `auto`, `white`, `black`, `#fff`, `#000` hay `-webkit-focus-ring-color`; ô nhập không đặt nền hay chữ trắng đen.
+Thêm loại ô nhập mới thì thêm vào danh sách kiểu chung và vào test (`test_ui_rules.py`).
+
+**H6.** Những gì giống bảng điều khiển luôn **tiếng Anh**, dù giao diện đang tiếng gì: các dòng khởi động (cả dòng
+đệm và năm dòng mốc "Starting core system…", `labelFor` dùng `TEXT[...].en`) và nhãn micro (`MIC name check`: chờ
+nghe tên Hino; `MIC model listening`: đang chờ câu hỏi; `MIC working`; `MIC waiting for system call`; `MIC off`).
 
 **H2.** Bật/tắt khung chẩn đoán được **nhớ** (`localStorage`, `diagnosticsWanted`). Trong lúc
 khởi động nó ẩn, xong thì hiện lại đúng như người dùng để. Lần đầu mặc định bật.
@@ -272,7 +354,7 @@ khởi động nó ẩn, xong thì hiện lại đúng như người dùng để
 **H4.** Mọi chữ hiển thị nằm trong `src/i18n/text.json` (vi và en). Khoá ghép lúc chạy
 (ví dụ `diagnostics.mic.${chế độ}`) phải có hàm dựng khoá trong `src/i18n/text.ts` và tiền tố
 trong `BUILT_AT_RUNTIME` của `test/test_i18n.py`. Xoá chữ không còn dùng thì **kiểm tra chữ
-đó thật sự không còn dùng**: lần xoá nhầm `diagnostics.hand` làm khung chẩn đoán chỉ vẽ được một mắt.
+đó thật sự không còn dùng**: xoá nhầm một khoá đang dùng làm một phần giao diện chỉ vẽ được một mắt.
 Test hiện chỉ bắt khoá thừa, không bắt khoá thiếu: tự grep trước khi xoá.
 
 ---
@@ -281,13 +363,63 @@ Test hiện chỉ bắt khoá thừa, không bắt khoá thiếu: tự grep trư
 
 **I1.** Mô hình lượng tử hoá int8 (hiện là `object-detection`, EfficientDet-Lite0 int8) **chỉ
 chạy CPU**. GPU delegate nạp được nhưng trả kết quả sai (ảnh mèo và chó ra "thuyền 0,11") và
-khung hình đầu mất 26 giây để biên dịch. Mô hình float16 (`face-detection`, `person-detection`)
+khung hình đầu mất 26 giây để biên dịch. Mô hình float16 (`face-recognition`, `person-detection`)
 được thử GPU rồi CPU. Thêm mô hình mới thì **thử trên ảnh có đáp án** trước khi tin GPU.
 
 **I2.** Cách kiểm tra worker nhận diện không cần camera: phục vụ file worker đã build, mô hình
 và wasm qua một máy chủ `http://127.0.0.1` tạm, tạo `Worker`, gửi `init` rồi `infer` với một
 `ImageBitmap` của ảnh thật (ảnh mèo và chó của MediaPipe), so nhãn và hộp với kết quả mong đợi.
 Trang HTTPS tự ký của Core bị trình duyệt nhúng chặn chứng chỉ, nên dùng máy chủ tạm.
+
+---
+
+## L. Bản đồ và thành phố 3D (`map3d`)
+
+**L1.** Nguồn dữ liệu. Ô bản đồ lấy ở `tile.openstreetmap.de` (nhiều mạng chặn DNS `tile.openstreetmap.org` về `127.0.0.1`). Khi thử
+một nguồn ô phải **tải ô về xem**, không chỉ nhìn mã trạng thái: có nguồn trả mã 200 kèm ảnh "API KEY REQUIRED". Toà nhà và
+đường phố lấy theo thứ tự: API OpenStreetMap (không gọi lại sau lần đầu bị từ chối kết nối), ô vector OpenFreeMap
+(`vectorTiles.ts`, tự giải mã, không cần khóa), rồi các máy chủ Overpass. Chiều cao toà nhà trong ô là 5 khi
+OpenStreetMap không có chiều cao: coi là "không biết".
+
+**L2.** Chọn vùng: hai tay cùng chụm (`twohand`) vẽ vùng, hai góc là chỗ từng tay chụm (`detail.hands`), mở tay là chốt vùng;
+chuột thì Shift và kéo (Leaflet `boxZoom` tắt vì nó cũng dùng Shift). Một tay dời bản đồ. Chọn lại là vẽ lại: vùng mới
+thay vùng cũ (`handleDone` bỏ thành phố cũ). Thu phóng bản đồ cũng là hai tay, phân biệt bằng **chỗ bắt đầu**: hai tay chụm
+gần nhau (khoảng cách ban đầu `DRAW_FROM_WITHIN` = 0,16 khung hình) là vẽ vùng, chụm xa nhau là thu phóng quanh điểm giữa
+(`zoomSnap: 0` để mọi mức zoom ở giữa đều được); quyết định lúc hai tay vừa chụm và giữ đến khi mở. Bằng chuột thì thu phóng
+bằng con lăn. Đường phố tải sẵn lúc chọn vùng nhưng **ẩn** cho đến bước thành phố 3D, nếu không chúng lộ ra dưới bản đồ.
+
+**L2b.** Định vị: mỗi lần plugin được bật, `Map3dApp.setActive(true)` gọi `requestLocation(false)` và bản đồ **nhảy** tới vị trí
+thiết bị (không bay, vì bản đồ mở ở bên kia trái đất). Nút định vị là biểu tượng ngắm tròn nằm trong hàng nút phía trên
+(`m3-bar`); bấm là bay về lại vị trí đó. `data-busy` khi đang tìm, `data-failed` khi không định vị được (lý do nằm ở `title`).
+
+**L3.** Trong thành phố 3D tay làm việc với thứ nó nắm vào (`Space.handDown`, `twoHand`).
+Một tay chụm vào một tòa thì tòa đó được chọn và kéo đổi chiều cao (lên xuống) và bề rộng (trái phải); chụm vào chỗ
+không có nhà thì kéo là trượt cả cảnh. Hai tay: nếu giữa hai tay (lúc vừa chụm) là một tòa thì dời tòa đó trên mặt đất,
+nếu không thì giang ra hoặc khép vào là thu phóng, vặn là xoay, nâng hoặc hạ cả hai tay là nghiêng. Thứ nằm giữa hai
+tay được quyết khi hai tay chụm và giữ cho đến khi mở.
+
+---
+
+## K. Nhận diện khuôn mặt
+
+**K1.** Một plugin duy nhất lo mặt: `face-recognition`. Worker tìm mặt
+(BlazeFace), căn thẳng bằng mắt, mũi, miệng (`align.ts`) rồi chạy SFace bằng onnxruntime-web, trả về mỗi mặt **128
+số** (base64 trong `attributes.embedding`). Ảnh không rời worker và không được lưu. Thư viện chạy mô hình và mô hình
+đều khai trong `models.json` của plugin (có sha256), không có gì ngoài thư mục plugin.
+
+**K2.** Khớp mặt là k-NN trên cosine (`matching.ts`, ngưỡng `MATCH_THRESHOLD` = 0,4; đo thật: cùng người 0,75, khác
+người từ −0,03 đến 0,25). Đổi mô hình thì **đo lại** bằng ảnh có đáp án trước khi tin ngưỡng.
+
+**K3.** Người, năm sinh, thông tin và các số mặt do **máy chủ** giữ (`assistant/models/people.py`, file
+`assistant/data/people.json`, gitignore, ghi nguyên tử). Plugin chỉ gọi `/api/people`; quyền `network` và `screen`
+ghi tay ở `permissions.ts`.
+
+**K4.** Lưu bằng giọng nói đi qua từ khoá (`assistant/models/person_speech.py`), không qua mô hình ngôn ngữ (F1), rồi
+thành lệnh `person` gửi cho trang. Core không biết plugin nào lo: `ModuleManager.command` đưa lệnh cho từng plugin đang
+chạy, plugin nào xử lý thì trả câu để Hino nói (`VisionModule.command`), plugin không biết thì trả `null`.
+
+**K5.** Khung nhãn của mặt đã biết tự viết cả nhãn (tên - năm sinh - thông tin, ngăn cách bằng dấu gạch ngang) và đặt `attributes.plainLabel` để Core
+không thêm phần trăm phía sau.
 
 ---
 
@@ -300,6 +432,11 @@ Trang HTTPS tự ký của Core bị trình duyệt nhúng chặn chứng chỉ,
 **J2.** Không có chữ tiếng Việt trong file `.ts` (kể cả chú thích): `test_i18n` quét và báo lỗi.
 Câu tiếng Việt nằm trong JSON (`text.json`, `voice-controls.json`, `assistant.json`) hoặc trong
 Python phía server.
+
+**J4.** Máy chủ chạy bằng **Python 3.11 trở lên** (`run.bat` chọn `py -3.11`, `run.py` kiểm). Trên Windows máy chủ chạy
+trên vòng lặp *selector* (`main.py`), vì vòng *proactor* mà uvicorn tự chọn in traceback `WinError 10054` mỗi khi trình duyệt
+ngắt một kết nối (mỗi lần tải lại trang). Dòng `whisper_init_state: compute buffer…` trong log là thông báo nạp mô hình,
+không phải lỗi.
 
 **J3.** Trước khi báo xong: chạy **toàn bộ** `python run.py test`, và build thử
 `src/main.ts` bằng esbuild (không có Node nên không có `tsc`: kiểu TypeScript chưa được

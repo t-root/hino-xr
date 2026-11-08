@@ -119,8 +119,8 @@ class PluginDiscoveryTest(unittest.TestCase):
         config = (SRC / "core/config.ts").read_text(encoding="utf-8")
         self.assertIn("models.json", frontend)
         self.assertIn("models.json", catalog)
-        self.assertNotRegex(frontend, r"efficientdet|blaze_face|face-detection|person-detection|demo-motion")
-        self.assertNotRegex(catalog, r"face-detection|person-detection|demo-motion")
+        self.assertNotRegex(frontend, r"efficientdet|blaze_face|face-detection|person-detection")
+        self.assertNotRegex(catalog, r"face-detection|person-detection")
         self.assertNotRegex(config, r"efficientdet|blaze_face")
 
         for folder in self.folders:

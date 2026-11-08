@@ -60,5 +60,10 @@ export interface VisionModule {
   /** Must honour `signal`: the manager aborts inference that outlives its frame. */
   process(frame: FramePacket, signal: AbortSignal): Promise<DetectionBatch>;
   setEnabled(enabled: boolean): Promise<void>;
+  /**
+   * Something said to the headset rather than seen by it, such as the wearer telling the assistant who a face
+   * is. Resolves to what to say back, or to null when the command is not one this plugin handles.
+   */
+  command?(name: string, payload: Readonly<Record<string, unknown>>): Promise<string | null>;
   dispose(): Promise<void>;
 }

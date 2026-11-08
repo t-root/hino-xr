@@ -549,7 +549,11 @@ def attach_frontend(app: FastAPI) -> None:
         dest = folder / PLUGIN_MODELS_DIR / file_name
         if not dest.is_file():
             raise HTTPException(status_code=404)
-        return FileResponse(dest, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+        # A script, an ES module and a WebAssembly file are refused by the browser under the wrong type.
+        media = {".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm"}.get(dest.suffix)
+        return FileResponse(
+            dest, media_type=media, headers={"Cache-Control": "public, max-age=31536000, immutable"}
+        )
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> Response:

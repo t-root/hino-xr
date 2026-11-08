@@ -305,7 +305,13 @@ button.chip[data-twin-hover]:not(:disabled) {
  * Native range and checkbox chrome is rounded and uses the platform accent, so
  * both controls are rebuilt from square blocks of the one UI colour.
  */
-input[type="text"] {
+input[type="text"],
+input[type="search"],
+input[type="url"],
+input[type="email"],
+input[type="tel"],
+input[type="password"],
+textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;
@@ -314,6 +320,26 @@ input[type="text"] {
   background: transparent;
   border: 1px solid var(--hairline);
   border-radius: 0;
+}
+
+/*
+ * No browser focus ring, anywhere. It is a double line of white and black, the only two colours that are not
+ * the interface's, and it cannot be themed. A control that has the focus is shown in the interface colour, as an
+ * inner line (a shadow, so a style that sets its own border cannot hide it).
+ */
+:focus,
+:focus-visible {
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--ui-ink);
+}
+
+button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--hairline);
 }
 
 input[type="range"] {
@@ -442,8 +468,19 @@ input[type="checkbox"]:checked {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  z-index: 6;
+  /* Above a plugin's screen (20): the menu is how a plugin is turned off, so a screen must never cover it. */
+  z-index: 30;
   font-size: 12px;
+}
+
+/* The picture behind the menu is dimmed to 30% black so the band can be read over anything. */
+.menu::before {
+  content: "";
+  position: absolute;
+  inset: -24px 0;
+  z-index: -1;
+  background: color-mix(in srgb, #000 30%, transparent);
+  pointer-events: none;
 }
 
 /*
@@ -660,6 +697,107 @@ input[type="checkbox"]:checked {
 .menu__close[data-twin-hover] {
   background: var(--surface-strong);
   color: var(--text);
+}
+
+/*
+ * The on-screen keyboard: it rises from the bottom of `.camera-frame` when a text box is chosen. Keys are
+ * big, sized by the frame (cqi, cqb) and not the window, because a fingertip in the air is not a mouse.
+ */
+.vkb {
+  position: absolute;
+  left: 50%;
+  bottom: 7cqb;
+  transform: translateX(-50%);
+  width: min(84cqi, 130cqb);
+  display: flex;
+  flex-direction: column;
+  gap: 1cqb;
+  padding: 1.2cqb;
+  background: color-mix(in srgb, #000 62%, transparent);
+  border: 1px solid var(--hairline);
+  z-index: 40;
+  font-size: clamp(9px, 3.1cqb, 22px);
+}
+
+.vkb__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1cqb;
+  min-height: 7cqb;
+}
+
+.vkb__preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+  padding: 0 1cqb;
+  color: var(--text);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.vkb__row {
+  display: flex;
+  justify-content: center;
+  gap: 0.8cqb;
+}
+
+.vkb__key {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 8.4cqb;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text);
+  font-size: inherit;
+  line-height: 1;
+  text-transform: none;
+}
+
+/* A key that is a picture: drawn in the key's own colour, as tall as a letter. */
+.vkb__key .icon {
+  width: 1.5em;
+  height: 1.5em;
+  vertical-align: middle;
+}
+
+.vkb__key[data-kind="wide"] {
+  flex-grow: 1.7;
+}
+
+.vkb__key[data-kind="space"] {
+  flex-grow: 5;
+}
+
+.vkb__key[data-kind="action"] {
+  flex: 0 0 auto;
+  min-width: 10cqb;
+  padding: 0 1.4cqb;
+  color: var(--ui-ink);
+}
+
+.vkb__key:hover,
+.vkb__key[data-twin-hover] {
+  background: var(--surface-strong);
+  color: var(--ui-ink);
+}
+
+.vkb__key[data-hand-press] {
+  background: var(--surface-strong);
+  border-color: var(--ui-ink);
+}
+
+.vkb__key[data-active="true"] {
+  color: var(--ui-ink);
+  border-color: var(--ui-ink);
+  background: var(--surface-strong);
+}
+
+.vkb__key[data-busy="true"] {
+  opacity: 0.6;
 }
 
 /*
@@ -1068,3 +1206,58 @@ input[type="checkbox"]:checked {
     max-height: calc(100% - 52px);
   }
 }
+
+/*
+ * The hand cursors: the topmost layer of the eye, above the interface, every plugin screen, the menu and the
+ * keyboard (rules.md A1). It sits beside `.camera-frame` and takes no presses. Nothing may be given a z-index at
+ * or above this one.
+ */
+.cursor-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  overflow: hidden;
+  color: var(--ui-ink);
+}
+
+.cursor-layer .cursor {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.cursor-layer .cursor[hidden],
+.cursor-layer .cursor [hidden] {
+  display: none;
+}
+
+.cursor-layer .cursor__frame,
+.cursor-layer .cursor__pip,
+.cursor-layer .cursor__ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+}
+
+.cursor-layer .cursor__pip {
+  background: color-mix(in srgb, var(--ui-color) calc(100% * var(--ui-color-alpha)), transparent);
+}
+
+.cursor-layer .cursor__ring {
+  border: calc(var(--thick, 2px) * 1.4) solid currentColor;
+}
+
+.cursor-layer .cursor__corner {
+  position: absolute;
+  width: 20%;
+  height: 20%;
+  border: 0 solid currentColor;
+}
+
+.cursor-layer .cursor__corner--tl { left: 0; top: 0; border-left-width: var(--thick, 2px); border-top-width: var(--thick, 2px); }
+.cursor-layer .cursor__corner--tr { right: 0; top: 0; border-right-width: var(--thick, 2px); border-top-width: var(--thick, 2px); }
+.cursor-layer .cursor__corner--bl { left: 0; bottom: 0; border-left-width: var(--thick, 2px); border-bottom-width: var(--thick, 2px); }
+.cursor-layer .cursor__corner--br { right: 0; bottom: 0; border-right-width: var(--thick, 2px); border-bottom-width: var(--thick, 2px); }

@@ -4,6 +4,7 @@ import { useRuntimeStore } from "@/core/state/RuntimeStore";
 import { useSharedUiStore } from "@/core/state/SharedUiStore";
 import { markTwins } from "@/core/sync";
 import { el, empty } from "../dom";
+import { CursorOverlay } from "../panels/CursorOverlay";
 
 const IDLE: StereoState = { eyes: [], mode: "mono", requestedMode: "mono", monoReasons: [] };
 
@@ -128,9 +129,12 @@ export const StereoView = (
       const frame = el("div", { className: "camera-frame" });
       placeFrame(frame, options.mapper, eye);
       turnBox.append(frame);
+      // After the frame and above it in z-order whatever the interface does: the cursor is always on top.
+      const cursor = CursorOverlay();
+      turnBox.append(cursor.root);
       box.append(turnBox);
       host.append(box);
-      copies.push(options.mount(frame));
+      copies.push(options.mount(frame), cursor.dispose);
     });
   };
 

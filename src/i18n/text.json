@@ -232,6 +232,20 @@
     "en": "The console has printed nothing yet."
   },
 
+  "keyboard.shift": { "vi": "Hoa", "en": "Shift" },
+  "keyboard.delete": { "vi": "Xóa", "en": "Delete" },
+  "keyboard.enter": { "vi": "Xuống dòng", "en": "Enter" },
+  "keyboard.space": { "vi": "Cách", "en": "Space" },
+  "keyboard.symbols": { "vi": "?123", "en": "?123" },
+  "keyboard.letters": { "vi": "ABC", "en": "ABC" },
+  "keyboard.more": { "vi": "=\\<", "en": "=\\<" },
+  "keyboard.left": { "vi": "Trái", "en": "Left" },
+  "keyboard.right": { "vi": "Phải", "en": "Right" },
+  "keyboard.mic": { "vi": "Đọc chữ", "en": "Dictate" },
+  "keyboard.stop": { "vi": "Dừng", "en": "Stop" },
+  "keyboard.busy": { "vi": "Đang chép…", "en": "Typing…" },
+  "keyboard.done": { "vi": "Xong", "en": "Done" },
+
   "language.name.vi": { "vi": "Tiếng Việt", "en": "Vietnamese" },
   "language.name.en": { "vi": "Tiếng Anh", "en": "English" }
 }

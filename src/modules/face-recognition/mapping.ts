@@ -1,4 +1,4 @@
-import type { Detection } from "@/shared/contracts/vision";
+import type { Detection, NormalizedRect } from "@/shared/contracts/vision";
 import { normalizeBox, type PixelBox } from "@/shared/math/box";
 
 /**
@@ -54,39 +54,70 @@ const facingOf = (keypoints: readonly RawKeypoint[] | undefined): "camera" | "aw
 };
 
 /**
+ * BlazeFace boxes the face features, which drawn on a person is a narrow box that misses the hair and ears and
+ * runs on below the chin. This fits the head: wider, a little taller, and moved up so its top is the hair and
+ * its bottom is the chin. Measured on a real frame: head 1.9 times as wide as the face box, 1.36 as tall,
+ * starting 0.48 of the box's height above it.
+ */
+const GROW_X = 1.9;
+const GROW_Y = 1.36;
+const ABOVE = 0.48;
+
+const wholeHead = (box: NormalizedRect): NormalizedRect => {
+  const width = box.width * GROW_X;
+  const left = Math.max(0, box.x + box.width / 2 - width / 2);
+  const top = Math.max(0, box.y - box.height * ABOVE);
+  return {
+    x: left,
+    y: top,
+    width: Math.min(1 - left, width),
+    height: Math.min(1 - top, box.height * GROW_Y),
+  };
+};
+
+/** A detection and the model's own result for it, so the landmarks that line the face up can be read. */
+export type FaceDetectionSource = Readonly<{ detection: Detection; raw: RawFaceDetection }>;
+
+/**
  * Model output to contract detections: filter, normalise, cap.
  *
  * Ids are positional; stable ids across frames are assigned by the module,
  * which is the side that remembers the previous frame.
  */
-export const toFaceDetections = (
+export const toFaceDetectionsWithSource = (
   raw: readonly RawFaceDetection[],
   options: FaceMappingOptions,
-): Detection[] => {
-  const detections: Detection[] = [];
+): FaceDetectionSource[] => {
+  const found: FaceDetectionSource[] = [];
 
   for (const item of raw) {
-    if (detections.length >= options.maxResults) break;
+    if (found.length >= options.maxResults) break;
 
     const score = item.categories[0]?.score ?? 0;
     if (score < options.minConfidence) continue;
 
     const box = item.boundingBox;
     if (!box) continue;
-    const bounds = normalizeBox(box, options.imageWidth, options.imageHeight);
-    if (!bounds) continue;
+    const tight = normalizeBox(box, options.imageWidth, options.imageHeight);
+    if (!tight) continue;
+    const bounds = wholeHead(tight);
 
     const facing = facingOf(item.keypoints);
-    detections.push({
-      id: `${detections.length}`,
-      kind: "face",
-      bounds,
-      confidence: score,
-      // No name, ever: this plugin finds faces, it does not tell them apart.
-      ...(facing ? { attributes: { facing } } : {}),
-      interaction: { selectable: true },
+    found.push({
+      raw: item,
+      detection: {
+        id: `${found.length}`,
+        kind: "face",
+        bounds,
+        confidence: score,
+        ...(facing ? { attributes: { facing } } : {}),
+        interaction: { selectable: true },
+      },
     });
   }
 
-  return detections;
+  return found;
 };
+
+export const toFaceDetections = (raw: readonly RawFaceDetection[], options: FaceMappingOptions): Detection[] =>
+  toFaceDetectionsWithSource(raw, options).map((item) => item.detection);

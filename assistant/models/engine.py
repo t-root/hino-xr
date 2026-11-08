@@ -195,6 +195,7 @@ class Engine:
         from . import agent, pluginsmith
         from .commands import plugin_command, say_for
         from .controls import control_command
+        from .person_speech import person_command
         from .speech import speech
 
         self.load(spec)
@@ -211,6 +212,8 @@ class Engine:
         command = plugin_command(heard, plugins or [], locale, pluginsmith.pending())
         if command is None and controls:
             command = control_command(heard, controls, locale)
+        if command is None:
+            command = person_command(heard, locale)
         if command:
             # Switching or writing a plugin is the headset's doing, not the model's: say so and stop.
             if command["action"] == "source":

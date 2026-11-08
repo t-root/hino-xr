@@ -46,13 +46,15 @@ Chỉ có **một** cử chỉ chạm: **chụm ngón cái và ngón trỏ**. Co
 - **Buông tại chỗ là bấm.** Đưa con trỏ lên nút, chụm, nhả.
 - **Giữ hoặc đi xa là kéo.** Chụm rồi đi quá 5% khung nhìn, hoặc giữ quá nửa giây, thì thành kéo (thanh trượt, thanh danh mục, vùng cuộn). Buông tại chỗ vẫn là bấm.
 - **Mất dấu tay là hủy**, không phải bấm.
+- **Hai tay cùng chụm rồi giang ra hoặc khép vào là phóng to hoặc thu nhỏ** thứ nằm giữa hai tay (bản đồ, cảnh 3D). Cử chỉ này nhận ra một lần trong Core (`TwoHandGesture`), gửi đi như con lăn chuột nên mọi thứ dùng được con lăn đều dùng được; sự kiện `twohand` trên bus còn có `rotation` và `pan` cho nơi nào cần xoay hay kéo. Khi bắt đầu, cú chụm riêng của từng tay bị bỏ.
+- **Bàn phím ảo tự nổi lên** khi bạn chụm (hoặc chạm, bấm chuột) vào một ô chữ ở bất cứ đâu, trong menu hay trong plugin. Bàn phím của điện thoại không hiện. Bố cục như bàn phím điện thoại: hàng số ở trên, chữ ở dưới. Phím chức năng là biểu tượng (mũi tên lên là **Hoa**: bấm một lần cho một chữ, bấm lần nữa để khóa; ô vuông có dấu x là **Xóa**; khung hở dưới là **Cách**; mũi tên gập là **Xuống dòng**; mũi tên trái phải dời con trỏ; dấu tick là **Xong**; micro là **Đọc chữ**), **?123** chuyển sang ký tự (bấm **=\<** để sang trang ký tự còn lại, **ABC** để về chữ), **Xóa**, **Cách**, dấu phẩy và chấm cạnh phím cách, **Xuống dòng**, **Trái / Phải** dời con trỏ, **Xong** để cất. Phím **VI / EN** đổi cách gõ: VI là Telex (`aa` ra â, `dd` ra đ, `w` ra ư ơ ă, `s f r x j` đặt dấu), EN gõ nguyên chữ. Phím **Đọc chữ** bấm một lần để nói, bấm lần nữa để chữ được điền vào ô.
 - **Búng tay** (ngón cái ép vào ngón giữa rồi ngón giữa bật xuống lòng bàn tay) **bật hoặc tắt menu.** Cử chỉ được nhận theo ba pha ép, trượt, rơi nên không nhầm với nhả chụm. Có thể tắt trong mục cử chỉ.
 
 Tay bấm giao diện qua **một đường duy nhất** trong Core: `DomPointerSurface` tìm phần tử dưới con trỏ, `dispatchHandPointer` phát đúng các sự kiện con trỏ như chuột (`pointerdown`, `pointermove`, `pointerup`). Nên cái gì chuột làm được thì tay làm được; phần tử không phải nút cần thêm `data-hand-target`.
 
-**Con trỏ** là khung ngắm vuông: bốn góc chữ L, một ô nhỏ ở giữa đầy dần khi giữ, một khung ngoài đứng yên khi kéo, và một khung loé ra khi bấm trúng. Nó vẽ trong WebGL, nên nằm dưới lớp giao diện DOM. Độ rõ và cỡ chỉnh trong mục **con trỏ**.
+**Con trỏ** là khung ngắm vuông: bốn góc chữ L, một ô nhỏ ở giữa đầy dần khi giữ, một khung ngoài đứng yên khi kéo, và một khung loé ra khi bấm trúng. Nó là một lớp DOM riêng trong mỗi mắt, nằm **trên mọi thứ** (menu, bàn phím ảo, màn hình plugin) và không nhận cú bấm. Độ rõ và cỡ chỉnh trong mục **con trỏ**.
 
-Mục **chẩn đoán** hiện khung chỉ số ở góc mỗi mắt (FPS, số khung rớt, trạng thái tay, cử chỉ gần nhất, độ hở hai ngón) để biết cử chỉ có được nhận đúng hay không.
+Mục **chẩn đoán** hiện một dòng chỉ số ở góc mỗi mắt: `FPS`, `FPS CAM`, `FPS HAND` và `MIC <chế độ> <mức âm>`. `MIC name check` là Hino đang ngủ và chỉ nghe tên "Hino"; `MIC model listening` là Hino đã được gọi và đang chờ câu hỏi; `MIC working` là đang trả lời. Dòng này giới hạn ở 60% bề rộng mắt nên chỉ có bấy nhiêu mục.
 
 ## Menu
 
@@ -69,7 +71,7 @@ Menu nằm giữa khung camera của mỗi mắt. Phần đầu là **thanh danh
 | con trỏ | Độ rõ và cỡ con trỏ |
 | màu | Màu chính và màu phụ (sắc, độ đậm, độ sáng, độ trong), nút đặt lại màu |
 | tiện ích | Bật tắt plugin |
-| trợ lý | Bật tắt trợ lý, chọn mô hình, Tải, Nói / Dừng, thử một câu chữ, giọng đọc (cao độ, tốc độ, biểu cảm, nhịp, quãng nghỉ), thời gian nghe |
+| trợ lý | Bật tắt trợ lý, chọn mô hình, Tải, Nói / Dừng, thử một câu chữ, giọng đọc (cao độ, tốc độ, biểu cảm, nhịp, quãng nghỉ: lần lượt là cao độ giọng, tốc độ, `temperature`, `top_p`, `silence_p` của VieNeu; mặc định 138 Hz là cao độ thật của giọng mẫu), thời gian nghe |
 | luồng xử lý | FPS theo dõi tay, FPS của plugin, cỡ ảnh phân tích |
 | camera | Lật ảnh camera trước |
 | chẩn đoán | Khung chỉ số ở góc mỗi mắt |
@@ -109,7 +111,7 @@ Nguồn viết mã: `VR_CODE_SOURCE=local` (mặc định, ngoại tuyến, ch�
 
 Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_MODEL_PATH`, `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_N_THREADS`, `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU), `VR_N_CTX`, `VR_CHAT_FORMAT`, `VR_CODE_SOURCE`, `VR_ANTHROPIC_KEY`, `VR_CODE_MODEL`, `VR_AGENT_MODEL`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
 
-API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/voice/preview`, `/api/voice/listen`.
+API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/voice/preview`, `/api/voice/listen`, `/api/voice/dictate` (giọng thành chữ cho phím Đọc chữ), `/api/people` (người đã lưu, xem mục Nhận diện khuôn mặt).
 
 ## Plugin có sẵn
 
@@ -118,10 +120,17 @@ Mỗi plugin là một thư mục trong `src/modules/`, chỉ tải khi bật.
 | Plugin | Làm gì |
 |---|---|
 | **Phát hiện người** (`person-detection`) | Khoanh người trong khung hình. |
-| **Phát hiện khuôn mặt** (`face-detection`) | Khoanh mặt trong tầm khoảng 2 mét, cho biết mặt quay đi hay hướng vào ống kính. Không nhận dạng danh tính. |
+| **Nhận diện khuôn mặt** (`face-recognition`) | Khoanh mặt trong tầm khoảng 2 mét và cho biết đó là ai. Người đã lưu thì **tên, năm sinh và thông tin hiện ngay cạnh mặt**; người chưa lưu ghi "Chưa biết". Xem mục bên dưới. |
 | **Quét đồ vật** (`object-detection`) | Gọi tên khoảng 80 loại đồ vật thường gặp (EfficientDet-Lite0 int8, 4,4 MB). |
-| **Mục tiêu mô phỏng** (`demo-motion`) | Sinh hộp chuyển động, không cần mô hình, để kiểm tra luồng xử lý. |
 | **Bản đồ 3D** (`map3d`) | Màn hình riêng, xem bên dưới. |
+
+### Nhận diện khuôn mặt
+
+Mỗi khuôn mặt được biến thành **128 con số** (SFace, chạy ngay trong trình duyệt bằng onnxruntime-web; BlazeFace tìm mặt và mắt mũi miệng để căn thẳng mặt trước). Hai ảnh của một người cho các số gần nhau (độ giống cosine từ 0,4 trở lên thì coi là cùng người), hai người khác nhau thì xa nhau. **Ảnh mặt không được lưu**, chỉ lưu các con số, cùng tên, năm sinh và một ô thông tin, trong `assistant/data/people.json` trên máy chạy Hino (không đưa vào git), nên đóng trang cũng không mất.
+
+- **Màn hình của plugin:** một thẻ nhỏ phía dưới khung camera. Người đã lưu thì tên, năm sinh và thông tin hiện ngay cạnh mặt, thẻ có **Thêm mẫu** (ghi thêm một lần nhìn để nhận ra chắc hơn) và **Danh sách**. Với người lạ có nút **Lưu người này**: điền **Tên**, **Năm sinh**, **Thông tin** (bàn phím ảo tự hiện) rồi **Lưu**. **Danh sách** xem, sửa và xóa mọi người.
+- **Bằng giọng nói:** "Hino, lưu người này, tên là Nam, sinh năm 1990, thông tin: bạn đại học". Có thể nói từng phần ("người này sinh năm 1990", rồi "thông tin người này là hàng xóm"); người lạ cần có tên mới được lưu, phần đã nói được giữ 90 giây chờ phần còn lại. Người đã lưu thì lệnh sửa chính người đó. Tiếng Anh cũng được ("save this person, name John, born 1980, info neighbour").
+- **API:** `GET/POST /api/people`, `PATCH/DELETE /api/people/{id}`, `POST /api/people/{id}/samples`.
 
 Các plugin nhận diện chạy trong worker, trả về hộp và nhãn cho Core; **Core vẽ khung kèm nhãn lên camera** (trên mặt phẳng video nên hai mắt luôn khớp).
 
@@ -129,21 +138,19 @@ Các plugin nhận diện chạy trong worker, trả về hộp và nhãn cho Co
 
 Hai bước:
 
-1. **Chọn vùng trên bản đồ.** Bản đồ Leaflet (ô bản đồ từ máy chủ OpenStreetMap Đức). Kéo để di chuyển; bấm **Chọn vùng** rồi kéo ra một hình chữ nhật; **Xoá vùng**; **Vị trí của tôi** bay tới vị trí thiết bị. Dùng được bằng chuột, cảm ứng và tay (chụm rồi kéo). Bước này nằm trong khung camera vuông.
-2. **Thành phố 3D.** Bấm Bước tiếp: tải toà nhà và đường phố của vùng (Overpass/OpenStreetMap), dựng thành cảnh 3D lấp đầy cả mắt, tự đặt camera vào tâm cụm nhà. Đường phố được tải cho cả vòng tròn bao quanh vùng chọn.
+1. **Chọn vùng trên bản đồ.** Bản đồ Leaflet (ô bản đồ từ máy chủ OpenStreetMap Đức). Kéo một tay (hoặc chuột, hoặc ngón) để di chuyển. **Chọn vùng:** chụm hai tay (mỗi tay ngón cái và ngón trỏ, tức bốn ngón) rồi kéo hai tay ra xa nhau; vùng là hình chữ nhật có hai góc là chỗ hai tay chụm, mở tay là xong. **Thu phóng** cũng bằng hai tay: chụm hai tay **cách xa nhau** từ đầu (trên khoảng 16% khung hình) rồi giang ra là phóng to, khép vào là thu nhỏ, quanh điểm nằm giữa hai tay. Chụm sát thì vẽ vùng, chụm xa thì thu phóng: chỗ hai tay chụm lúc đầu quyết định. Dùng chuột thì giữ **Shift** và kéo để vẽ vùng, con lăn để thu phóng. Chọn lại bằng cách vẽ lại: vùng mới thay vùng cũ. **Mỗi lần mở plugin bản đồ tự nhảy tới vị trí của thiết bị** (cần cho phép định vị); biểu tượng ngắm tròn trong hàng nút phía trên là nút bay về lại vị trí đó khi bạn đã kéo bản đồ đi chỗ khác, nút chuyển đỏ nếu không định vị được. Hàng nút phía trên (Đóng, Quay lại, Bước tiếp, định vị) nằm gọn ở giữa, không che bản đồ. Bước này nằm trong khung camera vuông.
+2. **Thành phố 3D.** Bấm Bước tiếp: tải toà nhà và đường phố của vùng (API OpenStreetMap; nếu mạng chặn thì ô vector OpenFreeMap, cuối cùng là Overpass), dựng thành cảnh 3D lấp đầy cả mắt, tự đặt camera vào tâm cụm nhà. Đường phố được tải cho cả vòng tròn bao quanh vùng chọn.
 
-Trong cảnh 3D, cột nút ở cạnh phải chọn việc mà chụm-rồi-kéo làm:
+Trong cảnh 3D, tay làm việc với cái nó nắm vào.
 
-| Công cụ | Tác dụng |
-|---|---|
-| Xoay | Xoay góc nhìn quanh tâm |
-| Dời cảnh | Trượt cả khu vực |
-| Thu phóng | Kéo lên phóng to, kéo xuống thu nhỏ |
-| Dời nhà | Kéo tòa nhà đang chọn trên mặt đất |
-| Độ cao | Kéo lên xuống để đổi chiều cao tòa nhà đang chọn |
-| Độ rộng | Kéo ngang để đổi bề rộng tòa nhà đang chọn |
+| Nắm vào | Một tay chụm rồi kéo | Hai tay cùng chụm |
+|---|---|---|
+| **Cảnh** (chỗ không có nhà) | Trượt cả khu vực | Giang ra hoặc khép vào là thu phóng, vặn tay là xoay quanh tâm, nâng hoặc hạ cả hai tay là nghiêng góc nhìn |
+| **Nhà** | Nhà đó được chọn, kéo lên xuống đổi chiều cao, trái phải đổi bề rộng | Dời ngôi nhà nằm giữa hai tay trên mặt đất |
 
 Chụm vào một tòa nhà để chọn; tòa được chọn **sáng lên như khi rê chuột**. Với chuột và cảm ứng: kéo để xoay, lăn để phóng, kéo tòa đã chọn để dời, hai ngón để đổi cỡ.
+
+Nếu bản đồ trống hoặc không tải được toà nhà: một số mạng chặn các dịch vụ của OpenStreetMap (DNS trả `tile.openstreetmap.org` về `127.0.0.1`). Ô bản đồ lấy từ `openstreetmap.de` và toà nhà có đường dự phòng OpenFreeMap, nhưng đổi DNS máy hoặc router sang `1.1.1.1` / `8.8.8.8`, hoặc đổi mạng, vẫn là cách chắc nhất.
 
 Plugin cần mạng (`network`): gửi vùng bạn chọn tới OpenStreetMap, tải ô bản đồ từ openstreetmap.de và phông Pretendard từ jsDelivr. Không có khung camera nào rời máy.
 
@@ -180,7 +187,7 @@ micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisp
 | `src/app` | Khởi tạo ứng dụng, phím gỡ lỗi (`debugKeys.ts`), cảm biến lướt menu (`ImuMenu.ts`) |
 | `src/core/camera` | `CameraController` (chủ duy nhất của `getUserMedia`), `FrameHub`, `FrameScheduler` |
 | `src/core/rendering` | `StereoLayout`, `StereoRenderer`, `CursorLayer`, `OverlayRenderer`, `LensDistortionPass`, `CoordinateMapper` (nơi duy nhất tính toạ độ) |
-| `src/core/input` | Theo dõi tay, lọc, nhận cử chỉ (chụm, búng tay), state machine, `DomPointerSurface` |
+| `src/core/input` | Theo dõi tay, lọc, nhận cử chỉ (chụm, búng tay, hai tay), state machine, `DomPointerSurface` |
 | `src/core/models` | Cầu HTTP tới trợ lý (`ModelClient`, `ModelBridge`), `WakeController`, `VoiceControls` |
 | `src/core/audio` | Thu micro, phát giọng nói, nghe từ gọi |
 | `src/core/modules` | Hợp đồng plugin, `ModuleManager`, quyền, `ModuleScreenHost` (màn hình riêng của plugin) |
@@ -232,7 +239,7 @@ export default definePlugin({
 python run.py test
 ```
 
-Chạy các test trong `test/` (camera, khung vuông, giao diện một màu và vuông góc, song ngữ, hai mắt, thấu kính, plugin, lệnh giọng nói, trợ lý viết plugin, tải về, không dùng Node...). Test chạy bằng Python, không cần Node.
+Chạy các test trong `test/` (camera, khung vuông, giao diện một màu và vuông góc, song ngữ, hai mắt, thấu kính, plugin, lệnh giọng nói, trợ lý viết plugin, tải về, bàn phím ảo, cử chỉ hai tay, lưu người bằng giọng nói, nhận diện mặt, không dùng Node...). Test chạy bằng Python, không cần Node.
 
 ## Hướng phát triển
 

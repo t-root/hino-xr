@@ -209,9 +209,9 @@ export class OverlayRenderer {
   }
 
   private updateLabel(entry: OverlayEntry, detection: Detection): void {
-    const text = detection.label
-      ? `${detection.label} ${(detection.confidence * 100).toFixed(0)}%`
-      : `${detection.kind} ${(detection.confidence * 100).toFixed(0)}%`;
+    const figure = ` ${(detection.confidence * 100).toFixed(0)}%`;
+    // A plugin that writes the whole label itself (a person's name, say) asks for no percentage after it.
+    const text = detection.attributes?.plainLabel === true && detection.label ? detection.label : `${detection.label ?? detection.kind}${figure}`;
     if (entry.label && entry.label.userData.text === text) return;
 
     const { texture, aspect } = this.labels.get(text);

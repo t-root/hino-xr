@@ -1,7 +1,8 @@
-import type { GestureEvent } from "@/shared/contracts/input";
+import type { GestureEvent, TwoHandDomDetail, TwoHandEvent } from "@/shared/contracts/input";
 import { clamp01 } from "@/shared/math/num";
 import { dispatchHandPointer, type HandPointerType } from "./dispatchHandPointer";
 import { markTwins } from "../sync/twins";
+import { isTextEntry, openKeyboardFor } from "./keyboardInput";
 
 /**
  * A surface the hand can press that is not part of the 3D scene.
@@ -19,6 +20,14 @@ export interface PointerSurface {
   /** The target the hand is over, or null when it is over nothing. */
   hover(targetId: string | null): void;
   handle(event: GestureEvent): void;
+  /**
+   * Offers a step of the two-hand gesture to whatever is under its midpoint, as a cancelable
+   * `twohand` event. True when something took it (called `preventDefault`), so it is not also
+   * sent as a wheel.
+   */
+  twoHand?(step: TwoHandEvent): boolean;
+  /** Turns the mouse wheel at an image-space point; how two hands spreading apart zoom what is under them. */
+  wheel?(point: { x: number; y: number }, deltaY: number): void;
   /** What the target is called, in words, for the diagnostics panel. */
   describe(targetId: string): string | null;
 }
@@ -26,7 +35,7 @@ export interface PointerSurface {
 const ID_PREFIX = "dom:";
 
 /** What a hand may press. Anything else is scenery and the ray goes past it. */
-const ACTIONABLE = "button, input, [data-hand-target]";
+const ACTIONABLE = "button, input, textarea, [data-hand-target]";
 
 /** Ids are handed out per element, so the table needs an occasional sweep. */
 const PRUNE_AT = 128;
@@ -133,6 +142,47 @@ export class DomPointerSurface implements PointerSurface {
     if (!element) return null;
     const text = (element.textContent ?? "").replace(/\s+/g, " ").trim();
     return text.length > 0 ? text.slice(0, 32) : element.tagName.toLowerCase();
+  }
+
+  twoHand(step: TwoHandEvent): boolean {
+    const frame = this.frameRect();
+    const client = frame ? this.clientPoint(step.center, frame) : null;
+    const left = frame ? this.clientPoint(step.left, frame) : null;
+    const right = frame ? this.clientPoint(step.right, frame) : null;
+    if (!client || !left || !right) return false;
+    const under = this.doc.elementFromPoint(client.x, client.y);
+    if (!under) return false;
+    // A widget that wants more than zoom (turning, panning) listens for this on itself; one that
+    // does not simply never calls preventDefault, and the step falls through to the wheel.
+    const event = new CustomEvent<TwoHandDomDetail>("twohand", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      detail: { ...step, client, hands: { left, right } },
+    });
+    under.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  wheel(point: { x: number; y: number }, deltaY: number): void {
+    const frame = this.frameRect();
+    const client = frame ? this.clientPoint(point, frame) : null;
+    if (!client) return;
+    const under = this.doc.elementFromPoint(client.x, client.y);
+    if (!under) return;
+    // The same event a mouse wheel would send, so whatever zooms for a wheel (the map, the orbit
+    // controls) zooms for two hands, and no widget has to know about hands.
+    under.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX: client.x,
+        clientY: client.y,
+        deltaY,
+        deltaMode: 0,
+      }),
+    );
   }
 
   handle(event: GestureEvent): void {
@@ -329,6 +379,12 @@ const activate = (element: Element): void => {
   // only a custom Event would light up our own marks and leave the handler that
   // actually opens the thing uncalled — which is a gesture that "works" and
   // does nothing.
+  // A text box takes the focus, which is what brings the on-screen keyboard up (`installKeyboardFocus`).
+  if (isTextEntry(target)) {
+    target.focus();
+    openKeyboardFor(target);
+    return;
+  }
   target.click();
 };
 

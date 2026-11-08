@@ -64,9 +64,7 @@ export const map3dCss = (): string => `
 .map3d .m3-prev,
 .map3d .m3-button,
 .map3d .m3-close,
-.map3d .m3-locate,
-.map3d .m3-remove,
-.map3d .m3-mode {
+.map3d .m3-locate {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -81,73 +79,43 @@ export const map3dCss = (): string => `
   cursor: pointer;
   transition: none;
 }
-.map3d .m3-next,
-.map3d .m3-prev {
+/* The buttons are one row along the top, off the edge and clear of the map and the city: Close, Back or Next, and the
+   locate button. */
+.map3d .m3-bar {
   position: absolute;
   z-index: 9999;
-  bottom: 2rem;
+  top: 11cqb;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
-.map3d .m3-next { right: 2rem; }
-.map3d .m3-prev { left: 2rem; }
 .map3d .m3-button { z-index: 9999; }
 .map3d .m3-next:hover, .map3d .m3-next[data-twin-hover],
 .map3d .m3-prev:hover, .map3d .m3-prev[data-twin-hover],
 .map3d .m3-button:hover, .map3d .m3-button[data-twin-hover],
 .map3d .m3-close:hover, .map3d .m3-close[data-twin-hover],
-.map3d .m3-locate:hover, .map3d .m3-locate[data-twin-hover],
-.map3d .m3-mode:hover, .map3d .m3-mode[data-twin-hover] {
+.map3d .m3-locate:hover, .map3d .m3-locate[data-twin-hover] {
   color: var(--text);
   background: var(--surface-strong);
 }
 .map3d .m3-next:disabled,
 .map3d .m3-prev:disabled,
 .map3d .m3-button:disabled { opacity: 0.4; cursor: not-allowed; }
-.map3d .m3-tools {
-  position: absolute;
-  z-index: 9999;
-  right: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.map3d .m3-tool {
-  padding: 0.3rem 0.6rem;
-  color: var(--text-dim);
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 0;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-align: center;
-  cursor: pointer;
-}
-.map3d .m3-tool:hover, .map3d .m3-tool[data-twin-hover] { color: var(--text); background: var(--surface-strong); }
-.map3d .m3-tool[data-active="true"] { color: var(--ui-ink); border-color: var(--ui-ink); background: var(--surface-strong); }
-/* The 3D view is small: every button is a compact chip tucked against an edge. */
+/* The 3D view is small: the buttons in the top row are compact chips. */
 .map3d[data-step="city"] .m3-close,
 .map3d[data-step="city"] .m3-prev,
 .map3d[data-step="city"] .m3-next {
   padding: 0.3rem 0.6rem;
   font-size: 11px;
 }
-.map3d[data-step="city"] .m3-close { top: 0.75rem; left: 0.75rem; }
-.map3d[data-step="city"] .m3-prev { left: 0.75rem; bottom: 0.75rem; }
-.map3d[data-step="city"] .m3-next { right: 0.75rem; bottom: 0.75rem; }
 .map3d[data-step="city"] .holo-readout { top: 3.4rem; }
 .map3d[data-step="city"] .holo-readout-left { left: 0.75rem; }
 .map3d[data-step="city"] .holo-readout-right { right: 0.75rem; }
 .map3d [data-show="false"] { display: none !important; }
 
 /* Leaving the screen: not in the original, which was the whole page. */
-.map3d .m3-close {
-  position: absolute;
-  z-index: 9999;
-  top: 1rem;
-  /* Beside Leaflet's zoom buttons, clear of the tools on the right. */
-  left: 3.6rem;
-}
 
 /* ---- Column / Row / Title / Description ---- */
 .map3d .m3-column { display: flex; flex-direction: column; gap: 0.5rem; justify-content: unset; height: auto; }
@@ -228,29 +196,27 @@ export const map3dCss = (): string => `
   height: 100%;
   overflow: hidden;
 }
-.map3d .m3-map__tools {
+.map3d .m3-locate { padding: 0.5rem; }
+.map3d .m3-locate .m3-icon { width: 18px; height: 18px; }
+.map3d .m3-locate:disabled { cursor: wait; }
+.map3d .m3-locate[data-busy="true"] { opacity: 0.6; }
+.map3d .m3-locate[data-failed="true"] { color: var(--accent-text); border-color: var(--accent-hairline); }
+.map3d .m3-map__leaflet { height: 100%; width: 100%; }
+.map3d .m3-hint {
   position: absolute;
   z-index: 9999;
-  right: 1rem;
-  top: 1rem;
-  /* Starts after the close button; wraps rather than covering it when narrow. */
-  left: 8.6rem;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  left: 50%;
+  bottom: 6cqb;
+  transform: translateX(-50%);
+  padding: 0.3rem 0.8rem;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  font-size: 12px;
+  letter-spacing: 0.04em;
   pointer-events: none;
+  white-space: nowrap;
 }
-.map3d .m3-map__tools > * { pointer-events: auto; }
-/* Locate and mode are plain chips; remove is the one accent-coloured control. */
-.map3d .m3-locate:disabled { cursor: wait; }
-.map3d .m3-remove {
-  color: var(--accent-text);
-  background: var(--accent-surface);
-  border-color: var(--accent-hairline);
-}
-.map3d .m3-remove:hover, .map3d .m3-remove[data-twin-hover] { border-color: var(--accent-ink); color: var(--accent-ink); }
-.map3d .m3-mode[data-drag="true"] { color: var(--ui-ink); border-color: var(--ui-ink); }
 .map3d .m3-map__leaflet { height: 100%; width: 100%; }
 
 /* ---- index.css ---- */
@@ -423,22 +389,6 @@ export const map3dCss = (): string => `
 .map3d .hologram-map .leaflet-map-pane,
 .map3d .hologram-map .leaflet-tile-container {
   background: transparent !important;
-}
-
-/* Leaflet's zoom: the same square chip as every other button. */
-.map3d .hologram-map .leaflet-bar { border: none; box-shadow: none; border-radius: 0; }
-.map3d .hologram-map .leaflet-control-zoom a {
-  color: var(--text-dim);
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 0;
-  text-shadow: none;
-}
-.map3d .hologram-map .leaflet-control-zoom a + a { margin-top: -1px; }
-
-.map3d .hologram-map .leaflet-control-zoom a:hover, .map3d .hologram-map .leaflet-control-zoom a[data-twin-hover] {
-  color: var(--text);
-  background: var(--surface-strong);
 }
 
 .map3d .hologram-map .leaflet-control-attribution {

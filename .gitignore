@@ -28,6 +28,8 @@ Thumbs.db
 **/__pycache__/
 *.py[cod]
 assistant/weights/
+# The people the headset knows by face: personal data, kept on this computer only.
+assistant/data/
 
 # AI-written plugin drafts wait here for approval.
 plugins-pending/

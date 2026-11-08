@@ -5,6 +5,7 @@ import * as L from "./vendor/leaflet/dist/leaflet-src.esm.js";
 import "./vendor/leaflet/dist/leaflet.css";
 import { CanvasMirror, CopySync, SharedState } from "@/core/sync";
 import { isHandPointerId } from "@/core/input/dispatchHandPointer";
+import type { TwoHandDomDetail } from "@/shared/contracts/input";
 import { h, icon, show, type Words } from "./ui";
 
 /** The few Leaflet shapes the plugin touches. */
@@ -78,6 +79,14 @@ const SharedTileLayer = L.TileLayer.extend({
   },
 });
 
+/**
+ * Two hands that close less than this far apart (a share of the picture) are about to draw a region; farther
+ * apart, they zoom. Drawing starts with the fingertips nearly together, and a zoom starts with the hands wide.
+ */
+const DRAW_FROM_WITHIN = 0.16;
+const MIN_ZOOM = 3;
+const MAX_ZOOM = 18;
+
 /** Wraps longitude into -180..180, as the original did before reporting an area. */
 const adjustLng = (latlng: LatLng): LeafletLatLng => {
   const adjustedLng = ((((latlng.lng + 180) % 360) + 360) % 360) - 180;
@@ -91,12 +100,10 @@ const BEACON_HTML = '<span class="holo-location-beacon"></span>';
 type SelectMapOptions = Readonly<{
   /** `[northEast, southWest]` of the box being drawn or just drawn. */
   onDone: (area: [LatLng, LatLng]) => void;
-  onRemove: () => void;
 }>;
 
 /** What every copy of the map step shows. */
 type MapState = Readonly<{
-  isDrag: boolean;
   bounds: LeafletBounds | null;
   drawBounds: LeafletBounds | null;
   locating: boolean;
@@ -125,7 +132,6 @@ type MapViewState = Readonly<{ center: LatLng; zoom: number; anchor?: LatLng }>;
  */
 export class MapModel {
   readonly state = new SharedState<MapState>({
-    isDrag: true,
     bounds: null,
     drawBounds: null,
     locating: false,
@@ -134,9 +140,6 @@ export class MapModel {
   });
   readonly view = new CopySync<MapViewState>({ center: { lat: 40.8, lng: -73.95 }, zoom: 13 });
 
-  // A drag in progress is not drawn, only remembered between pointer events.
-  private firstPoint: LeafletLatLng | null = null;
-  private lastLatlng: LeafletLatLng | null = null;
   private readonly views = new Set<MapView>();
   private disposed = false;
 
@@ -165,56 +168,22 @@ export class MapModel {
     for (const view of [...this.views]) this.dropView(view);
   }
 
-  // ---- drawing, as in RectangleSelector ----
+  // ---- the region ----
 
-  mouseDown(latlng: LeafletLatLng): void {
-    if (!this.state.get().isDrag) this.firstPoint = latlng;
+  /**
+   * The region between two corners, as two pinching hands (or a mouse dragged with Shift held) move them.
+   * It is reported to the app as it grows; `done` is the moment the hands open or the button is let go.
+   */
+  box(a: LeafletLatLng, b: LeafletLatLng, done: boolean): void {
+    this.handleChangeDraw(new L.LatLngBounds(a, b));
+    if (done) this.handleChangeDone(new L.LatLngBounds(adjustLng(a), adjustLng(b)));
   }
 
-  mouseMove(latlng: LeafletLatLng): void {
-    if (!this.firstPoint) return;
-    this.lastLatlng = adjustLng(latlng);
-    this.handleChangeDraw(new L.LatLngBounds(this.firstPoint, latlng));
-  }
-
-  mouseUp(latlng: LeafletLatLng): void {
-    if (!this.firstPoint) return;
-    this.handleChangeDraw(new L.LatLngBounds(this.firstPoint, latlng));
-    this.handleChangeDone(new L.LatLngBounds(adjustLng(this.firstPoint), adjustLng(latlng)));
-    this.firstPoint = null;
-  }
-
-  touchStart(latlng: LeafletLatLng): void {
-    this.lastLatlng = null;
-    if (!this.state.get().isDrag) this.firstPoint = latlng;
-  }
-
-  touchMove(latlng: LeafletLatLng): void {
-    if (!this.firstPoint) return;
-    this.lastLatlng = latlng;
-    this.handleChangeDraw(new L.LatLngBounds(this.firstPoint, latlng));
-  }
-
-  touchEnd(): void {
-    if (!this.firstPoint) return;
-    const latlng = this.lastLatlng || this.firstPoint;
-    this.handleChangeDraw(new L.LatLngBounds(this.firstPoint, latlng));
-    this.handleChangeDone(new L.LatLngBounds(adjustLng(this.firstPoint), adjustLng(latlng)));
-    this.firstPoint = null;
-  }
-
-  // ---- buttons ----
-
-  toggleDrag(): void {
-    this.state.set({ isDrag: !this.state.get().isDrag });
-  }
-
-  removeBox(): void {
-    this.options.onRemove();
-    this.state.set({ bounds: null, drawBounds: null, isDrag: true });
-  }
-
-  requestLocation(): void {
+  /**
+   * Finds where the device is and puts the map there. Done by itself each time the plugin is opened (a jump, since
+   * the map starts on the other side of the world), and by the locate button (a short flight back).
+   */
+  requestLocation(animate = true): void {
     this.state.set({ locationError: "", locating: true });
 
     const finish = (error = "") => {
@@ -232,7 +201,7 @@ export class MapModel {
         const position: [number, number] = [coords.latitude, coords.longitude];
         // One map flies; its moves are published, so the rest follow frame by frame.
         const [leader] = this.views;
-        if (leader) leader.flyTo(position);
+        if (leader) leader.flyTo(position, animate);
         else this.view.set({ center: { lat: position[0], lng: position[1] }, zoom: 16 });
         this.state.set({ userLocation: position });
         finish();
@@ -259,10 +228,9 @@ export class MapView {
 
   private readonly map: any;
   private readonly container: HTMLDivElement;
-  private readonly removeButton: HTMLButtonElement;
-  private readonly modeButton: HTMLButtonElement;
-  private readonly locateButton: HTMLButtonElement;
-  private readonly locateLabel: Text;
+  private readonly hint: HTMLElement;
+  /** Placed by the screen in its bar of buttons along the top, with Close and Next. */
+  readonly locateButton: HTMLButtonElement;
   private readonly resizeObserver: ResizeObserver;
   private readonly sync: { publish: (view: MapViewState) => void; dispose: () => void };
   private readonly stopState: () => void;
@@ -278,20 +246,15 @@ export class MapView {
     credit.target = "_blank";
     credit.rel = "noreferrer";
 
-    this.locateLabel = document.createTextNode("");
-    this.locateButton = h("button", "m3-locate", icon("locateFixed"), " ", this.locateLabel);
+    // Only the crosshair every map app uses for "take me to where I am": no words.
+    this.locateButton = h("button", "m3-locate", icon("locateFixed"));
     this.locateButton.type = "button";
-    this.locateButton.addEventListener("click", () => model.requestLocation());
+    this.locateButton.addEventListener("click", () => model.requestLocation(true));
 
-    this.removeButton = h("button", "m3-remove", icon("circleMinus"), " ", words.node("removeBox"));
-    this.removeButton.addEventListener("click", () => model.removeBox());
+    this.hint = h("div", "m3-hint", words.node("drawHint"));
 
-    this.modeButton = h("button", "m3-mode");
-    this.modeButton.addEventListener("click", () => model.toggleDrag());
-
-    const tools = h("div", "m3-map__tools", this.locateButton, this.removeButton, this.modeButton);
     this.container = h("div", "m3-map__leaflet hologram-map");
-    this.root = h("div", "m3-map", credit, tools, this.container);
+    this.root = h("div", "m3-map", credit, this.hint, this.container);
 
     const start = model.view.view;
     this.map = L.map(this.container, {
@@ -301,6 +264,12 @@ export class MapView {
       zoomAnimation: false,
       fadeAnimation: false,
       markerZoomAnimation: false,
+      // Shift and drag draws the region (below); Leaflet's own use of it is to zoom to a box.
+      boxZoom: false,
+      // Zoom is two hands or the wheel; the +/- buttons are not drawn.
+      zoomControl: false,
+      // Two hands zoom by whatever the distance between them changes, so any zoom in between is allowed.
+      zoomSnap: 0,
       // Leaflet re-measures on window resize after a timer of its own, per map;
       // the observer below re-measures every copy together instead.
       trackResize: false,
@@ -323,21 +292,19 @@ export class MapView {
         anchor: { lat: corner.lat, lng: corner.lng },
       });
     });
-    this.map.on("mousedown", (event: MapEvent) => model.mouseDown(event.latlng));
-    this.map.on("mousemove", (event: MapEvent) => model.mouseMove(event.latlng));
-    this.map.on("mouseup", (event: MapEvent) => model.mouseUp(event.latlng));
-
-    this.container.addEventListener("touchstart", this.handleTouchStart);
-    this.container.addEventListener("touchmove", this.handleTouchMove);
-    this.container.addEventListener("touchend", this.handleTouchEnd);
+    // The region: two hands pinching and spreading draw it, and so does a mouse dragged with Shift held.
+    this.root.addEventListener("twohand", this.handleTwoHand);
+    this.container.addEventListener("mousedown", this.handleShiftDown, true);
     // A hand is pressed in as pointer events, which Leaflet 1.9 does not turn into
     // mouse events: it neither pans nor reports a drawn box. So the hand's
     // pointers are worked here, the same way for drawing and for panning.
     this.container.setAttribute("data-hand-target", "");
-    this.container.addEventListener("pointerdown", this.handleHandDown);
-    this.container.addEventListener("pointermove", this.handleHandMove);
-    this.container.addEventListener("pointerup", this.handleHandUp);
-    this.container.addEventListener("pointercancel", this.handleHandUp);
+    // In the capture phase, and kept from Leaflet: it turns pointer events into the touch events its
+    // own pan and pinch-zoom run on, so a hand drawing a box would also drag the map under it.
+    this.container.addEventListener("pointerdown", this.handleHandDown, true);
+    this.container.addEventListener("pointermove", this.handleHandMove, true);
+    this.container.addEventListener("pointerup", this.handleHandUp, true);
+    this.container.addEventListener("pointercancel", this.handleHandUp, true);
     this.resizeObserver = new ResizeObserver(() => this.invalidate());
     this.resizeObserver.observe(this.container);
 
@@ -355,8 +322,9 @@ export class MapView {
     L.DomUtil.setPosition(pane, L.DomUtil.getPosition(pane).subtract(here));
   }
 
-  flyTo(position: [number, number]): void {
-    this.map.flyTo(position, 16, { animate: true, duration: 1.2 });
+  flyTo(position: [number, number], animate = true): void {
+    if (animate) this.map.flyTo(position, 16, { animate: true, duration: 1.2 });
+    else this.map.setView(position, 16, { animate: false });
   }
 
   /** Leaflet measures its box once; after a resize or being hidden it measures again. */
@@ -369,79 +337,95 @@ export class MapView {
     this.stopState();
     this.sync.dispose();
     this.resizeObserver.disconnect();
-    this.container.removeEventListener("touchstart", this.handleTouchStart);
-    this.container.removeEventListener("touchmove", this.handleTouchMove);
-    this.container.removeEventListener("touchend", this.handleTouchEnd);
-    this.container.removeEventListener("pointerdown", this.handleHandDown);
-    this.container.removeEventListener("pointermove", this.handleHandMove);
-    this.container.removeEventListener("pointerup", this.handleHandUp);
-    this.container.removeEventListener("pointercancel", this.handleHandUp);
+    this.root.removeEventListener("twohand", this.handleTwoHand);
+    this.container.removeEventListener("mousedown", this.handleShiftDown, true);
+    this.stopShiftDrag?.();
+    this.container.removeEventListener("pointerdown", this.handleHandDown, true);
+    this.container.removeEventListener("pointermove", this.handleHandMove, true);
+    this.container.removeEventListener("pointerup", this.handleHandUp, true);
+    this.container.removeEventListener("pointercancel", this.handleHandUp, true);
     this.map.remove();
     this.root.remove();
   }
 
   private render(state: MapState): void {
     this.locateButton.disabled = state.locating;
-    this.locateButton.title = state.locationError || this.words.get("locateTitle");
-    this.locateLabel.data = this.words.get(state.locating ? "locating" : "myLocation");
+    const label = state.locationError || this.words.get("locateTitle");
+    this.locateButton.title = label;
+    this.locateButton.setAttribute("aria-label", label);
+    this.locateButton.dataset.busy = String(state.locating);
+    this.locateButton.dataset.failed = String(state.locationError !== "");
 
-    show(this.removeButton, !(state.bounds == null || state.isDrag));
-
-    this.modeButton.dataset.drag = String(state.isDrag);
-    this.modeButton.replaceChildren(
-      ...(state.isDrag
-        ? [icon("mousePointerClick"), h("span", "", this.words.get("selectBox"))]
-        : [document.createTextNode(this.words.get("backToDrag"))]),
-    );
-    if (state.isDrag) this.map.dragging.enable();
-    else this.map.dragging.disable();
+    show(this.hint, state.bounds == null && state.drawBounds == null);
 
     this.renderRectangle(state.drawBounds);
     this.renderMarker(state.userLocation);
   }
 
-  private readonly handleTouchStart = (event: TouchEvent): void => {
-    const touch = event.touches[0];
-    if (touch) this.model.touchStart(this.map.mouseEventToLatLng(touch));
+  /** What the two hands now closed are doing, decided when they closed: drawing a region or zooming. */
+  private twoHands: "draw" | "zoom" | null = null;
+
+  /**
+   * Two pinching hands, taken here so it is not also a wheel. Closed close together (the four fingertips
+   * almost touching) and then drawn apart, they draw the region, a corner at each hand. Closed already apart and
+   * then spread or brought together, they zoom the map about the point between them, as two fingers do on a phone.
+   */
+  private readonly handleTwoHand = (event: Event): void => {
+    event.preventDefault();
+    const detail = (event as CustomEvent<TwoHandDomDetail>).detail;
+    if (detail.phase === "start") this.twoHands = detail.distance < DRAW_FROM_WITHIN ? "draw" : "zoom";
+    const at = (point: { x: number; y: number }) => this.map.mouseEventToLatLng({ clientX: point.x, clientY: point.y });
+    if (this.twoHands === "draw") {
+      this.model.box(at(detail.hands.left), at(detail.hands.right), detail.phase === "end");
+    } else if (this.twoHands === "zoom" && detail.phase === "move" && detail.scale !== 1) {
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, this.map.getZoom() + Math.log2(detail.scale)));
+      this.map.setZoomAround(at(detail.client), zoom, { animate: false });
+    }
+    if (detail.phase === "end") this.twoHands = null;
   };
 
-  private readonly handleTouchMove = (event: TouchEvent): void => {
-    const touch = event.touches[0];
-    if (touch) this.model.touchMove(this.map.mouseEventToLatLng(touch));
-  };
+  /** A mouse drag with Shift held draws the region; without it, it moves the map as it always did. */
+  private stopShiftDrag: (() => void) | null = null;
 
-  private readonly handleTouchEnd = (): void => {
-    this.model.touchEnd();
+  private readonly handleShiftDown = (event: MouseEvent): void => {
+    if (!event.shiftKey || event.button !== 0) return;
+    // Before Leaflet sees it: it would otherwise start moving the map under the box.
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    const corner = this.map.mouseEventToLatLng(event);
+    const move = (next: MouseEvent) => this.model.box(corner, this.map.mouseEventToLatLng(next), false);
+    const up = (next: MouseEvent) => {
+      this.model.box(corner, this.map.mouseEventToLatLng(next), true);
+      this.stopShiftDrag?.();
+    };
+    this.stopShiftDrag = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      this.stopShiftDrag = null;
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
   };
 
   /** Where the hand last was while panning; null when it is not holding the map. */
   private handPan: { x: number; y: number } | null = null;
-  private handDrawing = false;
 
   private readonly handleHandDown = (event: PointerEvent): void => {
     if (!isHandPointerId(event.pointerId)) return;
-    if (this.model.state.get().isDrag) {
-      this.handPan = { x: event.clientX, y: event.clientY };
-    } else {
-      this.handDrawing = true;
-      this.model.touchStart(this.map.mouseEventToLatLng(event));
-    }
+    event.stopImmediatePropagation();
+    this.handPan = { x: event.clientX, y: event.clientY };
   };
 
   private readonly handleHandMove = (event: PointerEvent): void => {
-    if (!isHandPointerId(event.pointerId)) return;
-    if (this.handDrawing) {
-      this.model.touchMove(this.map.mouseEventToLatLng(event));
-    } else if (this.handPan) {
-      this.map.panBy([this.handPan.x - event.clientX, this.handPan.y - event.clientY], { animate: false });
-      this.handPan = { x: event.clientX, y: event.clientY };
-    }
+    if (!isHandPointerId(event.pointerId) || !this.handPan) return;
+    event.stopImmediatePropagation();
+    this.map.panBy([this.handPan.x - event.clientX, this.handPan.y - event.clientY], { animate: false });
+    this.handPan = { x: event.clientX, y: event.clientY };
   };
 
   private readonly handleHandUp = (event: PointerEvent): void => {
     if (!isHandPointerId(event.pointerId)) return;
-    if (this.handDrawing) this.model.touchEnd();
-    this.handDrawing = false;
+    event.stopImmediatePropagation();
     this.handPan = null;
   };
 

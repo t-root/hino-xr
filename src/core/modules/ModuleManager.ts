@@ -186,6 +186,26 @@ export class ModuleManager {
     this.logger.error(`module "${id}" failed`, { message: runtime.lastError.en });
   }
 
+  /**
+   * Offers a spoken command to every plugin that is running, in turn, until one answers. Core does not know
+   * which plugin a command is for: a plugin that does not handle it returns null, and one that fails does not
+   * stop the others hearing it.
+   */
+  async command(name: string, payload: Readonly<Record<string, unknown>>): Promise<string | null> {
+    for (const runtime of this.runtimes.values()) {
+      if (runtime.state !== "ready" || !runtime.module?.command) continue;
+      try {
+        const said = await runtime.module.command(name, payload);
+        if (said !== null) return said;
+      } catch (error) {
+        this.logger.warn(`${runtime.id} failed a command`, {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return null;
+  }
+
   async toggle(id: string): Promise<void> {
     if (this.isEnabled(id)) await this.disable(id);
     else await this.enable(id);

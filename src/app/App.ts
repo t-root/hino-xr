@@ -2,6 +2,8 @@ import { createVoiceControls } from "@/core/models/VoiceControls";
 import { installDebugKeys } from "@/app/debugKeys";
 import { installImuMenu } from "@/app/ImuMenu";
 import { createVrRuntime } from "@/core/bootstrap/createVrRuntime";
+import { Dictation } from "@/core/input/Dictation";
+import { installKeyboardFocus } from "@/core/input/keyboardInput";
 import { sessionBootReady } from "@/core/bootstrap/sessionBoot";
 import { useRuntimeStore, type RuntimeUiState } from "@/core/state/RuntimeStore";
 import { useSharedUiStore, type SharedUiState } from "@/core/state/SharedUiStore";
@@ -10,6 +12,7 @@ import { unlockViewOrientation, requestAppFullscreen } from "@/core/view/fullscr
 import { StereoView, stereoState } from "@/ui/components/StereoView";
 import { DiagnosticsOverlay } from "@/ui/panels/DiagnosticsOverlay";
 import { LoadingOverlay, bootOutroMs } from "@/ui/panels/LoadingOverlay";
+import { KeyboardPanel } from "@/ui/panels/KeyboardPanel";
 import { SettingsPanel } from "@/ui/panels/SettingsPanel";
 import { StartOverlay } from "@/ui/panels/StartOverlay";
 import { el, watch } from "@/ui/dom";
@@ -40,6 +43,7 @@ export const mountApp = (host: HTMLElement): () => void => {
   let start: ReturnType<typeof StartOverlay> | null = null;
 
   const layout = runtime.renderer.layout;
+  const dictation = new Dictation();
 
   // The menu, worked by voice: "raise the speaking speed", "turn off diagnostics", "open the lens section".
   runtime.models.setControlHost(
@@ -120,6 +124,7 @@ export const mountApp = (host: HTMLElement): () => void => {
     const stopLoad = LoadingOverlay(frame);
     const stopHud = DiagnosticsOverlay(frame);
     const stopScreens = runtime.mountScreens(frame);
+    const stopKeyboard = KeyboardPanel(frame, dictation);
     const stopMenu = SettingsPanel(frame, {
       stereo: mode === "stereo",
       monoReason: monoReasons[0] ?? null,
@@ -148,6 +153,7 @@ export const mountApp = (host: HTMLElement): () => void => {
       stopHud();
       stopMenu();
       stopScreens();
+      stopKeyboard();
     };
   };
 
@@ -203,6 +209,8 @@ export const mountApp = (host: HTMLElement): () => void => {
     installDebugKeys({ systemCall: () => runtime.wake.simulateSystemCall() }),
     // Head turns left and right run the menu band.
     installImuMenu(),
+    // Choosing a text box, by hand, finger or mouse, brings the on-screen keyboard up.
+    installKeyboardFocus(document),
   ];
 
   return () => {

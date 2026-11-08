@@ -209,6 +209,18 @@ export class GestureStateMachine {
     return events;
   }
 
+  /**
+   * Gives up whatever this hand was holding because a gesture that takes both hands has begun.
+   * The fingers are still closed, so the hand must open before it can pinch again; otherwise
+   * the next frame would start a new press.
+   */
+  abort(nowMs: number, pointer?: HandPointer): readonly GestureEvent[] {
+    const events: GestureEvent[] = [];
+    this.cancel(events, nowMs, pointer);
+    this.readyToPinch = false;
+    return events;
+  }
+
   private cancel(events: GestureEvent[], nowMs: number, pointer?: HandPointer): void {
     const active = this.state === "pinching" || this.state === "dragging";
     if (active) {

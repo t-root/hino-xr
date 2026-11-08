@@ -8,7 +8,7 @@ export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enable
 
 /** What the wearer asked the headset to do, rather than the model to answer. */
 export type SpokenCommand = Readonly<{
-  action: "enable" | "disable" | "create" | "approve" | "reject" | "setting" | "none";
+  action: "enable" | "disable" | "create" | "approve" | "reject" | "setting" | "person" | "none";
   id: string | null;
   /** For `create`: what the new plugin should do, in the wearer's words. */
   description: string;
@@ -19,7 +19,7 @@ export type SpokenCommand = Readonly<{
 /** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
 export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
 
-const COMMANDS = new Set(["enable", "disable", "create", "approve", "reject", "setting", "none"]);
+const COMMANDS = new Set(["enable", "disable", "create", "approve", "reject", "setting", "person", "none"]);
 
 type TalkResult = Readonly<{
   transcript: string;
@@ -161,6 +161,19 @@ export class ModelClient {
     if (!response) throw new Error("offline");
     if (!response.ok) throw new Error(await readDetail(response));
     return (await response.json()) as { heard: string; matched: boolean; after: number };
+  }
+
+  /** What was said, as text: for the on-screen keyboard's microphone key. Nothing is asked of the model. */
+  async dictate(wav: Blob, locale: string, signal?: AbortSignal): Promise<string> {
+    const response = await this.send(`${this.voiceBase()}/dictate?locale=${encodeURIComponent(locale)}`, {
+      method: "POST",
+      headers: { "Content-Type": "audio/wav" },
+      body: wav,
+      ...init(signal),
+    });
+    if (!response) throw new Error("offline");
+    if (!response.ok) throw new Error(await readDetail(response));
+    return ((await response.json()) as { text?: string }).text ?? "";
   }
 
   private pluginsBase(): string {

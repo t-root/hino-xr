@@ -29,6 +29,9 @@ const PERMISSION_GRANTS: Readonly<Record<string, readonly ModulePermission[]>> =
   // Sends the area the wearer picks on the map to OpenStreetMap (buildings and
   // roads there), loads map tiles from openstreetmap.de and shows it on a screen of its own.
   map3d: ["network", "screen"],
+  // Keeps the people it knows (names, years of birth and the numbers that describe their faces, never a
+  // picture) on the model server, which is this computer, and has a screen of its own for them.
+  "face-recognition": ["network", "screen"],
 };
 
 /** Permissions a manifest asks for that nobody has granted it. */

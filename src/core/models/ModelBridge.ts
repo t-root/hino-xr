@@ -40,6 +40,8 @@ const HOLD_POLL = new Set(["generating", "listening", "speaking"]);
 export type PluginVoiceHost = Readonly<{
   list: () => readonly SpokenPlugin[];
   set: (id: string, on: boolean) => void;
+  /** Gives a spoken command to the running plugins; resolves to what one of them says back, or null. */
+  command: (name: string, payload: Readonly<Record<string, unknown>>) => Promise<string | null>;
 }>;
 
 /** What the headset lets a spoken line do to its menu and settings. */
@@ -93,6 +95,15 @@ export class ModelBridge {
       this.controlHost?.run(command.id, command.value);
       return;
     }
+    if (command.action === "person" && this.pluginHost) {
+      const host = this.pluginHost;
+      const payload = typeof command.value === "object" && command.value !== null ? (command.value as Record<string, unknown>) : {};
+      void this.followUp(async () => {
+        const say = await host.command("person", payload);
+        return { ok: say !== null, say: say ?? "" };
+      }, false);
+      return;
+    }
     if (command.action === "create") {
       void this.followUp(() => this.client.draftPlugin(command.description, currentLocale()), false);
     } else if (command.action === "approve" && command.id) {
@@ -113,6 +124,8 @@ export class ModelBridge {
   private async followUp(work: () => Promise<{ ok: boolean; say: string }>, reloadOnSuccess: boolean): Promise<void> {
     try {
       const outcome = await work();
+      // A command no plugin took has nothing to say: silence, not an empty reply read out.
+      if (outcome.say === "") return;
       await this.previewVoice(outcome.say);
       useRuntimeStore.getState().patchAssistant({ reply: outcome.say });
       if (reloadOnSuccess && outcome.ok) window.location.reload();

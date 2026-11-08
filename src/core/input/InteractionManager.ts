@@ -1,4 +1,4 @@
-import type { GestureEvent, HandFrame, HandPointer, Handedness } from "@/shared/contracts/input";
+import type { GestureEvent, HandFrame, HandPointer, Handedness, TwoHandEvent } from "@/shared/contracts/input";
 import type { EventBus } from "../events/EventBus";
 import type { RuntimeEvents } from "../events/events";
 import type { CursorLayer, CursorPhase, CursorVisual } from "../rendering/CursorLayer";
@@ -11,6 +11,7 @@ import { HandSmoother } from "./HandSmoother";
 import type { HitTestService } from "./HitTestService";
 import type { InteractiveRegistry } from "./InteractiveRegistry";
 import { SnapGestureRecognizer, type SnapState } from "./SnapGestureRecognizer";
+import { TwoHandGesture } from "./TwoHandGesture";
 
 /** What the cursor should look like for a hand in this state. */
 const phaseOf = (state: GestureState, hovering: boolean): CursorPhase => {
@@ -58,6 +59,12 @@ export type HandProbe = Readonly<{
   middleCurlRatio: number;
 }>;
 
+/**
+ * Wheel pixels for each unit of ln(scale). The map zooms one level (a doubling) per 60 px of wheel,
+ * so a doubling of the distance between the hands is 60 px: 60 / ln 2.
+ */
+const WHEEL_PX_PER_E = 86.6;
+
 /** How far back `closestRatio` looks: long enough to catch an attempt, ms. */
 const CLOSEST_WINDOW_MS = 1000;
 
@@ -79,6 +86,7 @@ export class InteractionManager {
   private snapSettings: SnapSettings;
   private snapEnabled: boolean;
   private selectedTargetId: string | null = null;
+  private readonly twoHand: TwoHandGesture;
 
   constructor(
     private readonly bus: EventBus<RuntimeEvents>,
@@ -95,10 +103,12 @@ export class InteractionManager {
     this.settings = settings;
     this.snapSettings = snapSettings;
     this.snapEnabled = snapEnabled;
+    this.twoHand = new TwoHandGesture(settings);
   }
 
   setSettings(settings: GestureSettings, snapSettings: SnapSettings, snapEnabled: boolean): void {
     this.settings = settings;
+    this.twoHand.setSettings(settings);
     this.snapSettings = snapSettings;
     this.snapEnabled = snapEnabled;
     for (const runtime of this.hands.values()) {
@@ -188,6 +198,7 @@ export class InteractionManager {
   /** Called once per rendered frame so interaction latency tracks the display. */
   update(nowMs: number): void {
     const visuals: CursorVisual[] = [];
+    const live: Record<Handedness, HandPointer | null> = { left: null, right: null };
 
     for (const [hand, runtime] of this.hands) {
       const lost = nowMs - runtime.lastFrameMs > this.settings.lostTimeoutMs;
@@ -206,6 +217,7 @@ export class InteractionManager {
         continue;
       }
       if (!pointer) continue;
+      live[hand] = pointer;
 
       const stale = nowMs - runtime.closestAtMs > CLOSEST_WINDOW_MS;
       if (stale || pointer.pinchStrength < runtime.closestRatio) {
@@ -223,6 +235,28 @@ export class InteractionManager {
     }
 
     this.cursors.update(visuals, nowMs);
+
+    const step = this.twoHand.update(nowMs, live.left, live.right);
+    if (step) this.handleTwoHand(step, nowMs, live);
+  }
+
+  /**
+   * Both hands pinching is its own gesture, so each hand's own press is given up when it starts:
+   * two hands holding one picture must not also drag it twice. What it means goes out as a mouse
+   * wheel (zoom, for anything that zooms for a wheel) and as the `twohand` event for the rest.
+   */
+  private handleTwoHand(step: TwoHandEvent, nowMs: number, live: Record<Handedness, HandPointer | null>): void {
+    if (step.phase === "start") {
+      for (const [hand, runtime] of this.hands) {
+        this.dispatch(runtime, runtime.machine.abort(nowMs, live[hand] ?? undefined), nowMs);
+      }
+    }
+    this.bus.emit("twohand", step);
+    // Offered whole to what is under the hands; only a widget that ignores it gets the wheel.
+    if (this.surface?.twoHand?.(step)) return;
+    if (step.phase !== "move" || step.scale === 1) return;
+    const deltaY = -Math.log(step.scale) * WHEEL_PX_PER_E;
+    if (Math.abs(deltaY) >= 1) this.surface?.wheel?.(step.center, deltaY);
   }
 
   private resolveTarget(hand: Handedness, pointer: HandPointer, captured: string | null): string | null {

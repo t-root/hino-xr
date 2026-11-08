@@ -1,0 +1,122 @@
+{
+  "displayName": {
+    "vi": "Nhận diện khuôn mặt",
+    "en": "Face recognition"
+  },
+  "description": {
+    "vi": "Tìm khuôn mặt trong tầm khoảng 2 mét và cho biết đó là ai: người đã lưu thì hiện tên, năm sinh và thông tin ngay cạnh mặt. Lưu người mới bằng màn hình riêng của tiện ích này, hoặc nói: lưu người này, tên là …, sinh năm …, thông tin …. Ảnh mặt không được lưu, chỉ lưu 128 con số mô tả khuôn mặt, trên máy tính chạy Hino.",
+    "en": "Finds faces within about two metres and says who they are: a saved person's name, year of birth and note are written beside the face. Save someone with the plugin's screen or by saying: save this person, name …, born …, info …. No picture of a face is kept, only 128 numbers describing it, on the computer that runs Hino."
+  },
+  "face": {
+    "vi": "Khuôn mặt",
+    "en": "Face"
+  },
+  "unknown": {
+    "vi": "Chưa biết",
+    "en": "Unknown"
+  },
+  "seeingStranger": {
+    "vi": "Đang thấy một người chưa lưu",
+    "en": "Seeing someone not saved yet"
+  },
+  "seeingNobody": {
+    "vi": "Chưa thấy khuôn mặt nào",
+    "en": "No face in view"
+  },
+  "fieldName": {
+    "vi": "Tên",
+    "en": "Name"
+  },
+  "fieldYear": {
+    "vi": "Năm sinh",
+    "en": "Year of birth"
+  },
+  "fieldInfo": {
+    "vi": "Thông tin",
+    "en": "Info"
+  },
+  "saveThis": {
+    "vi": "Lưu người này",
+    "en": "Save this person"
+  },
+  "save": {
+    "vi": "Lưu",
+    "en": "Save"
+  },
+  "cancel": {
+    "vi": "Hủy",
+    "en": "Cancel"
+  },
+  "edit": {
+    "vi": "Sửa",
+    "en": "Edit"
+  },
+  "addSample": {
+    "vi": "Thêm mẫu",
+    "en": "Add sample"
+  },
+  "people": {
+    "vi": "Danh sách",
+    "en": "People"
+  },
+  "close": {
+    "vi": "Đóng",
+    "en": "Close"
+  },
+  "remove": {
+    "vi": "Xóa",
+    "en": "Delete"
+  },
+  "empty": {
+    "vi": "Chưa lưu ai",
+    "en": "Nobody saved yet"
+  },
+  "noFace": {
+    "vi": "Mình chưa thấy khuôn mặt nào. Hãy hướng camera vào người đó rồi nói lại.",
+    "en": "I can't see a face. Point the camera at the person and say it again."
+  },
+  "needName": {
+    "vi": "Cho mình biết tên người này.",
+    "en": "Tell me this person's name."
+  },
+  "badYear": {
+    "vi": "Năm sinh phải là một số, ví dụ 1990.",
+    "en": "The year of birth must be a number, such as 1990."
+  },
+  "askName": {
+    "vi": "Người này tên gì? Nói: tên là …",
+    "en": "What is this person's name? Say: name is …"
+  },
+  "saved": {
+    "vi": "Đã lưu {name}.",
+    "en": "Saved {name}."
+  },
+  "savedWithYear": {
+    "vi": "Đã lưu {name}, sinh năm {year}.",
+    "en": "Saved {name}, born {year}."
+  },
+  "updated": {
+    "vi": "Đã cập nhật {name}.",
+    "en": "Updated {name}."
+  },
+  "sampleAdded": {
+    "vi": "Đã thêm một mẫu khuôn mặt cho {name}.",
+    "en": "Added a sample of {name}'s face."
+  },
+  "known": {
+    "vi": "Mình biết người này rồi, là {name}. Mình đã ghi thêm một mẫu khuôn mặt.",
+    "en": "I already know this person: {name}. I added another sample of the face."
+  },
+  "removed": {
+    "vi": "Đã xóa.",
+    "en": "Deleted."
+  },
+  "offline": {
+    "vi": "Không kết nối được máy chủ.",
+    "en": "Can't reach the server."
+  },
+  "failed": {
+    "vi": "Không lưu được: {reason}",
+    "en": "Could not save: {reason}"
+  }
+}

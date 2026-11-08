@@ -2,7 +2,7 @@ import { SharedState } from "@/core/sync";
 import { useSharedUiStore } from "@/core/state/SharedUiStore";
 import { queryOverpass } from "./overpass";
 import { MapModel, type LatLng, type MapView } from "./SelectMap";
-import { SpaceCore, type Building, type HandTool, type SpaceView } from "./Space";
+import { SpaceCore, type Building, type SpaceView } from "./Space";
 import { map3dCss } from "./styles";
 import { h, icon, MODAL_CLOSE_DELAY_MS, MODAL_CLOSED, ModalView, show, type ModalState, type Words } from "./ui";
 
@@ -50,7 +50,6 @@ export class Map3dApp {
   ) {
     this.map = new MapModel(words, {
       onDone: (data) => this.handleDone(data),
-      onRemove: () => this.handleRemove(),
     });
     this.space = new SpaceCore(words);
   }
@@ -75,6 +74,8 @@ export class Map3dApp {
     if (!active) return;
     this.words.refresh();
     for (const view of this.views) view.activate();
+    // Every time the plugin is opened the map goes to where the device is, without being asked.
+    this.map.requestLocation(false);
   }
 
   /** The theme moved while the screen was away: recolour everything. */
@@ -164,12 +165,6 @@ export class Map3dApp {
     this.update({ isNextButtonDisabled: false });
   }
 
-  private handleRemove(): void {
-    this.areaData = null;
-    this.space.setAreas([]);
-    this.update({ isNextButtonDisabled: true });
-  }
-
   private async requestBuildings(): Promise<boolean> {
     const selectedArea = this.areaData;
     if (!selectedArea) return false;
@@ -216,9 +211,6 @@ class AppView {
   private readonly prevButton: HTMLButtonElement;
   private readonly nextButton: HTMLButtonElement;
   private readonly warnNextButton: HTMLButtonElement;
-  private readonly tools: HTMLDivElement;
-  private readonly toolButtons = new Map<HandTool, HTMLButtonElement>();
-  private readonly stopTool: () => void;
   private readonly warnModal: ModalView;
   private readonly stopState: () => void;
 
@@ -259,39 +251,19 @@ class AppView {
     const closeButton = h("button", "m3-close", words.node("close"));
     closeButton.addEventListener("click", () => app.close());
 
-    // What a hand's pinch-and-drag does in the 3D view: one button per tool.
-    const toolKeys = [
-      ["orbit", "toolOrbit"],
-      ["pan", "toolPan"],
-      ["zoom", "toolZoom"],
-      ["move", "toolMove"],
-      ["height", "toolHeight"],
-      ["width", "toolWidth"],
-    ] as const;
-    this.tools = h("div", "m3-tools");
-    for (const [tool, key] of toolKeys) {
-      const button = h("button", "m3-tool", words.node(key));
-      button.addEventListener("click", () => app.space.tool.set({ tool }));
-      this.toolButtons.set(tool, button);
-      this.tools.append(button);
-    }
-    this.stopTool = app.space.tool.subscribe(({ tool }) => {
-      for (const [id, button] of this.toolButtons) button.dataset.active = String(id === tool);
-    });
-
     this.spaceView = app.space.createView(words);
+    // The buttons are one row along the top, where they cover none of the map or the city: Close, Back, Next and the
+    // locate button.
+    const bar = h("div", "m3-bar", closeButton, this.prevButton, this.nextButton, this.mapView.locateButton);
     this.root = h(
       "div",
       "map3d app-shell",
       this.style,
       font,
       this.fullscreen,
-      this.prevButton,
-      this.nextButton,
       this.warnModal.root,
       this.spaceView.root,
-      this.tools,
-      closeButton,
+      bar,
     );
     this.stopState = app.state.subscribe((state) => this.render(state));
   }
@@ -302,8 +274,8 @@ class AppView {
     if (wasHidden && !this.fullscreen.hidden) this.mapView.invalidate();
 
     this.root.dataset.step = state.step === 0 ? "map" : "city";
-    show(this.tools, state.step === 2 && !state.isFetchingBuildings);
     show(this.prevButton, state.step !== 0);
+    show(this.mapView.locateButton, state.step === 0);
     show(this.nextButton, state.step !== 2);
     this.nextButton.disabled = state.isNextButtonDisabled || state.isFetchingBuildings;
     show(this.warnNextButton, state.step !== 2);
@@ -323,7 +295,6 @@ class AppView {
 
   dispose(): void {
     this.stopState();
-    this.stopTool();
     this.app.map.dropView(this.mapView);
     this.app.space.dropView(this.spaceView);
     this.words.dispose();

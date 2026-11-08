@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CanvasMirror, SharedState, frameClock } from "@/core/sync";
 import { isHandPointerId } from "@/core/input/dispatchHandPointer";
+import type { TwoHandDomDetail } from "@/shared/contracts/input";
 import { queryOverpass, type OsmElement } from "./overpass";
 import { cHex } from "./palette";
 import type { LatLng } from "./SelectMap";
@@ -43,7 +44,7 @@ interface BuildingHost {
   setCameraControl(enabled: boolean): void;
   select(id: number): void;
   setCursor(cursor: string): void;
-  groundPoint(event: PointerEvent): THREE.Vector3 | null;
+  groundPoint(event: { clientX: number; clientY: number }): THREE.Vector3 | null;
   capture(pointerId: number, building: BuildingView): void;
   release(pointerId: number): void;
   setBuildingScale(id: number, value: Vec3): void;
@@ -269,19 +270,19 @@ class BuildingView {
   }
 }
 
-/** What a hand's pinch-and-drag does. */
-export type HandTool = "orbit" | "pan" | "zoom" | "move" | "height" | "width";
+/** A house a hand worked this recently, ms, is still the one a second hand joining means. */
+const RECENT_HOUSE_MS = 1500;
 
 type HandDrag = {
   pointerId: number;
-  tool: HandTool;
+  /** What the hand took hold of: the city (it slides) or a house (its height and width change). */
+  kind: "scene" | "house";
   view: SpaceView;
   lastX: number;
   lastY: number;
   startX: number;
   startY: number;
   building: BuildingView | null;
-  offset: THREE.Vector3 | null;
   startSize: Vec3 | null;
 };
 
@@ -327,7 +328,7 @@ export class SpaceCore implements BuildingHost {
   /** Mesh to building, outside `userData`: three clones that as JSON on export. */
   private byMesh = new WeakMap<THREE.Object3D, BuildingView>();
   private roads: OsmElement[] = [];
-  private readonly roadsGroup = new THREE.Group();
+  private readonly roadsGroup = Object.assign(new THREE.Group(), { visible: false });
   private floor: { group: THREE.Group; scan: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> } | null = null;
   private atmosphere: THREE.Group | null = null;
   private roadsAbort: AbortController | null = null;
@@ -337,9 +338,10 @@ export class SpaceCore implements BuildingHost {
   private cursor = "default";
 
   /** What a hand's pinch-and-drag does; the same for every eye. */
-  readonly tool = new SharedState<{ tool: HandTool }>({ tool: "orbit" });
 
   private hand: HandDrag | null = null;
+  /** The house a hand last worked and when: a second hand closing right after is meant for that house, not the city. */
+  private lastWorked: { building: BuildingView; at: number } | null = null;
   private readonly captures = new Map<number, { building: BuildingView; view: SpaceView }>();
   private hoveredView: BuildingView | null = null;
   private downAt: { x: number; y: number } | null = null;
@@ -415,6 +417,9 @@ export class SpaceCore implements BuildingHost {
   setShowPlatform(show: boolean): void {
     if (this.showPlatform === show) return;
     this.showPlatform = show;
+    // The roads are fetched as soon as an area is drawn, so they are ready for the city, but the city is
+    // not on screen while the map is: drawn then, they show through under it.
+    this.roadsGroup.visible = show;
     this.rebuildPlatform();
   }
 
@@ -467,7 +472,7 @@ export class SpaceCore implements BuildingHost {
     for (const view of this.views) view.root.style.cursor = cursor;
   }
 
-  groundPoint(event: PointerEvent): THREE.Vector3 | null {
+  groundPoint(event: { clientX: number; clientY: number }): THREE.Vector3 | null {
     const view = this.eventView;
     if (!view) return null;
     this.aim(event, view);
@@ -530,36 +535,30 @@ export class SpaceCore implements BuildingHost {
     if (this.captures.size === 0) this.setCameraControl(true);
   }
 
-  // ---- a hand: pinch and drag, worked by the tool chosen on the buttons ----
+  // ---- a hand: what it does depends on what it took hold of ----
 
+  /**
+   * Pinching a house takes hold of that house (it is chosen, and dragging sets its height and width); pinching
+   * anywhere else takes hold of the city (dragging slides it). There are no modes to pick: the hand is where
+   * the thing is.
+   */
   handDown(event: PointerEvent, view: SpaceView): void {
     if (this.hand) return;
     this.eventView = view;
-    const hit = this.pick(event, view);
-    const selected = this.selectedView();
-    // A pinch on a building that is not selected selects it and goes no further.
-    if (hit && hit !== selected) {
-      this.select(hit.id);
-      return;
-    }
-    const tool = this.tool.get().tool;
-    const drag: HandDrag = {
+    const house = this.pick(event, view);
+    if (house && house.id !== this.selectedBuilding) this.select(house.id);
+    if (house) this.lastWorked = { building: house, at: performance.now() };
+    this.hand = {
       pointerId: event.pointerId,
-      tool,
+      kind: house ? "house" : "scene",
       view,
       lastX: event.clientX,
       lastY: event.clientY,
       startX: event.clientX,
       startY: event.clientY,
-      building: selected,
-      offset: null,
-      startSize: selected?.size ?? null,
+      building: house,
+      startSize: house?.size ?? null,
     };
-    if (tool === "move" && selected) {
-      const ground = this.groundPoint(event);
-      if (ground) drag.offset = selected.position.clone().sub(ground);
-    }
-    this.hand = drag;
   }
 
   handMove(event: PointerEvent): void {
@@ -569,39 +568,19 @@ export class SpaceCore implements BuildingHost {
     const dy = event.clientY - drag.lastY;
     drag.lastX = event.clientX;
     drag.lastY = event.clientY;
+    if (drag.building) this.lastWorked = { building: drag.building, at: performance.now() };
     const { height } = drag.view.size();
     const h = Math.max(height, 1);
-    switch (drag.tool) {
-      case "orbit":
-        this.orbitBy((dx / h) * Math.PI * 1.5, (dy / h) * Math.PI);
-        break;
-      case "pan":
-        this.panBy(dx, dy, h);
-        break;
-      case "zoom":
-        this.zoomBy(Math.exp((dy / h) * 2.5));
-        break;
-      case "move": {
-        if (!drag.building || !drag.offset) break;
-        this.eventView = drag.view;
-        const ground = this.groundPoint(event);
-        if (ground) drag.building.placeAt(ground.x + drag.offset.x, ground.z + drag.offset.z);
-        break;
-      }
-      case "height":
-        if (drag.building && drag.startSize) {
-          const up = (drag.startY - event.clientY) / h;
-          drag.building.resize({ ...drag.building.size, y: clamp(drag.startSize.y + up * 6, 0.3, 6) });
-        }
-        break;
-      case "width":
-        if (drag.building && drag.startSize) {
-          const out = (event.clientX - drag.startX) / h;
-          const width = clamp(drag.startSize.x + out * 3.5, 0.35, 3.5);
-          drag.building.resize({ ...drag.building.size, x: width, z: width });
-        }
-        break;
+    if (drag.kind === "scene") {
+      this.panBy(dx, dy, h);
+      return;
     }
+    // One hand on a house: up and down is how tall, left and right is how wide, in the same drag.
+    if (!drag.building || !drag.startSize) return;
+    const up = (drag.startY - event.clientY) / h;
+    const out = (event.clientX - drag.startX) / h;
+    const width = clamp(drag.startSize.x + out * 3.5, 0.35, 3.5);
+    drag.building.resize({ x: width, y: clamp(drag.startSize.y + up * 6, 0.3, 6), z: width });
   }
 
   handUp(event: PointerEvent): void {
@@ -636,6 +615,41 @@ export class SpaceCore implements BuildingHost {
     this.camera.position.add(move);
     this.target.add(move);
     this.camera.lookAt(this.target);
+  }
+
+  /** The house two hands are holding, and where it stands against where their midpoint lands on the ground. */
+  private held: { building: BuildingView; offset: THREE.Vector3 } | null = null;
+
+  /**
+   * Two hands pinching, and what they mean depends on what is between them. Over a house they carry that house
+   * across the ground. Over anything else, spreading them zooms the city in, closing them zooms it out, turning
+   * them turns the city about its centre, and moving both up or down tilts the view. What is between the hands is
+   * decided when they close and kept until they open. Recognised once in Core; this only says what it means here.
+   */
+  twoHand(step: TwoHandDomDetail, view: SpaceView): void {
+    if (step.phase === "start") {
+      this.eventView = view;
+      // The house between the hands; failing that, the one a hand was working an instant ago. Closing the second
+      // hand while the first holds a house is how a house is carried, and must never turn the city.
+      const recent = this.lastWorked && performance.now() - this.lastWorked.at < RECENT_HOUSE_MS ? this.lastWorked.building : null;
+      const house = this.pick({ clientX: step.client.x, clientY: step.client.y }, view) ?? recent;
+      if (house && house.id !== this.selectedBuilding) this.select(house.id);
+      const ground = house ? this.groundPoint({ clientX: step.client.x, clientY: step.client.y }) : null;
+      this.held = house && ground ? { building: house, offset: house.position.clone().sub(ground) } : null;
+      return;
+    }
+    if (step.phase === "end") {
+      this.held = null;
+      return;
+    }
+    if (this.held) {
+      this.eventView = view;
+      const ground = this.groundPoint({ clientX: step.client.x, clientY: step.client.y });
+      if (ground) this.held.building.placeAt(ground.x + this.held.offset.x, ground.z + this.held.offset.z);
+      return;
+    }
+    if (step.scale !== 1) this.zoomBy(1 / step.scale);
+    this.orbitBy(-step.rotation, step.pan.y * Math.PI);
   }
 
   private zoomBy(factor: number): void {
@@ -957,6 +971,7 @@ export class SpaceView {
     this.wrap.addEventListener("pointercancel", this.onUp);
     this.wrap.addEventListener("pointerleave", this.onLeave);
     this.wrap.addEventListener("click", this.onClick);
+    this.wrap.addEventListener("twohand", this.onTwoHand);
     this.controls = new OrbitControls(core.camera, this.wrap);
     // The hand is a pointer the orbit controls cannot hold (it cannot be captured), so the
     // hand's events are worked here, first, and kept from reaching them.
@@ -1005,6 +1020,7 @@ export class SpaceView {
     this.controls.dispose();
     this.wrap.removeEventListener("pointerdown", this.onDown);
     this.wrap.removeEventListener("pointermove", this.onMove);
+    this.wrap.removeEventListener("twohand", this.onTwoHand);
     this.wrap.removeEventListener("pointerup", this.onUp);
     this.wrap.removeEventListener("pointercancel", this.onUp);
     this.wrap.removeEventListener("pointerleave", this.onLeave);
@@ -1046,6 +1062,11 @@ export class SpaceView {
       return;
     }
     this.core.pointerUp(event, this);
+  };
+  private readonly onTwoHand = (event: Event) => {
+    // Taken here, so Core does not also send it on as a mouse wheel and zoom twice.
+    event.preventDefault();
+    this.core.twoHand((event as CustomEvent<TwoHandDomDetail>).detail, this);
   };
   private readonly onLeave = () => this.core.pointerLeave();
   private readonly onClick = (event: MouseEvent) => this.core.click(event, this);
