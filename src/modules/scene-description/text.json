@@ -1,0 +1,410 @@
+{
+  "displayName": {
+    "vi": "Mô tả cảnh",
+    "en": "Scene description"
+  },
+  "description": {
+    "vi": "Nói cho bạn nghe trước mặt đang có gì. Hỏi \"tôi đang thấy gì?\" hoặc \"xung quanh có gì?\" và trợ lý đếm đồ vật, người trong khung hình rồi đọc lại bằng lời. Không vẽ khung lên hình; mô hình nhẹ chạy ngay trên máy, khung hình không rời thiết bị.",
+    "en": "Tells you what is in front of you. Ask \"what do I see?\" or \"what is around me?\" and the assistant counts the people and things in view and reads it back. It draws nothing on the picture; a small model runs on your device and frames never leave it."
+  },
+  "sentence": {
+    "vi": "Tôi thấy {list}.",
+    "en": "I can see {list}."
+  },
+  "and": {
+    "vi": "và",
+    "en": "and"
+  },
+  "nothing": {
+    "vi": "Tôi chưa thấy gì rõ ràng.",
+    "en": "I can't make out anything clear."
+  },
+  "number.1": {
+    "vi": "một",
+    "en": "one"
+  },
+  "number.2": {
+    "vi": "hai",
+    "en": "two"
+  },
+  "number.3": {
+    "vi": "ba",
+    "en": "three"
+  },
+  "number.4": {
+    "vi": "bốn",
+    "en": "four"
+  },
+  "number.5": {
+    "vi": "năm",
+    "en": "five"
+  },
+  "number.6": {
+    "vi": "sáu",
+    "en": "six"
+  },
+  "number.7": {
+    "vi": "bảy",
+    "en": "seven"
+  },
+  "number.8": {
+    "vi": "tám",
+    "en": "eight"
+  },
+  "number.9": {
+    "vi": "chín",
+    "en": "nine"
+  },
+  "number.10": {
+    "vi": "mười",
+    "en": "ten"
+  },
+  "class.bicycle": {
+    "vi": "Xe đạp",
+    "en": "Bicycle"
+  },
+  "class.car": {
+    "vi": "Ô tô",
+    "en": "Car"
+  },
+  "class.motorcycle": {
+    "vi": "Xe máy",
+    "en": "Motorcycle"
+  },
+  "class.airplane": {
+    "vi": "Máy bay",
+    "en": "Airplane"
+  },
+  "class.bus": {
+    "vi": "Xe buýt",
+    "en": "Bus"
+  },
+  "class.train": {
+    "vi": "Tàu hoả",
+    "en": "Train"
+  },
+  "class.truck": {
+    "vi": "Xe tải",
+    "en": "Truck"
+  },
+  "class.boat": {
+    "vi": "Thuyền",
+    "en": "Boat"
+  },
+  "class.traffic light": {
+    "vi": "Đèn giao thông",
+    "en": "Traffic light"
+  },
+  "class.fire hydrant": {
+    "vi": "Trụ cứu hoả",
+    "en": "Fire hydrant"
+  },
+  "class.stop sign": {
+    "vi": "Biển dừng",
+    "en": "Stop sign"
+  },
+  "class.parking meter": {
+    "vi": "Đồng hồ đỗ xe",
+    "en": "Parking meter"
+  },
+  "class.bench": {
+    "vi": "Ghế băng",
+    "en": "Bench"
+  },
+  "class.bird": {
+    "vi": "Chim",
+    "en": "Bird"
+  },
+  "class.cat": {
+    "vi": "Mèo",
+    "en": "Cat"
+  },
+  "class.dog": {
+    "vi": "Chó",
+    "en": "Dog"
+  },
+  "class.horse": {
+    "vi": "Ngựa",
+    "en": "Horse"
+  },
+  "class.sheep": {
+    "vi": "Cừu",
+    "en": "Sheep"
+  },
+  "class.cow": {
+    "vi": "Bò",
+    "en": "Cow"
+  },
+  "class.elephant": {
+    "vi": "Voi",
+    "en": "Elephant"
+  },
+  "class.bear": {
+    "vi": "Gấu",
+    "en": "Bear"
+  },
+  "class.zebra": {
+    "vi": "Ngựa vằn",
+    "en": "Zebra"
+  },
+  "class.giraffe": {
+    "vi": "Hươu cao cổ",
+    "en": "Giraffe"
+  },
+  "class.backpack": {
+    "vi": "Ba lô",
+    "en": "Backpack"
+  },
+  "class.umbrella": {
+    "vi": "Ô dù",
+    "en": "Umbrella"
+  },
+  "class.handbag": {
+    "vi": "Túi xách",
+    "en": "Handbag"
+  },
+  "class.tie": {
+    "vi": "Cà vạt",
+    "en": "Tie"
+  },
+  "class.suitcase": {
+    "vi": "Va li",
+    "en": "Suitcase"
+  },
+  "class.frisbee": {
+    "vi": "Đĩa ném",
+    "en": "Frisbee"
+  },
+  "class.skis": {
+    "vi": "Ván trượt tuyết",
+    "en": "Skis"
+  },
+  "class.snowboard": {
+    "vi": "Ván trượt tuyết đơn",
+    "en": "Snowboard"
+  },
+  "class.sports ball": {
+    "vi": "Quả bóng",
+    "en": "Ball"
+  },
+  "class.kite": {
+    "vi": "Diều",
+    "en": "Kite"
+  },
+  "class.baseball bat": {
+    "vi": "Gậy bóng chày",
+    "en": "Baseball bat"
+  },
+  "class.baseball glove": {
+    "vi": "Găng bóng chày",
+    "en": "Baseball glove"
+  },
+  "class.skateboard": {
+    "vi": "Ván trượt",
+    "en": "Skateboard"
+  },
+  "class.surfboard": {
+    "vi": "Ván lướt sóng",
+    "en": "Surfboard"
+  },
+  "class.tennis racket": {
+    "vi": "Vợt tennis",
+    "en": "Tennis racket"
+  },
+  "class.bottle": {
+    "vi": "Chai",
+    "en": "Bottle"
+  },
+  "class.wine glass": {
+    "vi": "Ly rượu",
+    "en": "Wine glass"
+  },
+  "class.cup": {
+    "vi": "Cốc",
+    "en": "Cup"
+  },
+  "class.fork": {
+    "vi": "Nĩa",
+    "en": "Fork"
+  },
+  "class.knife": {
+    "vi": "Dao",
+    "en": "Knife"
+  },
+  "class.spoon": {
+    "vi": "Thìa",
+    "en": "Spoon"
+  },
+  "class.bowl": {
+    "vi": "Bát",
+    "en": "Bowl"
+  },
+  "class.banana": {
+    "vi": "Chuối",
+    "en": "Banana"
+  },
+  "class.apple": {
+    "vi": "Táo",
+    "en": "Apple"
+  },
+  "class.sandwich": {
+    "vi": "Bánh mì kẹp",
+    "en": "Sandwich"
+  },
+  "class.orange": {
+    "vi": "Cam",
+    "en": "Orange"
+  },
+  "class.broccoli": {
+    "vi": "Bông cải xanh",
+    "en": "Broccoli"
+  },
+  "class.carrot": {
+    "vi": "Cà rốt",
+    "en": "Carrot"
+  },
+  "class.hot dog": {
+    "vi": "Bánh mì xúc xích",
+    "en": "Hot dog"
+  },
+  "class.pizza": {
+    "vi": "Pizza",
+    "en": "Pizza"
+  },
+  "class.donut": {
+    "vi": "Bánh vòng",
+    "en": "Donut"
+  },
+  "class.cake": {
+    "vi": "Bánh ngọt",
+    "en": "Cake"
+  },
+  "class.chair": {
+    "vi": "Ghế",
+    "en": "Chair"
+  },
+  "class.couch": {
+    "vi": "Ghế sofa",
+    "en": "Couch"
+  },
+  "class.potted plant": {
+    "vi": "Chậu cây",
+    "en": "Potted plant"
+  },
+  "class.bed": {
+    "vi": "Giường",
+    "en": "Bed"
+  },
+  "class.dining table": {
+    "vi": "Bàn ăn",
+    "en": "Dining table"
+  },
+  "class.toilet": {
+    "vi": "Bồn cầu",
+    "en": "Toilet"
+  },
+  "class.tv": {
+    "vi": "Ti vi",
+    "en": "TV"
+  },
+  "class.laptop": {
+    "vi": "Máy tính xách tay",
+    "en": "Laptop"
+  },
+  "class.mouse": {
+    "vi": "Chuột máy tính",
+    "en": "Mouse"
+  },
+  "class.remote": {
+    "vi": "Điều khiển từ xa",
+    "en": "Remote"
+  },
+  "class.keyboard": {
+    "vi": "Bàn phím",
+    "en": "Keyboard"
+  },
+  "class.cell phone": {
+    "vi": "Điện thoại",
+    "en": "Phone"
+  },
+  "class.microwave": {
+    "vi": "Lò vi sóng",
+    "en": "Microwave"
+  },
+  "class.oven": {
+    "vi": "Lò nướng",
+    "en": "Oven"
+  },
+  "class.toaster": {
+    "vi": "Máy nướng bánh mì",
+    "en": "Toaster"
+  },
+  "class.sink": {
+    "vi": "Bồn rửa",
+    "en": "Sink"
+  },
+  "class.refrigerator": {
+    "vi": "Tủ lạnh",
+    "en": "Refrigerator"
+  },
+  "class.book": {
+    "vi": "Sách",
+    "en": "Book"
+  },
+  "class.clock": {
+    "vi": "Đồng hồ",
+    "en": "Clock"
+  },
+  "class.vase": {
+    "vi": "Bình hoa",
+    "en": "Vase"
+  },
+  "class.scissors": {
+    "vi": "Kéo",
+    "en": "Scissors"
+  },
+  "class.teddy bear": {
+    "vi": "Gấu bông",
+    "en": "Teddy bear"
+  },
+  "class.hair drier": {
+    "vi": "Máy sấy tóc",
+    "en": "Hair dryer"
+  },
+  "class.toothbrush": {
+    "vi": "Bàn chải đánh răng",
+    "en": "Toothbrush"
+  },
+  "class.person": {
+    "vi": "người",
+    "en": "person"
+  },
+  "class.person.many": {
+    "vi": "người",
+    "en": "people"
+  },
+  "class.knife.many": {
+    "vi": "dao",
+    "en": "knives"
+  },
+  "class.mouse.many": {
+    "vi": "chuột",
+    "en": "mice"
+  },
+  "class.sheep.many": {
+    "vi": "cừu",
+    "en": "sheep"
+  },
+  "class.scissors.many": {
+    "vi": "kéo",
+    "en": "scissors"
+  },
+  "class.skis.many": {
+    "vi": "ván trượt tuyết",
+    "en": "skis"
+  },
+  "class.tv.many": {
+    "vi": "ti vi",
+    "en": "TVs"
+  }
+}

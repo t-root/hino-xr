@@ -66,7 +66,8 @@ class PluginTest(unittest.TestCase):
     def test_the_spoken_command_reaches_the_plugin_without_core_naming_it(self) -> None:
         bridge = (SRC / "core/models/ModelBridge.ts").read_text(encoding="utf-8")
         manager = (SRC / "core/modules/ModuleManager.ts").read_text(encoding="utf-8")
-        self.assertIn('host.command("person"', bridge)
+        self.assertIn('command.action === "person"', bridge)
+        self.assertIn("host.command(name", bridge)
         self.assertIn("async command(", manager)
         self.assertNotIn("face-recognition", manager + bridge)
         self.assertIn("person_command", (ASSISTANT / "models/engine.py").read_text(encoding="utf-8"))

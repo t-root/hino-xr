@@ -95,12 +95,15 @@ export class ModelBridge {
       this.controlHost?.run(command.id, command.value);
       return;
     }
-    if (command.action === "person" && this.pluginHost) {
+    if ((command.action === "person" || command.action === "sight") && this.pluginHost) {
       const host = this.pluginHost;
+      const name = command.action;
       const payload = typeof command.value === "object" && command.value !== null ? (command.value as Record<string, unknown>) : {};
+      // "What do I see?" with the plugin off has to be answered; the server wrote what to say for that case.
+      const missing = name === "sight" && typeof payload.missing === "string" ? payload.missing : "";
       void this.followUp(async () => {
-        const say = await host.command("person", payload);
-        return { ok: say !== null, say: say ?? "" };
+        const say = await host.command(name, payload);
+        return { ok: say !== null, say: say ?? missing };
       }, false);
       return;
     }

@@ -423,6 +423,24 @@ không thêm phần trăm phía sau.
 
 ---
 
+
+## M. Nhìn bằng giọng nói
+
+**M1.** Hỏi nhìn thấy gì (`scene-description`) và đọc mã (`code-reader`) là **plugin**, không phải khả năng của trợ lý:
+chỉ plugin mới có khung hình. Máy chủ chỉ nhận ra câu hỏi bằng từ khoá (`assistant/models/sight_speech.py`, F1) rồi gửi lệnh
+`sight` với `what` là `scene` hoặc `code`; `ModelBridge` đưa cho `ModuleManager.command`, plugin nào đúng `what` thì trả câu
+để Hino nói, còn lại trả `null`. Không plugin nào nhận (đang tắt) thì Hino nói câu `missing` do máy chủ viết sẵn.
+
+**M2.** `scene-description` không thấy kết quả của plugin khác (B2): nó chạy bộ nhận đồ vật riêng, mô hình riêng trong
+thư mục của nó, và **không vẽ gì** (`detections: []`). Câu trả lời lấy số lượng lớn nhất của từng loại trong 2,5 giây gần
+nhất, vì một khung có thể bỏ sót còn hai lần thấy thì không thành hai vật.
+
+**M3.** `code-reader` nạp zxing-wasm bằng bản iife và `importScripts`, còn lõi wasm tìm bằng `locateFile` trỏ vào thư mục
+plugin; cả hai khai trong `models.json` (có sha256) và không có địa chỉ ngoài trong worker (B4). Hộp mã đặt
+`attributes.plainLabel` để nhãn là nội dung mã, không có phần trăm.
+
+---
+
 ## J. Làm việc với mô hình và kho mã
 
 **J1.** Mô hình nặng tải bằng `downloads.json` (có `sha256` và `bytes`), không commit.

@@ -1,0 +1,27 @@
+{
+  "displayName": { "vi": "Đọc mã", "en": "Code reader" },
+  "description": {
+    "vi": "Đọc mã QR và mã vạch trong khung hình: khoanh mã và ghi nội dung ngay trên hình. Nói \"đọc mã\" để trợ lý đọc lên nội dung mã đang nhìn thấy. Mọi thứ chạy ngay trên máy, khung hình không rời thiết bị.",
+    "en": "Reads QR codes and barcodes in view: boxes the code and writes what it holds on the picture. Say \"read the code\" and the assistant reads out the one in view. It all runs on your device; frames never leave it."
+  },
+  "one": { "vi": "Đây là mã {format}: {text}", "en": "This is a {format} code: {text}" },
+  "many": {
+    "vi": "Tôi thấy {count} mã. Mã đầu tiên là mã {format}: {text}",
+    "en": "I can see {count} codes. The first is a {format} code: {text}"
+  },
+  "none": {
+    "vi": "Tôi chưa thấy mã nào. Hãy đưa mã vào giữa khung hình.",
+    "en": "I can't see a code. Hold it in the middle of the frame."
+  },
+  "format.QRCode": { "vi": "QR", "en": "QR" },
+  "format.MicroQRCode": { "vi": "QR nhỏ", "en": "Micro QR" },
+  "format.EAN13": { "vi": "vạch E-A-N mười ba", "en": "EAN 13" },
+  "format.EAN8": { "vi": "vạch E-A-N tám", "en": "EAN 8" },
+  "format.UPCA": { "vi": "vạch U-P-C A", "en": "UPC A" },
+  "format.UPCE": { "vi": "vạch U-P-C E", "en": "UPC E" },
+  "format.Code128": { "vi": "vạch Code 128", "en": "Code 128" },
+  "format.Code39": { "vi": "vạch Code 39", "en": "Code 39" },
+  "format.DataMatrix": { "vi": "Data Matrix", "en": "Data Matrix" },
+  "format.PDF417": { "vi": "PDF 417", "en": "PDF 417" },
+  "format.Aztec": { "vi": "Aztec", "en": "Aztec" }
+}

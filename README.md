@@ -122,6 +122,8 @@ Mỗi plugin là một thư mục trong `src/modules/`, chỉ tải khi bật.
 | **Phát hiện người** (`person-detection`) | Khoanh người trong khung hình. |
 | **Nhận diện khuôn mặt** (`face-recognition`) | Khoanh mặt trong tầm khoảng 2 mét và cho biết đó là ai. Người đã lưu thì **tên, năm sinh và thông tin hiện ngay cạnh mặt**; người chưa lưu ghi "Chưa biết". Xem mục bên dưới. |
 | **Quét đồ vật** (`object-detection`) | Gọi tên khoảng 80 loại đồ vật thường gặp (EfficientDet-Lite0 int8, 4,4 MB). |
+| **Mô tả cảnh** (`scene-description`) | Nói cho bạn nghe trước mặt có gì. Không vẽ khung. Xem mục **Nhìn bằng giọng nói**. |
+| **Đọc mã** (`code-reader`) | Đọc mã QR và mã vạch, ghi nội dung lên hình. Xem mục **Nhìn bằng giọng nói**. |
 | **Bản đồ 3D** (`map3d`) | Màn hình riêng, xem bên dưới. |
 
 ### Nhận diện khuôn mặt
@@ -133,6 +135,15 @@ Mỗi khuôn mặt được biến thành **128 con số** (SFace, chạy ngay t
 - **API:** `GET/POST /api/people`, `PATCH/DELETE /api/people/{id}`, `POST /api/people/{id}/samples`.
 
 Các plugin nhận diện chạy trong worker, trả về hộp và nhãn cho Core; **Core vẽ khung kèm nhãn lên camera** (trên mặt phẳng video nên hai mắt luôn khớp).
+
+### Nhìn bằng giọng nói
+
+Hai plugin trả lời bằng lời, qua cùng đường với lệnh lưu người (`VisionModule.command`):
+
+- **Mô tả cảnh:** "Hino, tôi đang thấy gì?", "xung quanh có gì?", "mô tả cảnh trước mặt" (tiếng Anh: "what do I see?", "describe the scene"). Plugin tự chạy bộ nhận đồ vật riêng (EfficientDet-Lite0, có cả người), gom kết quả trong khoảng 2,5 giây gần nhất rồi nói, ví dụ "Tôi thấy hai người, một cốc và một laptop."
+- **Đọc mã:** "Hino, đọc mã", "quét mã QR" ("read the QR code"). Mã QR và mã vạch (EAN, UPC, Code 128, Data Matrix…) được khoanh kèm nội dung ngay trên hình; câu nói đọc lên mã đang nhìn thấy. Bộ giải mã là zxing-wasm, khai trong `models.json` của plugin.
+
+Plugin đang tắt thì Hino nói "Hãy bật tiện ích … trước".
 
 ### Bản đồ 3D
 

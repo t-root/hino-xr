@@ -8,7 +8,7 @@ export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enable
 
 /** What the wearer asked the headset to do, rather than the model to answer. */
 export type SpokenCommand = Readonly<{
-  action: "enable" | "disable" | "create" | "approve" | "reject" | "setting" | "person" | "none";
+  action: "enable" | "disable" | "create" | "approve" | "reject" | "setting" | "person" | "sight" | "none";
   id: string | null;
   /** For `create`: what the new plugin should do, in the wearer's words. */
   description: string;
@@ -19,7 +19,7 @@ export type SpokenCommand = Readonly<{
 /** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
 export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
 
-const COMMANDS = new Set(["enable", "disable", "create", "approve", "reject", "setting", "person", "none"]);
+const COMMANDS = new Set(["enable", "disable", "create", "approve", "reject", "setting", "person", "sight", "none"]);
 
 type TalkResult = Readonly<{
   transcript: string;

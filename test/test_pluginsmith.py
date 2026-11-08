@@ -77,7 +77,7 @@ class InstallTest(unittest.TestCase):
         source = (SRC / "modules/registry.ts").read_text(encoding="utf-8")
         updated = smith._register("ai-people", source)
         self.assertIn('import aiPeople from "./ai-people/plugin";', updated)
-        self.assertRegex(updated, r"personDetection, aiPeople\];")
+        self.assertRegex(updated, r"sceneDescription, aiPeople];")
         self.assertEqual(len(re.findall("aiPeople", updated)), 2)
 
     def test_a_draft_cannot_be_listed_twice(self) -> None:
