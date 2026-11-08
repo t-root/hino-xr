@@ -6,14 +6,14 @@ Mọi giao diện bán trong suốt, một màu, góc vuông, vẽ chồng lên 
 
 ## Chạy nhanh
 
-Cần **Python 3.11 trở lên** (`run.bat` tự chọn bản 3.11). Không dùng Node.js, không `npm`, không `node_modules`.
+Cần **Python 3.11 trở lên** (chạy bằng `py -3.11 run.py`). Không dùng Node.js, không `npm`, không `node_modules`.
 
 ```bash
 python run.py        # https://127.0.0.1:5173
 python run.py test   # chạy toàn bộ unittest
 ```
 
-Trên Windows bấm đúp `run.bat` (chỉ gọi `run.py`). `run.py` cài gói Python còn thiếu, tắt tiến trình cũ đang giữ cổng **5173**, đóng gói giao diện, rồi mở **một** tiến trình HTTPS trên 5173: trang web, camera và `/api` của trợ lý nằm chung một chỗ.
+Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, tắt tiến trình cũ đang giữ cổng **5173**, đóng gói giao diện, rồi mở **một** tiến trình HTTPS trên 5173: trang web, camera và `/api` của trợ lý nằm chung một chỗ.
 
 - **Điện thoại:** cùng Wi-Fi, mở `https://<địa-chỉ-máy>:5173` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
 - **Lần chạy đầu cần mạng** để tải thư viện (Three.js, MediaPipe, esbuild dạng file thực thi), mô hình thị giác và mô hình trợ lý. Mọi thứ cần tải khai báo trong `downloads.json` và `vendor.json`; file có sẵn thì bỏ qua, bị ngắt thì tải tiếp, sai sha256 thì tải lại. Lần sau chạy offline.
@@ -212,7 +212,7 @@ micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisp
 | `src/shared` | Hợp đồng dùng chung, `assistant.json`, `wake.json`, `voice.json`, `voice-controls.json` |
 | `src/i18n` | `text.json` và lớp gắn kiểu |
 | `assistant/` | Tiến trình Python: trang + `/api`, llama.cpp, Whisper, VieNeu, lệnh giọng nói, viết plugin |
-| `run.py`, `run.bat` | Khởi động; `downloads.json`, `vendor.json` ghim những gì cần tải |
+| `run.py` | Khởi động; `downloads.json`, `vendor.json` ghim những gì cần tải |
 | `public/` | Mô hình thị giác, WASM, JS đã đóng gói; sinh ra nên không nằm trong git |
 | `rules.md` | Quy tắc bắt buộc cho Core và plugin |
 

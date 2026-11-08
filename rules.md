@@ -455,7 +455,7 @@ plugin; cả hai khai trong `models.json` (có sha256) và không có địa ch�
 Câu tiếng Việt nằm trong JSON (`text.json`, `voice-controls.json`, `assistant.json`) hoặc trong
 Python phía server.
 
-**J4.** Máy chủ chạy bằng **Python 3.11 trở lên** (`run.bat` chọn `py -3.11`, `run.py` kiểm). Trên Windows máy chủ chạy
+**J4.** Máy chủ chạy bằng **Python 3.11 trở lên** (chạy bằng `py -3.11 run.py`, `run.py` kiểm). Trên Windows máy chủ chạy
 trên vòng lặp *selector* (`main.py`), vì vòng *proactor* mà uvicorn tự chọn in traceback `WinError 10054` mỗi khi trình duyệt
 ngắt một kết nối (mỗi lần tải lại trang). Dòng `whisper_init_state: compute buffer…` trong log là thông báo nạp mô hình,
 không phải lỗi.

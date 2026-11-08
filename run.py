@@ -304,7 +304,7 @@ def main() -> int:
     _say()
     if sys.version_info < MIN_PYTHON:
         _say(f"[LOI] Can Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} tro len (dang la {sys.version.split()[0]}).")
-        _say("Cai o https://www.python.org roi chay lai bang run.bat.")
+        _say("Cai o https://www.python.org roi chay lai bang py -3.11 run.py.")
         _say()
         return 1
     if not _ensure_packages():

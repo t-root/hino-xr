@@ -26,6 +26,6 @@ class NoNodeJsTest(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_run_scripts_never_call_npm_or_npx(self) -> None:
-        for path in (ROOT / "run.py", ROOT / "run.bat", ASSISTANT / "frontend.py"):
+        for path in (ROOT / "run.py", ASSISTANT / "frontend.py"):
             text = path.read_text(encoding="utf-8")
             self.assertNotRegex(text, r"\bnpm\b|\bnpx\b", msg=path.name)
