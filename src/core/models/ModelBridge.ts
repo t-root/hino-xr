@@ -64,6 +64,8 @@ export class ModelBridge {
   private readonly logger = createLogger("models");
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private askAbort: AbortController | null = null;
+  /** Timers the wearer set by voice: the clock is here, so they run without the server. */
+  private readonly timers = new Set<number>();
   private limitTimer: ReturnType<typeof setTimeout> | null = null;
   private phase: "idle" | "listening" | "sending" = "idle";
   private opening: Promise<void> | null = null;
@@ -97,6 +99,10 @@ export class ModelBridge {
       this.controlHost?.run(command.id, command.value);
       return;
     }
+    if (command.action === "timer") {
+      this.startTimer(command.value);
+      return;
+    }
     if ((command.action === "person" || command.action === "sight") && this.pluginHost) {
       const host = this.pluginHost;
       const name = command.action;
@@ -122,6 +128,19 @@ export class ModelBridge {
     } else if (this.pluginHost && command.id && (command.action === "enable" || command.action === "disable")) {
       this.pluginHost.set(command.id, command.action === "enable");
     }
+  }
+
+  /** Runs a timer the server worked out: after `seconds`, says the line the server wrote for that moment. */
+  private startTimer(value: unknown): void {
+    const info = typeof value === "object" && value !== null ? (value as { seconds?: unknown; say?: unknown }) : {};
+    const seconds = typeof info.seconds === "number" && Number.isFinite(info.seconds) ? info.seconds : 0;
+    const say = typeof info.say === "string" ? info.say : "";
+    if (seconds <= 0 || say === "") return;
+    const handle = window.setTimeout(() => {
+      this.timers.delete(handle);
+      void this.followUp(async () => ({ ok: true, say }), false);
+    }, seconds * 1000);
+    this.timers.add(handle);
   }
 
   /**
@@ -162,6 +181,8 @@ export class ModelBridge {
       this.pollTimer = null;
     }
     this.clearLimit();
+    for (const handle of this.timers) window.clearTimeout(handle);
+    this.timers.clear();
     this.askAbort?.abort();
     this.askAbort = null;
     this.phase = "idle";
@@ -372,6 +393,18 @@ export class ModelBridge {
     }
   }
 
+  /** The wearer said "stop": end the answer being written and the speech being played, whatever phase it is in. */
+  stopSpeaking(): void {
+    this.askAbort?.abort();
+    this.askAbort = null;
+    this.player.stop();
+    this.phase = "idle";
+    const current = useRuntimeStore.getState().assistant;
+    if (current.state === "speaking" || current.state === "generating") {
+      useRuntimeStore.getState().patchAssistant({ state: current.id ? "ready" : "offline" });
+    }
+  }
+
   cancelTalk(): void {
     if (this.phase === "idle") return;
     this.phase = "idle";
@@ -545,6 +578,7 @@ export class ModelBridge {
           });
           this.runCommand(command);
         },
+        (line) => this.logger.info("turn timing", { line }),
       );
       if (abort.signal.aborted) {
         this.phase = "idle";

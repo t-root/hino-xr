@@ -2,13 +2,14 @@ import { MODEL_API } from "@/core/config";
 import type { ChatMessage, ModelInfo } from "@/shared/contracts/model";
 import type { SpokenControl } from "./VoiceControls";
 import { DEFAULT_VOICE, voiceQuery, type VoiceSettings } from "@/shared/contracts/voice";
+import { withAccessKey } from "../auth/accessKey";
 
 /** A plugin as the model server needs it to hear "turn on the map plugin". */
 export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enabled: boolean }>;
 
 /** What the wearer asked the headset to do, rather than the model to answer. */
 export type SpokenCommand = Readonly<{
-  action: "enable" | "disable" | "create" | "revise" | "approve" | "reject" | "setting" | "person" | "sight" | "none";
+  action: "enable" | "disable" | "create" | "revise" | "approve" | "reject" | "setting" | "person" | "sight" | "timer" | "none";
   id: string | null;
   /** For `create`: what the new plugin should do, in the wearer's words. */
   description: string;
@@ -19,7 +20,7 @@ export type SpokenCommand = Readonly<{
 /** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
 export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
 
-const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "reject", "setting", "person", "sight", "none"]);
+const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "reject", "setting", "person", "sight", "timer", "none"]);
 
 type TalkResult = Readonly<{
   transcript: string;
@@ -115,6 +116,7 @@ export class ModelClient {
     plugins: readonly SpokenPlugin[] = [],
     controls: readonly SpokenControl[] = [],
     onCommand?: (command: SpokenCommand) => void,
+    onTiming?: (text: string) => void,
   ): Promise<TalkResult> {
     const headers: Record<string, string> = { Accept: "text/event-stream" };
     let body: BodyInit = wav;
@@ -140,7 +142,7 @@ export class ModelClient {
     );
     if (!response) throw new Error("offline");
     if (!response.ok || !response.body) throw new Error(await readDetail(response));
-    return readSse(response.body, { onToken, onTranscript, onAudio, onCommand }, signal);
+    return readSse(response.body, { onToken, onTranscript, onAudio, onCommand, onTiming }, signal);
   }
 
   /**
@@ -150,7 +152,7 @@ export class ModelClient {
    */
   async listen(
     wav: Blob,
-    expect: "system" | "wake",
+    expect: "system" | "wake" | "stop",
     locale: string,
     signal?: AbortSignal,
   ): Promise<Readonly<{ heard: string; matched: boolean; after: number }>> {
@@ -228,7 +230,7 @@ export class ModelClient {
 
   private async send(url: string, init: RequestInit): Promise<Response | null> {
     try {
-      return await fetch(url, init);
+      return await fetch(url, withAccessKey(init));
     } catch {
       return null;
     }
@@ -251,6 +253,7 @@ type SseHandlers = Readonly<{
   onToken?: (text: string) => void;
   onTranscript?: (text: string) => void;
   onStatus?: (state: string) => void;
+  onTiming?: ((text: string) => void) | undefined;
   onCommand?: ((command: SpokenCommand) => void) | undefined;
   onAudio?: ((audio: Blob) => void) | undefined;
 }>;
@@ -322,6 +325,7 @@ const readSse = async (
         });
       }
       if (event.type === "status" && event.state) handlers.onStatus?.(event.state);
+      if (event.type === "timing" && event.text) handlers.onTiming?.(event.text);
       if (event.type === "error" && event.error) throw new Error(event.error);
       if (event.type === "done") return { transcript, reply, audio };
     }

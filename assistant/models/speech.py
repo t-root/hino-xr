@@ -97,9 +97,11 @@ class Speech:
         It is for what the wearer says to the assistant; the short checks for the wake
         words stay quick; `quick` runs them on the small model when there is one.
         """
-        if cloud.wants("stt", language or locale):
+        # The microphone is listened to all the time for the call word: that stays on this machine, for privacy, cost
+        # and speed. Only what the wearer says to the assistant (or dictates) may go to the cloud.
+        if not quick and cloud.wants("stt", language or locale):
             try:
-                heard = cloud.transcribe(_pad_wav(_clean(_to_16k_mono(wav_bytes))))
+                heard = cloud.transcribe(_pad_wav(_clean(_to_16k_mono(wav_bytes))), language or ("vi" if locale == "vi" else "en"), prompt)
                 if is_made_up(heard):
                     print(f"  stt      dropped a made-up line: {heard!r}", flush=True)
                     return ""
@@ -156,7 +158,7 @@ class Speech:
         tuning = tuning or default_tuning()
         if cloud.wants("tts", locale):
             try:
-                return cloud.speak(spoken, tuning.speed)
+                return cloud.speak(spoken, tuning.speed, locale)
             except (cloud.CloudError, OSError) as error:
                 cloud.failed("tts")
                 print(f"  cloud    text to speech failed, using the voice here: {error}", flush=True)

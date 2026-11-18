@@ -1,3 +1,4 @@
+import { initAccessKey } from "./core/auth/accessKey";
 import { captureConsole } from "./core/observability/ConsoleLog";
 import { currentLocale } from "./core/state/LocaleStore";
 import { loadSettings } from "./core/state/settings";
@@ -8,6 +9,9 @@ import { mountApp } from "./app/App";
 // Before anything else runs: a phone in a headset has no devtools, so whatever
 // fails during startup has to be readable inside the app itself.
 captureConsole();
+
+// A phone arrives with the server's key in the address: take it before any request is made.
+initAccessKey();
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element missing");

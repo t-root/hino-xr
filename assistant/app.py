@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from access import AccessMiddleware
 from models import pluginsmith
 from models.commands import parse_plugins, say_for
 from models.controls import parse_controls
@@ -22,10 +23,11 @@ from models.people import PersonError, people
 from models.engine import engine, parse_messages, resolve, sse
 from models.speech import speech
 from models.tuning import VoiceTuning, voice_spec
-from models.wake import find_phrase, letters, question_after, wake_spec
+from models.wake import find_phrase, is_stop, letters, question_after, wake_spec
 from frontend import attach_frontend
 
 app = FastAPI(title="VR assistant", version="0.1.0")
+app.add_middleware(AccessMiddleware)
 
 SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -272,13 +274,23 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
     `after` counts the words that came after it, so the page can tell a bare call from
     a call with the question already attached.
     """
-    if expect not in {"system", "wake"}:
-        raise HTTPException(status_code=400, detail="expect must be system or wake")
+    if expect not in {"system", "wake", "stop"}:
+        raise HTTPException(status_code=400, detail="expect must be system, wake or stop")
     wav = await request.body()
     if not wav:
         raise HTTPException(status_code=400, detail="empty audio")
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
+    if expect == "stop":
+        # Heard while the assistant itself is talking: local and quick, and only a line that is nothing but "stop" counts.
+        own_language = "vi" if _locale(locale) == "vi" else "en"
+        try:
+            said = await run_in_threadpool(
+                speech.transcribe, wav, _locale(locale), own_language, "Dừng lại. Im đi. Stop.", False, True
+            )
+        except Exception as error:  # noqa: BLE001
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        return {"heard": said, "matched": is_stop(said, assistant_name()), "after": 0}
     phrase = wake_spec()["systemCall"] if expect == "system" else assistant_name()
     own = "vi" if _locale(locale) == "vi" else "en"
     # "System call" is English whoever says it. A name is first tried in the wearer's own

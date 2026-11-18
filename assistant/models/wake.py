@@ -24,6 +24,22 @@ def wake_spec() -> dict[str, Any]:
     return json.loads(_WAKE_JSON.read_text(encoding="utf-8"))
 
 
+# Said alone (the name before it is allowed) to make the assistant stop talking. Compared as letters, accents gone.
+_STOP_LINES = {
+    "dunglai", "dung", "imdi", "imlang", "thoi", "thoidi", "duroi", "dungnoinua", "stop", "stopit", "stoptalking", "bequiet",
+    "quiet", "shutup", "enough", "thatsenough", "hush",
+}
+
+
+def is_stop(heard: str, name: str) -> bool:
+    """Is the whole line a request to stop speaking ("dừng lại", "hino, im đi", "stop")?
+
+    Only a line that is nothing else counts: the assistant's own voice, heard back through the microphone,
+    must not stop it because one of its sentences happened to hold the word.
+    """
+    return letters(drop_leading_phrase(heard, name)) in _STOP_LINES
+
+
 def letters(text: str) -> str:
     """Lower-case letters only, accents removed: "Hí-nô" and "hi no" both become "hino"."""
     plain = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))

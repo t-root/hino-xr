@@ -159,7 +159,7 @@ def _out(reply: str, display: str | None = None, show: bool = False) -> dict[str
 def _where(stage: str) -> str:
     """`api` only when the stage will really go to the cloud: chosen, and with a key to do it."""
     chosen = pluginsmith.source() if stage in {"code", "agent"} else cloud.source(stage)
-    return "api" if chosen == "api" and cloud.api_key() else "local"
+    return "api" if chosen == "api" and cloud.key_for(stage if stage in {"stt", "tts"} else "chat") else "local"
 
 
 def status(locale: str) -> str:
@@ -181,12 +181,13 @@ def status(locale: str) -> str:
     else:
         row("stt", f"{whisper_path().name}; {say['wake_model']}: {whisper_wake_path().name}")
     if _where("tts") == "api":
-        row("tts", f"{cloud.model('VR_TTS_MODEL')} ({_voice_name()})")
+        row("tts", "Azure Speech" if cloud.provider("tts") == "azure" else f"{cloud.model('VR_TTS_MODEL')} ({_voice_name()})")
     else:
         row("tts", f"VieNeu {Path(voice_vi_dir()).name} ({say['speaks_vi']}), SAPI ({say['speaks_en']})")
     lines.append(say["with_key"] if cloud.api_key() else say["no_key_line"])
     if "api" in {_where("stt"), _where("tts")}:
-        lines.append(say["voice_on_api"].format(langs=", ".join(sorted(cloud.voice_langs()))))
+        langs = cloud.voice_langs("stt" if _where("stt") == "api" else "tts")
+        lines.append(say["voice_on_api"].format(langs=", ".join(sorted(langs))))
     turn = timing.summary(locale)
     if turn:
         lines.append(turn)
@@ -236,7 +237,7 @@ def _use(stage: str, value: str, locale: str) -> tuple[str, bool]:
     elif not cloud.set_source(stage, value):
         return say["api_missing"], False
     line = say[f"source_{value}"].format(stage=name)
-    if value == "api" and stage in {"stt", "tts"} and locale not in cloud.voice_langs():
+    if value == "api" and stage in {"stt", "tts"} and locale not in cloud.voice_langs(stage):
         line += say["voice_note"]
     return line, True
 

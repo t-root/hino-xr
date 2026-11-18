@@ -19,6 +19,8 @@ from .tuning import VoiceTuning
 from .wake import drop_leading_phrase
 
 ChatMessage = dict[str, str]
+MAX_MESSAGES = 40
+MAX_MESSAGE_CHARS = 4000
 
 
 class Engine:
@@ -259,6 +261,9 @@ class Engine:
         timing.begin()
         try:
             yield from self._talk(*args, **kwargs)
+            text = timing.finish()
+            if text:
+                yield {"type": "timing", "text": text}  # the page writes it to its log, so it can be read in the headset
         finally:
             timing.finish()
 
@@ -273,7 +278,7 @@ class Engine:
         plugins: list[dict[str, Any]] | None = None,
         controls: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
-        from . import agent, modelswitch, pluginsmith
+        from . import agent, modelswitch, pluginsmith, tools
         from .commands import plugin_command, say_for
         from .controls import control_command
         from .person_speech import person_command
@@ -300,6 +305,8 @@ class Engine:
             command = person_command(heard, locale)
         if command is None:
             command = sight_command(heard, locale)
+        if command is None:
+            command = tools.command(heard, locale)
         if command:
             # Switching or writing a plugin is the headset's doing, not the model's: say so and stop.
             if command["action"] == "source":
@@ -410,6 +417,8 @@ def _with_system(messages: list[ChatMessage], locale: str) -> list[ChatMessage]:
 def parse_messages(raw: Any) -> list[ChatMessage]:
     if not isinstance(raw, list) or len(raw) == 0:
         raise ValueError("messages must be a non-empty list")
+    if len(raw) > MAX_MESSAGES:
+        raise ValueError(f"at most {MAX_MESSAGES} messages")
     messages: list[ChatMessage] = []
     for item in raw:
         if not isinstance(item, dict):
@@ -418,7 +427,7 @@ def parse_messages(raw: Any) -> list[ChatMessage]:
         content = item.get("content")
         if role not in {"system", "user", "assistant"} or not isinstance(content, str) or not content.strip():
             raise ValueError("message needs role and non-empty content")
-        messages.append({"role": role, "content": content})
+        messages.append({"role": role, "content": content[:MAX_MESSAGE_CHARS]})  # a spoken turn is short; this is a ceiling
     return messages
 
 

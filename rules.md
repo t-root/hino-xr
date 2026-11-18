@@ -342,6 +342,16 @@ gian đọc mỗi câu, tổng; số của lượt gần nhất cũng nằm tron
 thứ tự** (`Engine.reply`), không được đọc ngay trong vòng lặp nhận chữ: nếu không, model dừng viết lúc giọng đang đọc. Đổi mô hình nghe
 mặc định phải đo lại theo E3 (large-v3-turbo đã bị loại một lần), không đổi theo cảm giác.
 
+**G9.** `/api` không công khai (`assistant/access.py`): chỉ máy chạy server (loopback) và thiết bị có khoá `X-Access-Key` được dùng; yêu cầu có `Origin`
+khác server bị từ chối; chỉ trang web và `/api/health` luôn mở. Mọi lời gọi `/api` từ trình duyệt phải đi qua `withAccessKey` (`src/core/auth/accessKey.ts`),
+không gọi `fetch` thẳng vào `/api`. Thêm đường `/api` mới thì không cần làm gì (middleware bọc cả `/api/`), và **không** mở thêm đường ngoại lệ ngoài
+`OPEN_PATHS`. Khoá không bao giờ vào log, nhật ký hay git.
+
+**G10.** Công cụ (`assistant/models/tools.py`) là lệnh theo từ khoá, không qua mô hình; việc nào cần giờ của trang (hẹn giờ) thì server chỉ tính
+`seconds` và câu sẽ nói (`action: "timer"`), trang giữ đồng hồ. Việc nào gọi ra ngoài (thời tiết, Wikipedia) chỉ gửi tên nơi hoặc chủ đề đã nói, tôn trọng
+`VR_TOOLS=off`. "sau" (sau mười phút) và "sáu" chỉ khác dấu: số chữ phải xét dấu, không xét chữ đã bỏ dấu (`_digit`). Đoạn dò từ gọi (`quick`) **không bao giờ**
+đi qua API. Ngắt lời bằng giọng (`bargeIn`) mặc định tắt vì tiếng loa lọt vào mic; chỉ câu **chỉ gồm** lệnh dừng mới tính (`wake.is_stop`).
+
 **G6.** Một model ngôn ngữ, nhiều phiên. Trả lời và viết plugin **không** được dùng chung một khóa: viết plugin chạy phiên riêng
 (`engine.generate(..., session="code")`, khóa `_code_generate_lock`), nên không làm chậm hàng đợi trả lời. Cấu hình local và API đi theo
 cùng một bảng (README, `.env.example`): thêm một khâu mới thì thêm **một công tắc `VR_<KHÂU>_SOURCE`** và **một biến tên model**,

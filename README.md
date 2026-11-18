@@ -15,9 +15,18 @@ python run.py test   # chạy toàn bộ unittest
 
 Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, tắt tiến trình cũ đang giữ cổng **5173**, đóng gói giao diện, rồi mở **một** tiến trình HTTPS trên 5173: trang web, camera và `/api` của trợ lý nằm chung một chỗ.
 
-- **Điện thoại:** cùng Wi-Fi, mở `https://<địa-chỉ-máy>:5173` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
+- **Điện thoại:** cùng Wi-Fi, mở địa chỉ **có `?key=...`** mà server in ra lúc khởi động, dạng `https://<địa-chỉ-máy>:5173/?key=...` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Điện thoại nhớ khoá sau lần đầu và tự xoá nó khỏi địa chỉ; lần sau mở không cần `?key=`. Máy tính chạy server không cần khoá. Hiện lỗi `access key needed` nghĩa là điện thoại chưa có khoá: mở lại địa chỉ có `?key=`. Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
 - **Lần chạy đầu cần mạng** để tải thư viện (Three.js, MediaPipe, esbuild dạng file thực thi), mô hình thị giác và mô hình trợ lý. Mọi thứ cần tải khai báo trong `downloads.json` và `vendor.json`; file có sẵn thì bỏ qua, bị ngắt thì tải tiếp, sai sha256 thì tải lại. Lần sau chạy offline.
 - Mô hình trợ lý nặng vài GB, nằm trong `assistant/weights/` (không đưa vào git). Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
+
+### Bảo mật
+
+Server nghe trên cả mạng để điện thoại vào được, mà `/api` cài và chạy plugin do AI viết, dùng khoá SiliconFlow và giữ khuôn mặt, tên của những người trợ lý biết. Vì vậy (`assistant/access.py`):
+
+- Trình duyệt trên **chính máy tính chạy server** không cần khoá. Thiết bị khác phải gửi khoá trong header `X-Access-Key`. Khoá là `VR_ACCESS_TOKEN`, hoặc khoá ngẫu nhiên tự sinh lần chạy đầu và giữ trong `assistant/data/access.key` (không đưa vào git). **Giữ kín địa chỉ có `?key=`**: ai có nó, cùng Wi-Fi, điều khiển được trợ lý. Muốn đổi khoá thì xoá file đó rồi chạy lại.
+- Yêu cầu tự nhận đến từ **trang web khác** (header `Origin` không phải chính server) bị từ chối, kể cả trên máy tính, để một trang độc hại mở trong trình duyệt không điều khiển được trợ lý.
+- Trang web và `/api/health` luôn mở (trang phải tải được thì mới nhận được khoá). `VR_ACCESS=off` tắt kiểm tra khoá khi mạng đáng tin; kiểm tra trang web vẫn giữ.
+- Chạy sau reverse proxy trên cùng máy thì mọi yêu cầu trông như từ chính máy tính, nên không được bảo vệ: đừng làm vậy mà không tự thêm lớp xác thực.
 
 ## Cách dùng
 
@@ -92,7 +101,7 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
 
-Mỗi lượt nói ghi một dòng `time` vào log (nghe, chữ đầu tiên, token mỗi giây, đọc mỗi câu, tổng) để biết chậm ở khâu nào; bảng "hiện thông tin model" cũng in lượt gần nhất. Giọng đọc chạy song song với model viết, từng câu theo thứ tự. Máy yếu thì chỉnh `VR_N_THREADS` (số nhân **vật lý**) và `VR_WHISPER_BEAM` (1 đến 2 nhanh hơn nhiều), hoặc đặt `VR_LLM_SOURCE=api`.
+Mỗi lượt nói ghi một dòng `time` vào log của máy chủ và vào mục **nhật ký** của trang (nghe, chữ đầu tiên, token mỗi giây, đọc mỗi câu, tổng) để biết chậm ở khâu nào; bảng "hiện thông tin model" cũng in lượt gần nhất. Giọng đọc chạy song song với model viết, từng câu theo thứ tự. Máy yếu thì chỉnh `VR_N_THREADS` (số nhân **vật lý**) và `VR_WHISPER_BEAM` (1 đến 2 nhanh hơn nhiều), hoặc đặt `VR_LLM_SOURCE=api`.
 
 Trợ lý đang nói thì micro tạm tắt để không nghe lại chính nó. Trình duyệt chỉ cắt các đoạn có tiếng theo độ to và gửi lên `/api/voice/listen`; việc nhận cụm gọi làm ở Python (`assistant/models/wake.py`).
 
@@ -104,6 +113,20 @@ Hai nhóm lệnh được xử lý trước khi hỏi mô hình (`assistant/mode
 - **Menu:** "tăng tốc độ đọc", "giảm độ rõ con trỏ", "tắt chẩn đoán", "chuyển sang tiếng Anh", "mở mục giọng đọc". Hỗ trợ số (tăng/giảm, đặt giá trị, tối đa/tối thiểu/mặc định/phần trăm), công tắc (bật/tắt), lựa chọn và mở một mục menu. Danh sách thứ chỉnh được nằm trong `src/shared/voice-controls.json`.
 
 - **Model (`assistant/models/modelswitch.py`):** "dùng API để trả lời" / "nghe bằng local" (đổi nơi chạy của từng khâu: trả lời, viết plugin, điều khiển menu, nghe, đọc); "có những model nào để trả lời" (đọc danh sách thật từ SiliconFlow, thêm tên để lọc: "model qwen 72b nào"); "đổi model trả lời sang qwen 72b" (tên được so với danh sách thật, trợ lý đọc lại tên đầy đủ và chờ bạn nói "đúng" mới đổi). Lựa chọn bằng giọng nói chỉ có hiệu lực đến khi khởi động lại server và không sửa `.env`. **Hiện lên màn hình:** "hiện thông tin model", "model nào đang dùng", "cho tôi xem cấu hình trợ lý" mở trang Trợ lý của menu và in bảng cấu hình (mỗi khâu chạy ở đâu, dùng model nào, có khoá chưa); danh sách model, câu hỏi xác nhận và kết quả sau khi đổi cũng được in ra, còn giọng chỉ đọc một dòng ngắn.
+
+### Công cụ (hẹn giờ, thời tiết, tra cứu)
+
+Ba việc mà mô hình ngôn ngữ không biết hay không làm được, đều là lệnh theo từ khoá (`assistant/models/tools.py`), không để mô hình quyết định:
+
+- **Hẹn giờ và nhắc việc:** "hẹn giờ năm phút", "hẹn giờ một tiếng rưỡi", "nhắc tôi tắt bếp sau mười phút", "set a timer for 5 minutes". Đồng hồ chạy ngay trong trang, nên đếm ngược không cần mạng; hết giờ trợ lý tự nói (chờ câu đang nói xong). Tối đa 24 giờ; tải lại trang thì hẹn giờ mất.
+- **Thời tiết:** "thời tiết ở Đà Nẵng ngày mai", "weather in Paris". Dùng Open-Meteo (không cần khoá); không nói thành phố thì dùng `VR_HOME_CITY`.
+- **Tra cứu:** "tra cứu Alan Turing", "look up Alan Turing". Đọc phần tóm tắt trang Wikipedia, kèm toàn văn hiện lên màn hình.
+
+Thời tiết và tra cứu gửi tên nơi hoặc chủ đề bạn nói tới Open-Meteo và Wikipedia, và không gì khác. `VR_TOOLS=off` tắt cả hai.
+
+### Ngắt lời bằng giọng
+
+Mục **trợ lý** có công tắc **Ngắt lời bằng giọng** (mặc định tắt). Bật lên thì mic vẫn mở lúc trợ lý đang nói, và một câu chỉ gồm "dừng lại", "im đi", "thôi" hay "stop" làm nó ngừng ngay (câu dài hơn ba giây không được kiểm tra). Mỗi đoạn tiếng nghe được lúc đó chạy một lần Whisper nhỏ trên máy, và tiếng loa lọt vào mic bị nghe lại, nên nên dùng tai nghe.
 
 ### Trợ lý viết plugin
 
@@ -125,6 +148,7 @@ Mỗi khâu chọn riêng `local` (mặc định, ngoại tuyến) hoặc `api` 
 | Nghe | `VR_STT_SOURCE` | `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH` | `VR_STT_MODEL` |
 | Đọc | `VR_TTS_SOURCE` | `VR_VOICE_VI_PATH` (VieNeu), SAPI cho tiếng Anh | `VR_TTS_MODEL`, `VR_TTS_VOICE` |
 
+**Nghe và đọc tiếng Việt qua API.** Model của SiliconFlow không hỗ trợ tiếng Việt, nên nghe và đọc có thể dùng nhà khác, mỗi khâu một nhà (`assistant/models/cloud.py`): nghe qua `VR_STT_URL` + `VR_STT_KEY` + `VR_STT_MODEL` (mọi API kiểu OpenAI `/audio/transcriptions`, ví dụ Groq `https://api.groq.com/openai/v1` với `whisper-large-v3-turbo`); đọc qua `VR_TTS_URL` + `VR_TTS_KEY` + `VR_TTS_MODEL` (API kiểu OpenAI `/audio/speech`) hoặc `VR_TTS_PROVIDER=azure` với `VR_AZURE_KEY`, `VR_AZURE_REGION`, `VR_AZURE_VOICE_VI` (mặc định `vi-VN-HoaiMyNeural`). Khâu có nhà riêng thì gửi cả tiếng Việt lên (đổi bằng `VR_STT_LANGS`, `VR_TTS_LANGS`). Đoạn dò từ gọi "hino" **không bao giờ** đi qua API. Phần này viết theo tài liệu từng nhà, chưa thử với dịch vụ thật.
 **Một model, hai phiên.** Cả hai phía chỉ cần một model ngôn ngữ: trả lời và viết plugin dùng chung nó. Trên máy, viết plugin chạy thành phiên thứ hai của cùng file GGUF (trọng số dùng chung, chỉ thêm bộ nhớ làm việc), nên hỏi chuyện khác trong lúc plugin đang viết vẫn được trả lời; hai bên dùng chung CPU nên đều chậm đi một chút. `VR_N_THREADS_CODE` (mặc định một phần ba `VR_N_THREADS`) và `VR_N_CTX_CODE` (mặc định lớn hơn trong 8192 và `VR_N_CTX`) chỉnh phiên này. Trên API, hai phiên chỉ là hai yêu cầu song song; chỉ đặt `VR_CODE_MODEL` hoặc `VR_AGENT_MODEL` khi muốn model mạnh hơn cho việc đó.
 
 Model nghe và đọc của SiliconFlow không ghi hỗ trợ tiếng Việt, nên khâu nghe và đọc chỉ gửi lên API những ngôn ngữ trong `VR_CLOUD_VOICE_LANGS` (mặc định `en`); tiếng Việt vẫn chạy trên máy. Thêm `vi` vào đó nếu muốn thử. Tên model mặc định ghi trong `assistant/models/cloud.py`; danh sách model hiện có xem ở trang Models của SiliconFlow.

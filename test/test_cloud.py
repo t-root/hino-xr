@@ -26,7 +26,13 @@ class Fake(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-        SEEN.update(path=self.path, auth=self.headers.get("Authorization"), type=self.headers.get("Content-Type"), body=body)
+        SEEN.update(
+            path=self.path,
+            auth=self.headers.get("Authorization"),
+            azure=self.headers.get("Ocp-Apim-Subscription-Key"),
+            type=self.headers.get("Content-Type"),
+            body=body,
+        )
         if self.path == "/chat/completions" and json.loads(body).get("stream"):
             lines = [
                 {"choices": [{"delta": {"content": "Xin "}}]},
@@ -39,7 +45,7 @@ class Fake(BaseHTTPRequestHandler):
             self._send(json.dumps({"choices": [{"message": {"content": "ok"}}]}).encode(), "application/json")
         elif self.path == "/audio/transcriptions":
             self._send(json.dumps({"text": "<|en|><|NEUTRAL|>hello there"}).encode(), "application/json")
-        elif self.path == "/audio/speech":
+        elif self.path in ("/audio/speech", "/azure"):
             self._send(WAV, "audio/wav")
         else:
             self.send_error(404)
@@ -140,6 +146,116 @@ class CloudTest(unittest.TestCase):
         os.environ["VR_SILICONFLOW_URL"] = "http://127.0.0.1:9"
         with self.assertRaises(cloud.CloudError):
             cloud.chat({"model": "m", "messages": [{"role": "user", "content": "hi"}]}, timeout=2)
+
+    # providers of the wearer's own
+
+    def test_a_provider_that_hears_vietnamese_gets_the_language_and_the_words_to_expect(self) -> None:
+        os.environ["VR_STT_URL"] = os.environ["VR_SILICONFLOW_URL"]
+        os.environ["VR_STT_KEY"] = "gsk-own"
+        self.assertEqual(cloud.transcribe(b"RIFFdata", "vi", "bật plugin"), "hello there")
+        self.assertEqual(SEEN["auth"], "Bearer gsk-own")  # its own key, not SiliconFlow's
+        body = SEEN["body"].decode("utf-8", "replace")
+        self.assertIn('name="language"', body)
+        self.assertIn("bật plugin", body)
+        self.assertIn("whisper-large-v3-turbo", body)
+
+    def test_siliconflow_is_not_sent_fields_its_models_do_not_take(self) -> None:
+        cloud.transcribe(b"RIFFdata", "vi", "bật plugin")
+        self.assertNotIn(b'name="language"', SEEN["body"])
+
+    def test_a_provider_of_its_own_is_sent_vietnamese_and_siliconflow_is_not(self) -> None:
+        os.environ["VR_STT_SOURCE"] = "api"
+        self.assertEqual((cloud.wants("stt", "vi"), cloud.wants("stt", "en")), (False, True))
+        os.environ["VR_STT_URL"] = os.environ["VR_SILICONFLOW_URL"]
+        self.assertTrue(cloud.wants("stt", "vi"))
+        os.environ["VR_STT_LANGS"] = "en"
+        self.assertFalse(cloud.wants("stt", "vi"))
+
+    def test_a_stage_with_its_own_key_works_without_a_siliconflow_key(self) -> None:
+        del os.environ["VR_SILICONFLOW_KEY"]
+        os.environ["VR_STT_SOURCE"] = "api"
+        os.environ["VR_STT_URL"] = os.environ["VR_SILICONFLOW_URL"]
+        self.assertFalse(cloud.wants("stt", "vi"))
+        os.environ["VR_STT_KEY"] = "gsk-own"
+        self.assertTrue(cloud.wants("stt", "vi"))
+        self.assertFalse(cloud.wants("chat"))
+
+    def test_an_openai_style_voice_is_not_sent_siliconflows_fields(self) -> None:
+        os.environ["VR_TTS_URL"] = os.environ["VR_SILICONFLOW_URL"]
+        cloud.speak("xin chào", 1.0, "vi")
+        sent = json.loads(SEEN["body"])
+        self.assertEqual((sent["model"], sent["voice"]), ("tts-1", "alloy"))
+        self.assertNotIn("sample_rate", sent)
+        self.assertNotIn("stream", sent)
+
+    def test_azure_speaks_vietnamese_with_a_vietnamese_voice(self) -> None:
+        os.environ["VR_TTS_PROVIDER"] = "azure"
+        os.environ["VR_AZURE_KEY"] = "az-key"
+        os.environ["VR_AZURE_URL"] = os.environ["VR_SILICONFLOW_URL"] + "/azure"
+        self.assertEqual(cloud.speak("xin chào & bạn", 1.2, "vi"), WAV)
+        self.assertEqual(SEEN["azure"], "az-key")
+        self.assertEqual(SEEN["type"], "application/ssml+xml")
+        ssml = SEEN["body"].decode("utf-8")
+        self.assertIn("vi-VN-HoaiMyNeural", ssml)
+        self.assertIn("+20%", ssml)
+        self.assertIn("xin chào &amp; bạn", ssml)  # the text cannot break out of the markup
+
+    def test_azure_uses_an_english_voice_for_english(self) -> None:
+        os.environ["VR_TTS_PROVIDER"] = "azure"
+        os.environ["VR_AZURE_KEY"] = "az-key"
+        os.environ["VR_AZURE_URL"] = os.environ["VR_SILICONFLOW_URL"] + "/azure"
+        cloud.speak("hello", 1.0, "en")
+        self.assertIn("en-US-JennyNeural", SEEN["body"].decode("utf-8"))
+
+    def test_the_list_of_models_is_only_read_from_siliconflow(self) -> None:
+        os.environ["VR_STT_URL"] = os.environ["VR_SILICONFLOW_URL"]
+        with self.assertRaises(cloud.CloudError):
+            cloud.models_for("stt")
+
+
+class CallWordStaysLocalTest(unittest.TestCase):
+    """The microphone is open all the time; only what is said to the assistant may leave the machine."""
+
+    def test_the_call_word_check_is_never_sent_to_the_cloud(self) -> None:
+        speech_module = importlib.import_module("models.speech") if "models.speech" in sys.modules else None
+        sys.path.insert(0, str(ASSISTANT))
+        try:
+            speech_module = importlib.import_module("models.speech")
+        finally:
+            sys.path.remove(str(ASSISTANT))
+        os.environ["VR_SILICONFLOW_KEY"] = "sk-test"
+        os.environ["VR_STT_SOURCE"] = "api"
+        os.environ["VR_SILICONFLOW_URL"] = "http://127.0.0.1:9"  # nothing listens: a cloud call would be an error
+        sent: list[bool] = []
+        original = cloud.transcribe
+        cloud.transcribe = lambda wav, *a: sent.append(True) or "x"
+        speech = speech_module.Speech()
+        speech._stt = speech._wake = type("W", (), {"transcribe": lambda self, *a, **k: [{"text": "hino"}]})()
+        speech.state = "ready"
+        try:
+            self.assertEqual(speech.transcribe(b"RIFF", "en", "en", None, False, True), "hino")  # quick: local
+            self.assertEqual(sent, [])
+            speech.transcribe(b"RIFF", "en")  # a question: may go to the cloud
+            self.assertEqual(sent, [True])
+        finally:
+            cloud.transcribe = original
+            for key in ("VR_SILICONFLOW_KEY", "VR_STT_SOURCE", "VR_SILICONFLOW_URL"):
+                os.environ.pop(key, None)
+            cloud.reset()
+
+
+class PromptTest(unittest.TestCase):
+    def test_the_model_is_told_the_date_and_time(self) -> None:
+        import time
+
+        sys.path.insert(0, str(ASSISTANT))
+        try:
+            prompts = importlib.import_module("models.prompts")
+        finally:
+            sys.path.remove(str(ASSISTANT))
+        now = time.localtime()
+        self.assertIn(f"{now.tm_hour} giờ", prompts.system_prompt("vi"))
+        self.assertIn(f"{now.tm_hour:02d}:", prompts.system_prompt("en"))
 
 
 if __name__ == "__main__":

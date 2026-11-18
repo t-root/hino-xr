@@ -16,6 +16,8 @@ const LEVEL_EVERY_MS = 250;
 const LEVEL_SCALE = 500;
 /** After the assistant stops speaking, wait for the room to go quiet before listening again. */
 const TAIL_MS = 500;
+/** A line longer than this is not "stop": it is not worth asking the server. */
+const STOP_MAX_MS = 3000;
 
 type Mode =
   /** Not listening for anything. */
@@ -166,7 +168,8 @@ export class WakeController {
       // Loading the model is not the assistant talking: the name must still be heard meanwhile.
       const talking = now === "speaking" || now === "generating";
       if (talking) {
-        this.listener.setPaused(true);
+        // With "interrupt by voice" on the microphone stays open: the only thing listened for now is "stop".
+        if (!this.bargeIn()) this.listener.setPaused(true);
         return;
       }
       if (this.mode === "sleep" || this.mode === "awake") {
@@ -187,6 +190,10 @@ export class WakeController {
   private async onHeard(heard: Heard): Promise<void> {
     this.logger.info(`mic picked up a line`, { ms: Math.round(heard.durationMs), mode: this.mode, skipped: this.checking });
     if (this.checking || this.disposed) return;
+    if (this.bargeIn() && this.bridge.talking() && (this.mode === "sleep" || this.mode === "awake")) {
+      if (heard.durationMs <= STOP_MAX_MS) await this.checkStop(heard);
+      return;
+    }
     if (this.mode === "system") {
       await this.checkSystemCall(heard);
     } else if (this.mode === "sleep") {
@@ -194,6 +201,24 @@ export class WakeController {
       await this.checkAssistantCall(heard);
     } else if (this.mode === "awake") {
       await this.takeQuestion(heard);
+    }
+  }
+
+  private bargeIn(): boolean {
+    return useRuntimeStore.getState().settings.assistant.bargeIn;
+  }
+
+  /** The assistant is talking and the microphone heard a line: is it "stop"? Anything else is the assistant itself, or noise. */
+  private async checkStop(heard: Heard): Promise<void> {
+    this.checking = true;
+    try {
+      const verdict = await this.client.listen(heard.blob, "stop", currentLocale());
+      this.logger.info("stop check", { heard: verdict.heard, matched: verdict.matched });
+      if (verdict.matched) this.bridge.stopSpeaking();
+    } catch (error) {
+      this.logger.warn("stop check failed", { message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      this.checking = false;
     }
   }
 

@@ -52,16 +52,21 @@ def tokens(count: int, first: float | None, write: float | None) -> None:
             _turn["tokens"], _turn["first"], _turn["write"] = count, first, write
 
 
-def finish() -> None:
-    """Close the turn: one line in the log, and the numbers kept for the setup card."""
+def finish() -> str | None:
+    """Close the turn: one line in the log, the numbers kept for the setup card, and the line returned.
+
+    Closing a turn that is already closed does nothing and returns None.
+    """
     global _turn, last
     with _lock:
         turn, _turn = _turn, None
     if turn is None:
-        return
+        return None
     turn["total"] = time.monotonic() - turn["t0"]
     last = turn
-    print(f"  time     {line(turn)}", flush=True)
+    text = line(turn)
+    print(f"  time     {text}", flush=True)
+    return text
 
 
 def _rate(turn: dict[str, Any]) -> float | None:

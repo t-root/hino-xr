@@ -98,6 +98,11 @@
   "assistant.voice.failed": { "vi": "giọng lỗi", "en": "voice failed" },
   "assistant.enabled": { "vi": "Bật", "en": "On" },
   "assistant.enabledHint": { "vi": "Chào khi bắt đầu phiên.", "en": "Greets you when the session starts." },
+  "assistant.bargeIn": { "vi": "Ngắt lời bằng giọng", "en": "Interrupt by voice" },
+  "assistant.bargeInHint": {
+    "vi": "Mic vẫn mở lúc trợ lý đang nói, nên nói \"dừng lại\" hoặc \"im đi\" là nó ngừng. Nên dùng tai nghe: tiếng loa lọt vào mic thì nó nghe nhầm chính nó và tốn máy.",
+    "en": "The microphone stays open while the assistant talks, so saying \"stop\" or \"be quiet\" makes it stop. Use earphones: a loudspeaker leaking into the microphone makes it hear itself and costs processing."
+  },
   "assistant.who": { "vi": "Tên: {name}", "en": "Name: {name}" },
   "assistant.models": { "vi": "Mô hình", "en": "Models" },
   "assistant.chat": { "vi": "Hội thoại", "en": "Chat" },

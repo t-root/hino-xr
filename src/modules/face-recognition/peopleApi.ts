@@ -1,3 +1,4 @@
+import { withAccessKey } from "@/core/auth/accessKey";
 import { ENV } from "@/env";
 
 /** A person the headset knows, as the model server keeps them. */
@@ -26,7 +27,7 @@ const failure = async (response: Response): Promise<Error> => {
 const send = async (url: string, init?: RequestInit): Promise<Response> => {
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await fetch(url, withAccessKey(init));
   } catch {
     throw new Error("offline");
   }

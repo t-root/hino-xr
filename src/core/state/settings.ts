@@ -104,6 +104,8 @@ type AssistantSettings = Readonly<{
   voice: VoiceSettings;
   /** Seconds the assistant keeps listening after it was called or after it answered. */
   listenSeconds: number;
+  /** Keep the microphone open while the assistant speaks, so "stop" can interrupt it. Off by default: the loudspeaker can leak into the microphone. */
+  bargeIn: boolean;
   /** The first line it says when the system comes up, in each language. Empty says nothing. */
   greeting: Readonly<Record<Locale, string>>;
   /** What it says the moment it hears its name and nothing else, in each language. Empty says nothing. */
@@ -255,6 +257,7 @@ export const DEFAULT_SETTINGS: Settings = {
     modelId: "qwen-2.5-3b",
     voice: DEFAULT_VOICE,
     listenSeconds: DEFAULT_LISTEN_SECONDS,
+    bargeIn: false,
     greeting: DEFAULT_GREETING,
     ack: ACK,
   },
@@ -384,6 +387,7 @@ const parseAssistant = (raw: unknown): AssistantSettings => {
     modelId: modelId.length > 0 ? modelId : DEFAULT_SETTINGS.assistant.modelId,
     voice: parseVoice(value.voice),
     listenSeconds: parseListenSeconds(value.listenSeconds),
+    bargeIn: typeof value.bargeIn === "boolean" ? value.bargeIn : DEFAULT_SETTINGS.assistant.bargeIn,
     greeting: parseLines(value.greeting, DEFAULT_GREETING),
     ack: parseLines(value.ack, ACK),
   };

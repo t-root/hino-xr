@@ -473,6 +473,12 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
         onChange: (next) => patch({ assistant: { ...settingsOf().assistant, enabled: next } }),
       });
       content.append(el("p", { className: "note", text: t("assistant.enabledHint") }));
+      const bargeIn = mountSwitchField(content, {
+        label: t("assistant.bargeIn"),
+        checked: settings.assistant.bargeIn,
+        onChange: (next) => patch({ assistant: { ...settingsOf().assistant, bargeIn: next } }),
+      });
+      content.append(el("p", { className: "note", text: t("assistant.bargeInHint") }));
       content.append(el("p", { className: "note", text: t("assistant.who", { name: ASSISTANT_NAME }) }));
       // The two lines the wearer writes come first: they were once far down a long page and nobody found them.
       const greeting = mountTextField(content, {
@@ -655,6 +661,7 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
       content.append(emptyNote, chat);
       const paint = (live: AssistantSnapshot, nextSettings: Settings) => {
         enabled.sync({ checked: nextSettings.assistant.enabled });
+        bargeIn.sync({ checked: nextSettings.assistant.bargeIn });
         statusChip.dataset.tone = stateTone(live.state);
         statusChip.textContent = t(assistantStateKey(live.state));
         voiceChip.dataset.tone = voiceTone(live.voice);

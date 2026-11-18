@@ -12,6 +12,7 @@ import asyncio
 
 import uvicorn
 
+import access
 from frontend import ensure_cert, lan_ips, prepare_frontend, watch_frontend
 
 PORT = 5173
@@ -28,9 +29,12 @@ def _open_browser() -> None:
 def _announce() -> None:
     print()
     print("VR Core  https://127.0.0.1:%s" % PORT)
+    suffix = "/?key=%s" % access.token() if access.enabled() else ""
     for ip in lan_ips():
         if ip != "127.0.0.1":
-            print("          https://%s:%s  (phone, same Wi-Fi)" % (ip, PORT))
+            print("          https://%s:%s%s  (phone, same Wi-Fi)" % (ip, PORT, suffix))
+    if suffix:
+        print("          The phone needs the ?key= part the first time; it remembers it. Keep it private.")
     print()
     print("Camera needs HTTPS. First visit: Advanced / Proceed, then reload.")
     print("Ctrl+C stops the server.")
