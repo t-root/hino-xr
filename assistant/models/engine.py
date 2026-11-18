@@ -5,9 +5,13 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
+from collections import deque
 from collections.abc import Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
+from . import cloud, timing
 from .catalog import ModelSpec, _env, assistant_greeting, assistant_name, get_spec
 from .chunks import next_chunk
 from .prompts import system_prompt
@@ -22,6 +26,10 @@ class Engine:
         self._lock = threading.Lock()
         self._load_lock = threading.Lock()
         self._generate_lock = threading.Lock()
+        # The second local session, for writing plugins; made the first time one is written.
+        self._code_model: Any = None
+        self._code_load_lock = threading.Lock()
+        self._code_generate_lock = threading.Lock()
         self._spec: ModelSpec | None = None
         self._model: Any = None
         self.state = "idle"
@@ -32,7 +40,7 @@ class Engine:
         from .speech import speech
 
         loaded = self._spec is not None and self._spec.id == spec.id
-        if not loaded and not spec.path().is_file():
+        if not loaded and not spec.path().is_file() and not cloud.wants("chat"):
             return {
                 "id": spec.id,
                 "source": spec.source,
@@ -57,6 +65,18 @@ class Engine:
         }
 
     def load(self, spec: ModelSpec) -> None:
+        if cloud.wants("chat"):
+            # Answers come from SiliconFlow: nothing to load here. The local model waits in case the cloud fails.
+            with self._lock:
+                self._spec = spec
+                self.state = "ready"
+                self.error = None
+                self.device = "cloud"
+            self._ensure_speech()
+            return
+        self._load_local(spec)
+
+    def _load_local(self, spec: ModelSpec) -> None:
         with self._load_lock:
             with self._lock:
                 already = self._spec is not None and self._spec.id == spec.id and self.state == "ready"
@@ -81,12 +101,15 @@ class Engine:
         try:
             from .speech import speech
 
-            if speech.state != "ready":
+            # Whisper is loaded only if some language still hears locally.
+            if speech.state != "ready" and not (cloud.wants("stt", "vi") and cloud.wants("stt", "en")):
                 speech.ensure()
         except Exception:  # noqa: BLE001 — text still works if voice weights fail
             pass
 
-    def _load_unlocked(self, spec: ModelSpec) -> None:
+    @staticmethod
+    def _llama(spec: ModelSpec, threads: int, n_ctx: int) -> Any:
+        """One llama.cpp session on the spec's file. Sessions of one file share its weights (mmap)."""
         from llama_cpp import Llama
 
         path = spec.path()
@@ -96,14 +119,33 @@ class Engine:
             raise FileNotFoundError(
                 f"GGUF not found: {path}. Put the file there or set VR_MODEL_PATH."
             )
-        gpu_layers = int(_env("VR_N_GPU_LAYERS") or "0")
-        model = Llama(
+        return Llama(
             model_path=str(path),
-            n_ctx=int(_env("VR_N_CTX") or "4096"),
-            n_gpu_layers=gpu_layers,
-            n_threads=int(_env("VR_N_THREADS") or os.cpu_count() or 4),
+            n_ctx=n_ctx,
+            n_gpu_layers=int(_env("VR_N_GPU_LAYERS") or "0"),
+            n_threads=threads,
             chat_format=_env("VR_CHAT_FORMAT") or "qwen",
             verbose=False,
+        )
+
+    def _code_session(self, spec: ModelSpec) -> Any:
+        """A second session on the same model for writing plugins, so a question is not left waiting for it."""
+        with self._code_load_lock:
+            if self._code_model is None:
+                total = int(_env("VR_N_THREADS") or os.cpu_count() or 4)
+                self._code_model = self._llama(
+                    spec,
+                    threads=int(_env("VR_N_THREADS_CODE") or max(1, total // 3)),
+                    n_ctx=int(_env("VR_N_CTX_CODE") or max(8192, int(_env("VR_N_CTX") or "4096"))),
+                )
+            return self._code_model
+
+    def _load_unlocked(self, spec: ModelSpec) -> None:
+        gpu_layers = int(_env("VR_N_GPU_LAYERS") or "0")
+        model = self._llama(
+            spec,
+            threads=int(_env("VR_N_THREADS") or os.cpu_count() or 4),
+            n_ctx=int(_env("VR_N_CTX") or "4096"),
         )
         # The first call pays for loading the weights into cache and for reading the
         # system prompt. Do it now so the first real question is not the slow one.
@@ -127,28 +169,44 @@ class Engine:
         max_tokens: int,
         locale: str = "vi",
         ceiling: int = 512,
+        cloud_ok: bool = True,
+        session: str = "chat",
     ) -> Iterator[str]:
+        """`session="code"` runs on its own local session with its own lock, so it never holds up "chat"."""
+        capped = max(8, min(int(max_tokens), ceiling))
+        if session == "code":
+            model = self._code_session(spec)
+            with self._code_generate_lock:
+                yield from _stream(model, messages, capped, locale)
+            return
         self.load(spec)
+        if cloud_ok and cloud.wants("chat"):
+            sent = False
+            try:
+                for piece in cloud.chat_stream(
+                    {
+                        "model": cloud.model("VR_LLM_MODEL"),
+                        "messages": _with_system(messages, locale),
+                        "max_tokens": capped,
+                        "temperature": 0.5,
+                    }
+                ):
+                    sent = True
+                    yield piece
+                return
+            except (cloud.CloudError, OSError) as error:
+                cloud.failed("chat")
+                print(f"  cloud    chat failed, using the local model: {error}", flush=True)
+                if sent:
+                    return  # half an answer was already spoken: do not start another
+        self._load_local(spec)
         with self._lock:
             model = self._model
         if model is None:
             raise RuntimeError(self.error or "model is not ready")
 
-        capped = max(8, min(int(max_tokens), ceiling))
         with self._generate_lock:
-            stream = model.create_chat_completion(
-                messages=_with_system(messages, locale),
-                max_tokens=capped,
-                temperature=0.5,
-                stream=True,
-            )
-            for chunk in stream:
-                choices = chunk.get("choices") or []
-                if not choices:
-                    continue
-                delta = (choices[0].get("delta") or {}).get("content")
-                if delta:
-                    yield delta
+            yield from _stream(model, messages, capped, locale)
 
     def reply(
         self,
@@ -159,29 +217,52 @@ class Engine:
         locale: str,
         tuning: VoiceTuning | None = None,
     ) -> Iterator[dict[str, Any]]:
-        # Speak each sentence as soon as it is written, while the model goes on with the next.
+        # Speak each sentence as soon as it is written, while the model goes on with the next: the speech is made
+        # on its own thread, one sentence at a time and in order, so the model is never held up waiting for a voice.
         pending = ""
         first = True
-        for token in self.generate(spec, messages, max_tokens, locale):
-            yield {"type": "token", "text": token}
-            if not voice:
-                continue
-            pending += token
-            while True:
-                cut = next_chunk(pending, first)
-                if cut is None:
-                    break
-                piece, pending = cut
-                first = False
-                audio = _tts(piece, locale, tuning)
+        began = time.monotonic()
+        first_at: float | None = None
+        count = 0
+        futures: deque[Future[dict[str, Any] | None]] = deque()
+
+        def ready(wait: bool) -> Iterator[dict[str, Any]]:
+            while futures and (wait or futures[0].done()):
+                audio = futures.popleft().result()
                 if audio:
                     yield audio
-        if voice and pending.strip():
-            audio = _tts(pending, locale, tuning)
-            if audio:
-                yield audio
 
-    def talk(
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="speak") as voice_pool:
+            for token in self.generate(spec, messages, max_tokens, locale):
+                now = time.monotonic()
+                if first_at is None:
+                    first_at = now
+                count += 1
+                yield {"type": "token", "text": token}
+                if voice:
+                    pending += token
+                    while True:
+                        cut = next_chunk(pending, first)
+                        if cut is None:
+                            break
+                        piece, pending = cut
+                        first = False
+                        futures.append(voice_pool.submit(_tts, piece, locale, tuning))
+                yield from ready(False)
+            if voice and pending.strip():
+                futures.append(voice_pool.submit(_tts, pending, locale, tuning))
+            timing.tokens(count, None if first_at is None else first_at - began, None if first_at is None else time.monotonic() - first_at)
+            yield from ready(True)
+
+    def talk(self, *args: Any, **kwargs: Any) -> Iterator[dict[str, Any]]:
+        """One spoken turn; how long each part took is logged at the end (`timing`)."""
+        timing.begin()
+        try:
+            yield from self._talk(*args, **kwargs)
+        finally:
+            timing.finish()
+
+    def _talk(
         self,
         spec: ModelSpec,
         wav_bytes: bytes,
@@ -192,7 +273,7 @@ class Engine:
         plugins: list[dict[str, Any]] | None = None,
         controls: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
-        from . import agent, pluginsmith
+        from . import agent, modelswitch, pluginsmith
         from .commands import plugin_command, say_for
         from .controls import control_command
         from .person_speech import person_command
@@ -200,8 +281,8 @@ class Engine:
         from .speech import speech
 
         self.load(spec)
-        speech.ensure()
-        heard = speech.transcribe(wav_bytes, locale, prompt=_vocabulary(locale), careful=True)
+        with timing.measure("listen"):
+            heard = speech.transcribe(wav_bytes, locale, prompt=_vocabulary(locale), careful=True)
         if strip_wake:
             # Said as "hino, what time is it": the name is a call, not part of the question.
             heard = drop_leading_phrase(heard, assistant_name())
@@ -211,6 +292,8 @@ class Engine:
             return
         yield {"type": "transcript", "text": heard}
         command = plugin_command(heard, plugins or [], locale, pluginsmith.pending())
+        if command is None:
+            command = modelswitch.command(heard, locale)
         if command is None and controls:
             command = control_command(heard, controls, locale)
         if command is None:
@@ -230,8 +313,12 @@ class Engine:
                 "description": command.get("description", ""),
                 "value": command.get("value"),
             }
+            if command.get("open"):
+                # Something to look at: open the menu page that prints what the assistant says, so it is on screen now.
+                yield {"type": "command", "action": "setting", "id": f"page.{command['open']}", "description": "", "value": True}
             if command["reply"]:
-                yield {"type": "token", "text": command["reply"]}
+                # The screen gets all of it; the voice reads only the short line.
+                yield {"type": "token", "text": command.get("display") or command["reply"]}
                 audio = _tts(command["reply"], locale, tuning)
                 if audio:
                     yield audio
@@ -279,7 +366,8 @@ def _vocabulary(locale: str) -> str:
     if locale == "vi":
         return (
             f"{name}, bật plugin, tắt plugin, tạo plugin, duyệt plugin, mở menu, đóng menu, "
-            "chẩn đoán, tốc độ đọc, thời gian ngủ, nhận diện khuôn mặt, bản đồ ba D, quét đồ vật."
+            "chẩn đoán, tốc độ đọc, thời gian ngủ, nhận diện khuôn mặt, bản đồ ba D, quét đồ vật, "
+            "đổi model, dùng API, dùng local."
         )
     return f"{name}, turn on plugin, turn off plugin, create plugin, open menu, close menu, diagnostics, speaking speed."
 
@@ -288,12 +376,29 @@ def _tts(text: str, locale: str, tuning: VoiceTuning | None) -> dict[str, Any] |
     from .speech import b64, speech
 
     try:
-        audio = speech.synthesize(text, locale, tuning)
+        with timing.measure("speak"):
+            audio = speech.synthesize(text, locale, tuning)
     except Exception:  # noqa: BLE001 — a missing voice file must not drop the text
         return None
     if not audio:
         return None
     return {"type": "audio", "mime": "audio/wav", "data": b64(audio)}
+
+
+def _stream(model: Any, messages: list[ChatMessage], max_tokens: int, locale: str) -> Iterator[str]:
+    stream = model.create_chat_completion(
+        messages=_with_system(messages, locale),
+        max_tokens=max_tokens,
+        temperature=0.5,
+        stream=True,
+    )
+    for chunk in stream:
+        choices = chunk.get("choices") or []
+        if not choices:
+            continue
+        delta = (choices[0].get("delta") or {}).get("content")
+        if delta:
+            yield delta
 
 
 def _with_system(messages: list[ChatMessage], locale: str) -> list[ChatMessage]:

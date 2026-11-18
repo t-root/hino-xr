@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import sys
 import unittest
 
 from helpers import ASSISTANT, SRC
 
-_spec = importlib.util.spec_from_file_location("pluginsmith_for_revise", ASSISTANT / "models/pluginsmith.py")
-smith = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(smith)
+sys.path.insert(0, str(ASSISTANT))
+smith = importlib.import_module("models.pluginsmith")  # a package member: it imports models.cloud
+sys.path.remove(str(ASSISTANT))
 
 
 class ReplyTest(unittest.TestCase):

@@ -321,8 +321,32 @@ ghi gì vào plugin. Duyệt thì `_apply_edit` sao lưu bản gốc vào `plugi
 build lỗi**. `models.json` và `vendor.json` không bao giờ bị sửa.
 
 **G4.** Ai viết mã: mặc định **local** (Qwen, ngoại tuyến, chỉ làm được plugin đơn giản).
-"Dùng API" cần khoá trong `.env` (`VR_ANTHROPIC_KEY`); không có khoá thì giữ local và nói
+"Dùng API" là SiliconFlow, cần khoá trong `.env` (`VR_SILICONFLOW_KEY`); không có khoá thì giữ local và nói
 rõ. Mỗi lần khởi động lại server là về local, trừ khi `VR_CODE_SOURCE=api`.
+
+**G5.** Mọi khâu chạy được trên máy đều có công tắc riêng `local`|`api` (`VR_LLM_SOURCE`, `VR_STT_SOURCE`,
+`VR_TTS_SOURCE`, `VR_CODE_SOURCE`), mặc định `local`; mã gọi API chỉ nằm ở `assistant/models/cloud.py`. Gọi API lỗi thì **luôn rơi về
+model trên máy**, không để câu hỏi mất. Nghe và đọc chỉ gửi lên API những ngôn ngữ trong `VR_CLOUD_VOICE_LANGS` (mặc định `en`), vì
+model giọng của SiliconFlow không ghi hỗ trợ tiếng Việt.
+
+**G7.** Đổi model bằng giọng nói (`modelswitch.py`): chỉ nhận tên model **có trong danh sách SiliconFlow trả về** (`cloud.models_for`), không
+bao giờ nhận tên như Whisper nghe được; đổi model luôn **đọc lại tên đầy đủ và chờ "đúng"** (hết hạn sau 60 giây, câu khác thì bỏ câu hỏi);
+đổi nơi chạy (`local`|`api`) thì làm ngay vì dễ hoàn tác. Lựa chọn chỉ nằm trong bộ nhớ (`cloud._sources`, `cloud._models`), không ghi `.env`.
+Chữ "đúng" và "dùng" giống nhau khi bỏ dấu, nên câu trả lời chỉ tính khi ngắn và không có `model`/`api`/`local`.
+Thứ cần xem thì **hiện lên màn hình**, không chỉ đọc: kết quả có `display` (toàn bộ chữ) và `open` (trang menu cần mở); `engine.talk` gửi
+lệnh `setting` `page.<open>` rồi gửi `display` làm chữ trả lời, còn giọng chỉ đọc `reply` (một dòng ngắn). Không thêm lớp giao diện mới:
+trang Trợ lý của menu đã in chữ trả lời giữ nguyên xuống dòng (`white-space: pre-wrap`) và đã đủ quy tắc hai mắt (A1, A12).
+
+**G8.** "Chậm" phải đo được: mỗi lượt nói ghi một dòng `time` vào log (`assistant/models/timing.py`): nghe, chữ đầu tiên, token mỗi giây, thời
+gian đọc mỗi câu, tổng; số của lượt gần nhất cũng nằm trong bảng cấu hình ("hiện thông tin model"). Giọng đọc chạy ở **luồng riêng, từng câu theo
+thứ tự** (`Engine.reply`), không được đọc ngay trong vòng lặp nhận chữ: nếu không, model dừng viết lúc giọng đang đọc. Đổi mô hình nghe
+mặc định phải đo lại theo E3 (large-v3-turbo đã bị loại một lần), không đổi theo cảm giác.
+
+**G6.** Một model ngôn ngữ, nhiều phiên. Trả lời và viết plugin **không** được dùng chung một khóa: viết plugin chạy phiên riêng
+(`engine.generate(..., session="code")`, khóa `_code_generate_lock`), nên không làm chậm hàng đợi trả lời. Cấu hình local và API đi theo
+cùng một bảng (README, `.env.example`): thêm một khâu mới thì thêm **một công tắc `VR_<KHÂU>_SOURCE`** và **một biến tên model**,
+rồi ghi vào đúng bảng đó. Biến model của khâu phụ (`VR_CODE_MODEL`, `VR_AGENT_MODEL`) mặc định theo `VR_LLM_MODEL`
+(`cloud.FOLLOWS_LLM`). Khóa `pluginsmith._lock` **không** được giữ trong lúc chờ model (`pluginsmith.draft/revise`).
 
 ---
 

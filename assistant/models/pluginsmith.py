@@ -25,10 +25,10 @@ import shutil
 import subprocess
 import threading
 import unicodedata
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
+
+from . import cloud
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -41,9 +41,6 @@ EDIT_SUFFIX = "--edit"
 PREFIX = "ai-"
 MAX_CODE = 9000
 ATTEMPTS = 3
-API_URL = "https://api.anthropic.com/v1/messages"
-API_VERSION = "2023-06-01"
-DEFAULT_API_MODEL = "claude-sonnet-5-5"
 
 PERMISSIONS = ("camera-frame", "network", "screen", "snapshot")
 # What no plugin has a reason to do: run text as code, climb out through prototypes, load a script, start another
@@ -64,11 +61,7 @@ class DraftError(Exception):
 
 
 def api_key() -> str | None:
-    for name in ("VR_ANTHROPIC_KEY", "ANTHROPIC_API_KEY"):
-        value = os.environ.get(name, "").strip()
-        if value:
-            return value
-    return None
+    return cloud.api_key()
 
 
 def source() -> str:
@@ -87,8 +80,8 @@ def set_source(value: str) -> bool:
 
 
 def default_source() -> None:
-    """Every start is local and offline unless VR_CODE_SOURCE=api and a key is present."""
-    set_source(os.environ.get("VR_CODE_SOURCE", "local").strip().lower())
+    """Every start is local and offline unless VR_CODE_SOURCE=api and a SiliconFlow key is present."""
+    set_source(cloud.normalize(os.environ.get("VR_CODE_SOURCE", "local")))
 
 
 # --- drafts on disk ----------------------------------------------------------------
@@ -210,32 +203,16 @@ def _local_complete(system: str, user: str) -> str:
 
     spec = catalog()[0]
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    return "".join(engine.generate(spec, messages, 1800, "en", ceiling=2048))
+    return "".join(engine.generate(spec, messages, 1800, "en", ceiling=2048, cloud_ok=False, session="code"))
 
 
 def _api_complete(system: str, user: str) -> str:
-    key = api_key()
-    if not key:
+    if not api_key():
         raise DraftError("api key missing")
-    body = json.dumps(
-        {
-            "model": os.environ.get("VR_CODE_MODEL", DEFAULT_API_MODEL),
-            "max_tokens": 2500,
-            "system": system,
-            "messages": [{"role": "user", "content": user}],
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        API_URL,
-        data=body,
-        headers={"x-api-key": key, "anthropic-version": API_VERSION, "content-type": "application/json"},
-    )
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            payload = json.loads(response.read())
-    except (urllib.error.URLError, TimeoutError, ValueError) as error:
+        return cloud.complete_text("VR_CODE_MODEL", system, user, 2500)
+    except (cloud.CloudError, OSError) as error:
         raise DraftError(f"api failed: {error}") from error
-    return "".join(block.get("text", "") for block in payload.get("content", []) if block.get("type") == "text")
 
 
 def _parse(reply: str) -> tuple[dict[str, Any], str]:
@@ -345,12 +322,14 @@ def draft(description: str, locale: str, kind: str | None = None) -> dict[str, s
     ask = _api_complete if use == "api" else _local_complete
     request = f"Write a plugin that does this: {description.strip()[:400]}"
     last = ""
-    with _lock:
-        for _ in range(ATTEMPTS):
-            prompt = f"{request}\n\nExample of the file shape:\n```ts\n{_EXAMPLE}```"
-            if last:
-                prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
-            reply = ask(_SYSTEM, prompt)
+    for _ in range(ATTEMPTS):
+        prompt = f"{request}\n\nExample of the file shape:\n```ts\n{_EXAMPLE}```"
+        if last:
+            prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
+        # The model is asked with no lock held: that takes minutes, and approving or rejecting another
+        # plugin must not wait for it. The lock covers only the files this draft puts on disk.
+        reply = ask(_SYSTEM, prompt)
+        with _lock:
             folder: Path | None = None
             try:
                 meta, code = _parse(reply)
@@ -364,8 +343,8 @@ def draft(description: str, locale: str, kind: str | None = None) -> dict[str, s
                     shutil.rmtree(folder, ignore_errors=True)
                 last = str(error)
                 continue
-            name = meta["displayName"]["vi" if locale == "vi" else "en"]
-            return {"id": plugin_id, "name": name, "source": use}
+        name = meta["displayName"]["vi" if locale == "vi" else "en"]
+        return {"id": plugin_id, "name": name, "source": use}
     raise DraftError(f"could not produce a valid plugin: {last}")
 
 
@@ -404,6 +383,11 @@ def _register(plugin_id: str, source_text: str) -> str:
 
 def approve(plugin_id: str) -> None:
     """Installs a draft into `src/modules/`, lists it in the registry and rebuilds the app."""
+    with _lock:  # one install at a time, and not while a draft is putting its files down
+        _approve(plugin_id)
+
+
+def _approve(plugin_id: str) -> None:
     folder = _pending_folder(plugin_id)
     if folder is None:
         raise DraftError("no such draft")
@@ -488,12 +472,12 @@ def revise(plugin_id: str, request: str, locale: str, kind: str | None = None) -
     ask = _api_complete if use == "api" else _local_complete
     listing = "\n\n".join(f"FILE: {name}\n```\n{text}```" for name, text in files.items())
     last = ""
-    with _lock:
-        for _ in range(ATTEMPTS):
-            prompt = f"Request: {request.strip()[:600]}\n\nThe plugin's files:\n\n{listing}"
-            if last:
-                prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
-            reply = ask(_REVISE_SYSTEM, prompt)
+    for _ in range(ATTEMPTS):
+        prompt = f"Request: {request.strip()[:600]}\n\nThe plugin's files:\n\n{listing}"
+        if last:
+            prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
+        reply = ask(_REVISE_SYSTEM, prompt)  # no lock held while the model writes
+        with _lock:
             check = PENDING / f"_check-{plugin_id}"
             try:
                 changed = _parse_files(reply, set(files))
@@ -521,7 +505,7 @@ def revise(plugin_id: str, request: str, locale: str, kind: str | None = None) -
             # Listed under the plugin's own name (see `pending`).
             shutil.copyfile(target / "text.json", folder / "text.json") if "text.json" not in changed else None
             names = json.loads((target / "text.json").read_text(encoding="utf-8"))["displayName"]
-            return {"id": folder.name, "name": names["vi" if locale == "vi" else "en"] + (" (bản sửa)" if locale == "vi" else " (edit)"), "source": use}
+        return {"id": folder.name, "name": names["vi" if locale == "vi" else "en"] + (" (bản sửa)" if locale == "vi" else " (edit)"), "source": use}
     raise DraftError(f"could not produce a valid change: {last}")
 
 

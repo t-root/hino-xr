@@ -15,19 +15,13 @@ named the wrong setting for plain questions (a clock question switched the menu)
 from __future__ import annotations
 
 import json
-import os
-import urllib.error
-import urllib.request
 from collections.abc import Callable
 from typing import Any
 
-from . import pluginsmith
+from . import cloud, pluginsmith
 from .commands import _heard, _overlap
 from .controls import _RELATIVE_SHARE, _SAY, _label, _names, _show, _snap
 
-API_URL = "https://api.anthropic.com/v1/messages"
-API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-haiku-5-5"
 TIMEOUT_S = 25
 MAX_CALLS = 4
 MAX_CANDIDATES = 60
@@ -161,19 +155,22 @@ def _describe(entry: dict[str, Any], locale: str) -> str:
 
 def _tool(ids: list[str]) -> dict[str, Any]:
     return {
-        "name": "change_setting",
-        "description": "Change one setting of the headset. Call it once per setting the wearer asked to change.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string", "enum": ids},
-                "action": {"type": "string", "enum": list(ACTIONS)},
-                "value": {
-                    "description": "set: the number in the shown unit. increase/decrease: how much, optional. choose: the option value.",
-                    "type": ["number", "string", "null"],
+        "type": "function",
+        "function": {
+            "name": "change_setting",
+            "description": "Change one setting of the headset. Call it once per setting the wearer asked to change.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "enum": ids},
+                    "action": {"type": "string", "enum": list(ACTIONS)},
+                    "value": {
+                        "description": "set: the number in the shown unit. increase/decrease: how much, optional. choose: the option value.",
+                        "type": ["number", "string", "null"],
+                    },
                 },
+                "required": ["id", "action"],
             },
-            "required": ["id", "action"],
         },
     }
 
@@ -188,16 +185,17 @@ _SYSTEM = (
 
 
 def _post_to_api(body: dict[str, Any]) -> dict[str, Any]:
-    key = pluginsmith.api_key()
-    if not key:
+    if not pluginsmith.api_key():
         raise RuntimeError("api key missing")
-    request = urllib.request.Request(
-        API_URL,
-        data=json.dumps(body).encode("utf-8"),
-        headers={"x-api-key": key, "anthropic-version": API_VERSION, "content-type": "application/json"},
-    )
-    with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
-        return json.loads(response.read())
+    return cloud.chat(body, timeout=TIMEOUT_S)
+
+
+def _tool_calls(reply: dict[str, Any]) -> list[dict[str, Any]]:
+    try:
+        calls = reply["choices"][0]["message"].get("tool_calls") or []
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return []
+    return [call for call in calls if isinstance(call, dict)]
 
 
 def plan(
@@ -217,23 +215,30 @@ def plan(
     ids = [entry["id"] for entry in entries]
     listing = "\n".join(_describe(entry, locale) for entry in entries)
     body = {
-        "model": os.environ.get("VR_AGENT_MODEL", DEFAULT_MODEL),
+        "model": cloud.model("VR_AGENT_MODEL"),
         "max_tokens": 400,
-        "system": f"{_SYSTEM}\n\nSettings:\n{listing}",
         "tools": [_tool(ids)],
-        "tool_choice": {"type": "auto"},
-        "messages": [{"role": "user", "content": heard}],
+        "messages": [
+            {"role": "system", "content": f"{_SYSTEM}\n\nSettings:\n{listing}"},
+            {"role": "user", "content": heard},
+        ],
     }
     try:
         reply = (post or _post_to_api)(body)
-    except (urllib.error.URLError, TimeoutError, ValueError, RuntimeError, OSError):
+    except (cloud.CloudError, ValueError, RuntimeError, OSError):
         return []
     by_id = {entry["id"]: entry for entry in entries}
     commands: list[dict[str, Any]] = []
-    for block in reply.get("content", []):
-        if block.get("type") != "tool_use" or block.get("name") != "change_setting":
+    for tool_call in _tool_calls(reply):
+        function = tool_call.get("function") or {}
+        if function.get("name") != "change_setting":
             continue
-        call = block.get("input") or {}
+        try:
+            call = json.loads(function.get("arguments") or "{}")  # a string, and the model may get it wrong
+        except ValueError:
+            continue
+        if not isinstance(call, dict):
+            continue
         entry = by_id.get(call.get("id"))
         if entry is None or call.get("action") not in ACTIONS:
             continue

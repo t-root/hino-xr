@@ -11,6 +11,8 @@ import type { SpokenControl } from "./VoiceControls";
 import { ModelClient, type SpokenCommand, type SpokenPlugin } from "./ModelClient";
 
 const POLL_MS = 8000;
+const QUIET_POLL_MS = 300;
+const QUIET_WAIT_MS = 120_000;
 const DEFAULT_ID = DEFAULT_SETTINGS.assistant.modelId;
 const HISTORY = 24;
 
@@ -132,6 +134,9 @@ export class ModelBridge {
       const outcome = await work();
       // A command no plugin took has nothing to say: silence, not an empty reply read out.
       if (outcome.say === "") return;
+      // Writing takes minutes and the wearer may be talking to the assistant meanwhile: wait for that
+      // turn to end, because speaking now would cut it off (previewVoice stops whatever is playing).
+      await this.untilQuiet();
       await this.previewVoice(outcome.say);
       useRuntimeStore.getState().patchAssistant({ reply: outcome.say });
       if (reloadOnSuccess && outcome.ok) window.location.reload();
@@ -404,6 +409,14 @@ export class ModelBridge {
 
   private voice() {
     return useRuntimeStore.getState().settings.assistant.voice;
+  }
+
+  /** Resolves when no turn is under way and nothing is being said; gives up waiting after two minutes. */
+  private async untilQuiet(): Promise<void> {
+    const deadline = Date.now() + QUIET_WAIT_MS;
+    while (this.enabled && this.talking() && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, QUIET_POLL_MS));
+    }
   }
 
   /** Speaks a fixed line in the current voice settings so the wearer can judge them. */

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 import unittest
 
@@ -26,7 +27,11 @@ PLUGINS = [{"id": "face-detection", "vi": "Phát hiện khuôn mặt", "en": "Fa
 
 
 def calls(*items):
-    return lambda body: {"content": [{"type": "tool_use", "name": "change_setting", "input": item} for item in items]}
+    tool_calls = [
+        {"id": f"call_{n}", "type": "function", "function": {"name": "change_setting", "arguments": json.dumps(item)}}
+        for n, item in enumerate(items)
+    ]
+    return lambda body: {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": tool_calls}}]}
 
 
 def plan(heard, post, locale="vi"):
@@ -65,7 +70,11 @@ class FenceTest(unittest.TestCase):
         self.assertEqual((out[0]["id"], out[0]["value"]), ("page.lens", True))
 
     def test_the_model_choosing_nothing_leaves_the_line_to_the_chat(self) -> None:
-        self.assertEqual(plan("tăng tốc độ ánh sáng là bao nhiêu", lambda body: {"content": [{"type": "text", "text": "ok"}]}), [])
+        self.assertEqual(plan("tăng tốc độ ánh sáng là bao nhiêu", lambda body: {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}), [])
+
+    def test_arguments_that_are_not_json_are_dropped(self) -> None:
+        bad = {"choices": [{"message": {"tool_calls": [{"function": {"name": "change_setting", "arguments": "{oops"}}]}}]}
+        self.assertEqual(plan("tăng tốc độ đọc", lambda body: bad), [])
 
     def test_a_failed_call_is_not_a_crash(self) -> None:
         def broken(body):
@@ -85,12 +94,12 @@ class FenceTest(unittest.TestCase):
 
         def spy(body):
             seen.update(body)
-            return {"content": []}
+            return {"choices": [{"message": {"content": None}}]}
 
         plan("tăng tốc độ đọc", spy)
-        offered = seen["tools"][0]["input_schema"]["properties"]["id"]["enum"]
+        offered = seen["tools"][0]["function"]["parameters"]["properties"]["id"]["enum"]
         self.assertEqual(offered, ["voice.speed", "diagnostics", "menu", "page.lens", "plugin:face-detection"])
-        self.assertIn("voice.speed (number)", seen["system"])
+        self.assertIn("voice.speed (number)", seen["messages"][0]["content"])
 
 
 if __name__ == "__main__":

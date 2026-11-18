@@ -92,6 +92,8 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
 
+Mỗi lượt nói ghi một dòng `time` vào log (nghe, chữ đầu tiên, token mỗi giây, đọc mỗi câu, tổng) để biết chậm ở khâu nào; bảng "hiện thông tin model" cũng in lượt gần nhất. Giọng đọc chạy song song với model viết, từng câu theo thứ tự. Máy yếu thì chỉnh `VR_N_THREADS` (số nhân **vật lý**) và `VR_WHISPER_BEAM` (1 đến 2 nhanh hơn nhiều), hoặc đặt `VR_LLM_SOURCE=api`.
+
 Trợ lý đang nói thì micro tạm tắt để không nghe lại chính nó. Trình duyệt chỉ cắt các đoạn có tiếng theo độ to và gửi lên `/api/voice/listen`; việc nhận cụm gọi làm ở Python (`assistant/models/wake.py`).
 
 ### Điều khiển bằng giọng nói
@@ -101,17 +103,35 @@ Hai nhóm lệnh được xử lý trước khi hỏi mô hình (`assistant/mode
 - **Plugin:** "bật plugin bản đồ", "tắt plugin nhận diện khuôn mặt"; tiếng Anh cũng được.
 - **Menu:** "tăng tốc độ đọc", "giảm độ rõ con trỏ", "tắt chẩn đoán", "chuyển sang tiếng Anh", "mở mục giọng đọc". Hỗ trợ số (tăng/giảm, đặt giá trị, tối đa/tối thiểu/mặc định/phần trăm), công tắc (bật/tắt), lựa chọn và mở một mục menu. Danh sách thứ chỉnh được nằm trong `src/shared/voice-controls.json`.
 
+- **Model (`assistant/models/modelswitch.py`):** "dùng API để trả lời" / "nghe bằng local" (đổi nơi chạy của từng khâu: trả lời, viết plugin, điều khiển menu, nghe, đọc); "có những model nào để trả lời" (đọc danh sách thật từ SiliconFlow, thêm tên để lọc: "model qwen 72b nào"); "đổi model trả lời sang qwen 72b" (tên được so với danh sách thật, trợ lý đọc lại tên đầy đủ và chờ bạn nói "đúng" mới đổi). Lựa chọn bằng giọng nói chỉ có hiệu lực đến khi khởi động lại server và không sửa `.env`. **Hiện lên màn hình:** "hiện thông tin model", "model nào đang dùng", "cho tôi xem cấu hình trợ lý" mở trang Trợ lý của menu và in bảng cấu hình (mỗi khâu chạy ở đâu, dùng model nào, có khoá chưa); danh sách model, câu hỏi xác nhận và kết quả sau khi đổi cũng được in ra, còn giọng chỉ đọc một dòng ngắn.
+
 ### Trợ lý viết plugin
 
 Nói "tạo plugin đếm số người" rồi mô tả: trợ lý viết một bản nháp vào `plugins-pending/` (kiểm tra mã, biên dịch, **chưa cài**). Bạn nói "duyệt plugin …" để cài (server dựng lại, trang tự nạp lại, **không cần chạy lại server**) hoặc "từ chối plugin …" để bỏ. Plugin do trợ lý viết (id `ai-…`) được cấp **mọi quyền** mà nó xin: `network`, `screen`, `snapshot`; bản nháp ghi rõ quyền nó dùng trong `manifest.ts`. Các bước kiểm tra chỉ là lưới đỡ lỗi chứ không phải hộp cát (chỉ cấm `eval`, `Function`, `import()`), nên bạn nên đọc thư mục nháp trước khi duyệt.
 
-**Sửa plugin có sẵn bằng giọng nói:** "sửa plugin bản đồ, thêm nút phóng to" (hoặc "fix the 3D map plugin so …"). Trợ lý đọc các file của plugin (tối đa 60.000 ký tự, không đụng `models.json` và `vendor.json`), viết lại những file cần đổi và để chúng chờ trong `plugins-pending/<id>--edit/`. Nói "duyệt plugin …" thì bản gốc được sao lưu vào `plugins-backup/`, file mới được ghi, server dựng lại và trang nạp lại; dựng lỗi thì mọi thứ trả về như cũ. Chất lượng phụ thuộc vào người viết: mô hình trên máy chỉ sửa được việc nhỏ, "dùng API" (khoá trong `.env`) cho kết quả tốt hơn nhiều.
+**Sửa plugin có sẵn bằng giọng nói:** "sửa plugin bản đồ, thêm nút phóng to" (hoặc "fix the 3D map plugin so …"). Trợ lý đọc các file của plugin (tối đa 60.000 ký tự, không đụng `models.json` và `vendor.json`), viết lại những file cần đổi và để chúng chờ trong `plugins-pending/<id>--edit/`. Nói "duyệt plugin …" thì bản gốc được sao lưu vào `plugins-backup/`, file mới được ghi, server dựng lại và trang nạp lại; dựng lỗi thì mọi thứ trả về như cũ. Chất lượng phụ thuộc vào người viết: mô hình trên máy chỉ sửa được việc nhỏ, "dùng API" (khoá SiliconFlow trong `.env`) cho kết quả tốt hơn nhiều.
 
-Nguồn viết mã: `VR_CODE_SOURCE=local` (mặc định, ngoại tuyến, chỉ lệnh theo từ khoá) hoặc `api` (cần `VR_ANTHROPIC_KEY`; mô hình thêm hiểu những yêu cầu từ khoá không bắt được và làm menu bằng gọi công cụ). Nói "dùng API" hoặc "dùng local" để đổi khi đang chạy.
+Nguồn viết mã: `VR_CODE_SOURCE=local` (mặc định, ngoại tuyến, chỉ lệnh theo từ khoá) hoặc `api` (SiliconFlow, cần `VR_SILICONFLOW_KEY`; mô hình thêm hiểu những yêu cầu từ khoá không bắt được và làm menu bằng gọi công cụ). Nói "dùng API" hoặc "dùng local" để đổi khi đang chạy.
+
+### Nguồn API (SiliconFlow)
+
+Mỗi khâu chọn riêng `local` (mặc định, ngoại tuyến) hoặc `api` (SiliconFlow, cần `VR_SILICONFLOW_KEY`). Khâu nào gọi API lỗi thì tự dùng lại model trên máy, và một phút sau mới thử lại.
+
+| Khâu | Công tắc | Local (file trên máy) | API (tên model) |
+|---|---|---|---|
+| Trả lời câu hỏi | `VR_LLM_SOURCE` | `VR_MODEL_PATH` (Qwen 3B) | `VR_LLM_MODEL` |
+| Viết, sửa plugin | `VR_CODE_SOURCE` | cùng Qwen đó, phiên thứ hai | `VR_CODE_MODEL` (mặc định `VR_LLM_MODEL`) |
+| Làm menu bằng gọi công cụ | `VR_CODE_SOURCE` | không có (chỉ lệnh từ khoá) | `VR_AGENT_MODEL` (mặc định `VR_LLM_MODEL`) |
+| Nghe | `VR_STT_SOURCE` | `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH` | `VR_STT_MODEL` |
+| Đọc | `VR_TTS_SOURCE` | `VR_VOICE_VI_PATH` (VieNeu), SAPI cho tiếng Anh | `VR_TTS_MODEL`, `VR_TTS_VOICE` |
+
+**Một model, hai phiên.** Cả hai phía chỉ cần một model ngôn ngữ: trả lời và viết plugin dùng chung nó. Trên máy, viết plugin chạy thành phiên thứ hai của cùng file GGUF (trọng số dùng chung, chỉ thêm bộ nhớ làm việc), nên hỏi chuyện khác trong lúc plugin đang viết vẫn được trả lời; hai bên dùng chung CPU nên đều chậm đi một chút. `VR_N_THREADS_CODE` (mặc định một phần ba `VR_N_THREADS`) và `VR_N_CTX_CODE` (mặc định lớn hơn trong 8192 và `VR_N_CTX`) chỉnh phiên này. Trên API, hai phiên chỉ là hai yêu cầu song song; chỉ đặt `VR_CODE_MODEL` hoặc `VR_AGENT_MODEL` khi muốn model mạnh hơn cho việc đó.
+
+Model nghe và đọc của SiliconFlow không ghi hỗ trợ tiếng Việt, nên khâu nghe và đọc chỉ gửi lên API những ngôn ngữ trong `VR_CLOUD_VOICE_LANGS` (mặc định `en`); tiếng Việt vẫn chạy trên máy. Thêm `vi` vào đó nếu muốn thử. Tên model mặc định ghi trong `assistant/models/cloud.py`; danh sách model hiện có xem ở trang Models của SiliconFlow.
 
 ### Cấu hình trợ lý
 
-Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_MODEL_PATH`, `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_N_THREADS`, `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU), `VR_N_CTX`, `VR_CHAT_FORMAT`, `VR_CODE_SOURCE`, `VR_ANTHROPIC_KEY`, `VR_CODE_MODEL`, `VR_AGENT_MODEL`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
+Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_MODEL_PATH`, `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_N_THREADS`, `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU), `VR_N_CTX`, `VR_N_THREADS_CODE`, `VR_N_CTX_CODE`, `VR_CHAT_FORMAT`, cùng các biến nguồn API ở trên và `VR_SILICONFLOW_KEY`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
 
 API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/voice/preview`, `/api/voice/listen`, `/api/voice/dictate` (giọng thành chữ cho phím Đọc chữ), `/api/people` (người đã lưu, xem mục Nhận diện khuôn mặt).
 
@@ -243,7 +263,7 @@ export default definePlugin({
 - Camera chỉ mở sau cú bấm dấu vân tay.
 - Khung hình **không rời máy** và không được lưu. Telemetry chỉ là số liệu tổng hợp, đi qua `redactRecord`.
 - Mô hình thị giác chạy trong trình duyệt từ `public/`; trợ lý chạy trên máy tính của bạn.
-- Ngoại lệ có ghi quyền: `map3d` gọi OpenStreetMap, openstreetmap.de (ô bản đồ), Overpass và jsDelivr (xem trên). Nguồn viết mã `api` gửi mô tả plugin tới API của Anthropic nếu bạn bật.
+- Ngoại lệ có ghi quyền: `map3d` gọi OpenStreetMap, openstreetmap.de (ô bản đồ), Overpass và jsDelivr (xem trên). Khâu nào bật nguồn `api` thì gửi dữ liệu của khâu đó (câu hỏi, đoạn âm thanh, mô tả plugin) tới API của SiliconFlow; mặc định không khâu nào bật.
 - Mã trợ lý viết ra chỉ chạy sau khi bạn duyệt.
 
 ## Kiểm thử

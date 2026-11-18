@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import re
+import sys
 import unittest
 
 from helpers import ASSISTANT, SRC
 
-_spec = importlib.util.spec_from_file_location("pluginsmith_under_test", ASSISTANT / "models/pluginsmith.py")
-smith = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(smith)
+sys.path.insert(0, str(ASSISTANT))
+smith = importlib.import_module("models.pluginsmith")  # a package member: it imports models.cloud
+sys.path.remove(str(ASSISTANT))
 
 GOOD = smith._EXAMPLE
 
@@ -123,19 +124,39 @@ class InstallTest(unittest.TestCase):
             imports = re.findall(r'^import .*? from "([^"]+)";$', plugin, re.M)
             self.assertEqual(sorted(imports), ["./manifest", "@/core/modules/definePlugin"])
 
+    def test_the_lock_is_not_held_while_the_model_writes(self) -> None:
+        """Approving another plugin must not wait minutes for a draft that is still being written."""
+        free_during_the_ask: list[bool] = []
+
+        def slow_model(system: str, user: str) -> str:
+            got = smith._lock.acquire(blocking=False)
+            free_during_the_ask.append(got)
+            if got:
+                smith._lock.release()
+            raise smith.DraftError("stop here")
+
+        original = smith._api_complete
+        smith._api_complete = slow_model
+        try:
+            with self.assertRaises(smith.DraftError):
+                smith.draft("count people", "en", kind="api")
+        finally:
+            smith._api_complete = original
+        self.assertEqual(free_during_the_ask, [True])
+
     def test_the_default_is_local_and_api_needs_a_key(self) -> None:
         import os
 
-        keys = {k: os.environ.pop(k, None) for k in ("VR_ANTHROPIC_KEY", "ANTHROPIC_API_KEY")}
+        keys = {k: os.environ.pop(k, None) for k in ("VR_SILICONFLOW_KEY", "SILICONFLOW_API_KEY")}
         try:
             smith.set_source("local")
             self.assertFalse(smith.set_source("api"))
             self.assertEqual(smith.source(), "local")
-            os.environ["VR_ANTHROPIC_KEY"] = "test"
+            os.environ["VR_SILICONFLOW_KEY"] = "test"
             self.assertTrue(smith.set_source("api"))
             smith.set_source("local")
         finally:
-            os.environ.pop("VR_ANTHROPIC_KEY", None)
+            os.environ.pop("VR_SILICONFLOW_KEY", None)
             for k, v in keys.items():
                 if v is not None:
                     os.environ[k] = v

@@ -2,7 +2,9 @@
 
 STT is a local Whisper GGML/GGUF file (whisper.cpp). TTS is VieNeu-TTS v3 Turbo
 (ONNX, on the CPU) for Vietnamese, cloned from assistant/voices/hino.wav, and the
-machine's own SAPI voice for English. Neither path loads a remote checkpoint.
+machine's own SAPI voice for English. Neither local path loads a remote checkpoint.
+VR_STT_SOURCE / VR_TTS_SOURCE=api send a language in VR_CLOUD_VOICE_LANGS to SiliconFlow
+instead (cloud.py), and any failure there falls back to the local path.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from array import array
 from pathlib import Path
 from typing import Any
 
+from . import cloud
 from .catalog import _env, voice_reference, voice_vi_dir, whisper_path, whisper_wake_path
 from .tuning import VoiceTuning, default_tuning, voice_spec
 from .wake import is_made_up
@@ -62,9 +65,10 @@ class Speech:
     def warm(self) -> None:
         """Load Whisper and the voice now, in the background, so the first greeting is not a minute late."""
         try:
-            self.ensure()
+            if not (cloud.wants("stt", "vi") and cloud.wants("stt", "en")):
+                self.ensure()
             with self._tts_lock:
-                if self._tts_vi is None:
+                if self._tts_vi is None and not cloud.wants("tts", "vi"):
                     self._tts_vi = _load_vieneu(voice_vi_dir(), voice_reference())
             print("  voice    ready", flush=True)
         except Exception as error:  # noqa: BLE001
@@ -93,6 +97,16 @@ class Speech:
         It is for what the wearer says to the assistant; the short checks for the wake
         words stay quick; `quick` runs them on the small model when there is one.
         """
+        if cloud.wants("stt", language or locale):
+            try:
+                heard = cloud.transcribe(_pad_wav(_clean(_to_16k_mono(wav_bytes))))
+                if is_made_up(heard):
+                    print(f"  stt      dropped a made-up line: {heard!r}", flush=True)
+                    return ""
+                return heard
+            except (cloud.CloudError, OSError) as error:
+                cloud.failed("stt")
+                print(f"  cloud    speech to text failed, using Whisper here: {error}", flush=True)
         self.ensure(locale)
         with self._lock:
             stt = self._wake if quick and self._wake is not None else self._stt
@@ -113,7 +127,7 @@ class Speech:
         if prompt:
             options["initial_prompt"] = prompt
         if careful:
-            options["beam_search"] = {"beam_size": BEAM_SIZE, "patience": -1}
+            options["beam_search"] = {"beam_size": max(1, int(_env("VR_WHISPER_BEAM") or BEAM_SIZE)), "patience": -1}
         with tempfile.TemporaryDirectory() as folder:
             dest = Path(folder) / "in.wav"
             dest.write_bytes(wav_bytes)
@@ -140,6 +154,12 @@ class Speech:
         if not spoken:
             return b""
         tuning = tuning or default_tuning()
+        if cloud.wants("tts", locale):
+            try:
+                return cloud.speak(spoken, tuning.speed)
+            except (cloud.CloudError, OSError) as error:
+                cloud.failed("tts")
+                print(f"  cloud    text to speech failed, using the voice here: {error}", flush=True)
         if locale == "vi":
             return self._vieneu_vi(spoken, tuning)
         return _sapi(spoken, locale, tuning)
