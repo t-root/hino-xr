@@ -352,6 +352,12 @@ không gọi `fetch` thẳng vào `/api`. Thêm đường `/api` mới thì khô
 `VR_TOOLS=off`. "sau" (sau mười phút) và "sáu" chỉ khác dấu: số chữ phải xét dấu, không xét chữ đã bỏ dấu (`_digit`). Đoạn dò từ gọi (`quick`) **không bao giờ**
 đi qua API. Ngắt lời bằng giọng (`bargeIn`) mặc định tắt vì tiếng loa lọt vào mic; chỉ câu **chỉ gồm** lệnh dừng mới tính (`wake.is_stop`).
 
+**G11.** Nhìn bằng model đọc ảnh (`assistant/models/vision.py`, plugin `vision-ask`): cũng có hai nơi chạy (`VR_VISION_SOURCE` local|api), API lỗi thì rơi
+về local nếu có file, và model local chỉ được tải khi `VR_VISION_SOURCE=local` (`"when"` trong `downloads.json`, gần 3 GB). Ảnh **chỉ** được gửi khi có câu hỏi, qua
+`/api/vision/ask` (có khoá truy cập, G9), và plugin chỉ giữ **một** ảnh mới nhất trong `OffscreenCanvas` khi đang bật. Plugin trả `{say, show}`: giọng đọc `say`
+(tối đa 190 ký tự, vì `/api/voice/preview` nhận 200), trang Trợ lý in `show`. Việc đọc chữ và dịch cũng là câu hỏi cho model này, không có OCR riêng.
+Ghi chú (`notes.py`) là lệnh từ khoá lưu `assistant/data/notes.json`; xóa hết phải hỏi lại.
+
 **G6.** Một model ngôn ngữ, nhiều phiên. Trả lời và viết plugin **không** được dùng chung một khóa: viết plugin chạy phiên riêng
 (`engine.generate(..., session="code")`, khóa `_code_generate_lock`), nên không làm chậm hàng đợi trả lời. Cấu hình local và API đi theo
 cùng một bảng (README, `.env.example`): thêm một khâu mới thì thêm **một công tắc `VR_<KHÂU>_SOURCE`** và **một biến tên model**,

@@ -124,6 +124,29 @@ Ba việc mà mô hình ngôn ngữ không biết hay không làm được, đ�
 
 Thời tiết và tra cứu gửi tên nơi hoặc chủ đề bạn nói tới Open-Meteo và Wikipedia, và không gì khác. `VR_TOOLS=off` tắt cả hai.
 
+### Hỏi về hình ảnh (đọc chữ, dịch)
+
+Plugin **Hỏi về hình ảnh** (`src/modules/vision-ask`) cho trợ lý nhìn qua camera và trả lời bằng một model đọc được ảnh:
+
+- "cái này là gì", "đây là con gì", "what is this": hỏi về thứ đang đưa trước camera.
+- "đọc chữ trên biển", "đọc thực đơn", "trên biển ghi gì", "read this sign": đọc nguyên văn chữ nhìn thấy.
+- "dịch cái này", "translate this menu": dịch chữ đó sang ngôn ngữ của bạn.
+
+Trợ lý nói ngay "Để mình xem", rồi đọc một đoạn ngắn và hiện **toàn bộ** câu trả lời lên trang Trợ lý. Model chạy ở hai nơi, chọn bằng `VR_VISION_SOURCE` (hoặc nói "dùng API để nhìn hình" / "dùng local để nhìn hình"):
+
+| | Local | API |
+|---|---|---|
+| Model | Qwen2.5-VL 3B (llama.cpp): `VR_VISION_MODEL_PATH`, `VR_VISION_MMPROJ_PATH` | `VR_VISION_MODEL` (mặc định `Qwen/Qwen2.5-VL-32B-Instruct` của SiliconFlow) |
+| Tải về | Chỉ tải (gần 3 GB) khi đặt `VR_VISION_SOURCE=local` rồi chạy `run.py` | Không cần |
+| Tốc độ | Chậm trên CPU, có thể tới vài chục giây một ảnh | Vài giây |
+| Ảnh đi đâu | Không rời máy tính | Đi tiếp tới SiliconFlow |
+
+API lỗi mà model local có sẵn thì dùng model local. Ảnh chỉ được chụp khi bạn hỏi và gửi tới máy chủ trợ lý; plugin giữ đúng một ảnh mới nhất trong bộ nhớ khi đang bật và bỏ ngay khi tắt. Plugin xin quyền `network` và `snapshot`, cấp tay ở `permissions.ts`. Tên model API là mặc định mình chọn, chưa kiểm với tài khoản của bạn: xem danh sách bằng "có những model nào để nhìn hình".
+
+### Ghi chú và việc cần làm
+
+Lưu trong `assistant/data/notes.json` (không đưa vào git), không qua mô hình: "ghi nhớ mua sữa", "remember to call mom", "đọc ghi chú" (đọc vài mục đầu, hiện đủ trên màn hình), "xong việc số hai", "xóa ghi chú số ba", "xóa hết ghi chú" (hỏi lại, chờ "đúng"). Tối đa 200 mục.
+
 ### Ngắt lời bằng giọng
 
 Mục **trợ lý** có công tắc **Ngắt lời bằng giọng** (mặc định tắt). Bật lên thì mic vẫn mở lúc trợ lý đang nói, và một câu chỉ gồm "dừng lại", "im đi", "thôi" hay "stop" làm nó ngừng ngay (câu dài hơn ba giây không được kiểm tra). Mỗi đoạn tiếng nghe được lúc đó chạy một lần Whisper nhỏ trên máy, và tiếng loa lọt vào mic bị nghe lại, nên nên dùng tai nghe.

@@ -32,6 +32,10 @@ const PERMISSION_GRANTS: Readonly<Record<string, readonly ModulePermission[]>> =
   // Keeps the people it knows (names, years of birth and the numbers that describe their faces, never a
   // picture) on the model server, which is this computer, and has a screen of its own for them.
   "face-recognition": ["network", "screen"],
+  // Keeps one still of the camera, the latest, and sends it to the model server (this computer) when the wearer asks
+  // about what is in front of them; if they chose the API for looking at pictures it goes on to SiliconFlow.
+  // Nothing is sent until a question is asked, and nothing is kept once the plugin is off.
+  "vision-ask": ["network", "snapshot"],
 };
 
 const ASSISTANT_PLUGIN_PREFIX = "ai-";

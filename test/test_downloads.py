@@ -198,6 +198,23 @@ class FetchTest(unittest.TestCase):
         run._ensure_downloads([_item(self.body, server.url)])
         self.assertFalse((self.out / "w.bin").exists())
 
+    def test_a_big_optional_file_is_fetched_only_when_asked_for(self) -> None:
+        server = Server(self.body)
+        self.addCleanup(server.close)
+        item = _item(self.body, server.url, when={"env": "VR_TEST_WHEN", "equals": "local"})
+        os.environ.pop("VR_TEST_WHEN", None)
+        run._ensure_downloads([item])
+        self.assertFalse((self.out / "w.bin").exists())  # not asked for: nothing is fetched
+        os.environ["VR_TEST_WHEN"] = "local"
+        self.addCleanup(os.environ.pop, "VR_TEST_WHEN", None)
+        run._ensure_downloads([item])
+        self.assertTrue((self.out / "w.bin").exists())
+
+    def test_the_vision_model_is_optional(self) -> None:
+        items = {item["id"]: item for item in json.loads((ROOT / "downloads.json").read_text(encoding="utf-8"))["items"]}
+        for name in ("vision-llm", "vision-mmproj"):
+            self.assertEqual(items[name]["when"], {"env": "VR_VISION_SOURCE", "equals": "local"})
+
     def test_an_entry_without_env_is_always_checked(self) -> None:
         server = Server(self.body)
         self.addCleanup(server.close)

@@ -7,6 +7,7 @@ import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
 import { useRuntimeStore } from "../state/RuntimeStore";
 import { DEFAULT_SETTINGS, type Settings } from "../state/settings";
+import type { CommandReply } from "../modules/module-contract";
 import type { SpokenControl } from "./VoiceControls";
 import { ModelClient, type SpokenCommand, type SpokenPlugin } from "./ModelClient";
 
@@ -43,7 +44,7 @@ export type PluginVoiceHost = Readonly<{
   list: () => readonly SpokenPlugin[];
   set: (id: string, on: boolean) => void;
   /** Gives a spoken command to the running plugins; resolves to what one of them says back, or null. */
-  command: (name: string, payload: Readonly<Record<string, unknown>>) => Promise<string | null>;
+  command: (name: string, payload: Readonly<Record<string, unknown>>) => Promise<CommandReply | null>;
 }>;
 
 /** What the headset lets a spoken line do to its menu and settings. */
@@ -110,8 +111,9 @@ export class ModelBridge {
       // "What do I see?" with the plugin off has to be answered; the server wrote what to say for that case.
       const missing = name === "sight" && typeof payload.missing === "string" ? payload.missing : "";
       void this.followUp(async () => {
-        const say = await host.command(name, payload);
-        return { ok: say !== null, say: say ?? missing };
+        const said = await host.command(name, payload);
+        if (said === null) return { ok: false, say: missing };
+        return typeof said === "string" ? { ok: true, say: said } : { ok: true, say: said.say, show: said.show };
       }, false);
       return;
     }
@@ -148,7 +150,7 @@ export class ModelBridge {
    * one): when it ends the server's own line is spoken, and the page reloads if
    * a new plugin was installed so the registry that lists it is the one running.
    */
-  private async followUp(work: () => Promise<{ ok: boolean; say: string }>, reloadOnSuccess: boolean): Promise<void> {
+  private async followUp(work: () => Promise<{ ok: boolean; say: string; show?: string }>, reloadOnSuccess: boolean): Promise<void> {
     try {
       const outcome = await work();
       // A command no plugin took has nothing to say: silence, not an empty reply read out.
@@ -157,7 +159,9 @@ export class ModelBridge {
       // turn to end, because speaking now would cut it off (previewVoice stops whatever is playing).
       await this.untilQuiet();
       await this.previewVoice(outcome.say);
-      useRuntimeStore.getState().patchAssistant({ reply: outcome.say });
+      useRuntimeStore.getState().patchAssistant({ reply: outcome.show ?? outcome.say });
+      // A longer text than was read aloud: open the page that prints it, so it can be read.
+      if (outcome.show) this.controlHost?.run("page.assistant", true);
       if (reloadOnSuccess && outcome.ok) window.location.reload();
     } catch (error) {
       this.logger.warn("plugin follow-up failed", { message: error instanceof Error ? error.message : String(error) });

@@ -15,7 +15,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from access import AccessMiddleware
-from models import pluginsmith
+from models import pluginsmith, vision
 from models.commands import parse_plugins, say_for
 from models.controls import parse_controls
 from models.catalog import assistant_name, catalog
@@ -205,6 +205,28 @@ async def talk(
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
     return _sse(engine.talk(spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls))
+
+
+class SeeBody(BaseModel):
+    image: str = Field(min_length=1)  # a JPEG, base64
+    what: str = Field(pattern="^(ask|read|translate)$")
+    question: str = Field(default="", max_length=400)
+    locale: str = "vi"
+
+
+@app.post("/api/vision/ask")
+async def vision_ask(body: SeeBody) -> dict[str, str]:
+    """One picture from the camera and what was asked about it: answered here or by the API (`VR_VISION_SOURCE`)."""
+    try:
+        image = base64.b64decode(body.image, validate=True)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail="invalid image") from error
+    if len(image) > vision.MAX_IMAGE:
+        raise HTTPException(status_code=413, detail="image too large")
+    try:
+        return await run_in_threadpool(vision.ask, image, body.what, body.question, _locale(body.locale))
+    except vision.VisionError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 class DraftBody(BaseModel):

@@ -44,6 +44,7 @@ from .catalog import _env
 DEFAULT_BASE_URL = "https://api.siliconflow.com/v1"
 DEFAULT_MODELS = {
     "VR_LLM_MODEL": "Qwen/Qwen2.5-7B-Instruct",
+    "VR_VISION_MODEL": "Qwen/Qwen2.5-VL-32B-Instruct",
     "VR_STT_MODEL": "FunAudioLLM/SenseVoiceSmall",
     "VR_TTS_MODEL": "FunAudioLLM/CosyVoice2-0.5B",
 }
@@ -54,7 +55,7 @@ DEFAULT_VOICE = "alex"
 TTS_RATE = 32_000
 RETRY_AFTER_S = 60
 CHAT_TIMEOUT_S = 60
-STAGES = {"chat": "VR_LLM_SOURCE", "stt": "VR_STT_SOURCE", "tts": "VR_TTS_SOURCE"}
+STAGES = {"chat": "VR_LLM_SOURCE", "stt": "VR_STT_SOURCE", "tts": "VR_TTS_SOURCE", "vision": "VR_VISION_SOURCE"}
 MAX_MESSAGES = 10  # the chat endpoint takes 1 to 10 messages
 
 _down_until: dict[str, float] = {}
@@ -129,12 +130,16 @@ def set_source(stage: str, value: str) -> bool:
 
 
 _LISTING = {"chat": {"sub_type": "chat"}, "stt": {"sub_type": "speech-to-text"}, "tts": {"type": "audio"}}
+# SiliconFlow lists the models that read pictures among its chat models; these are the ones whose names say so.
+_SEES = re.compile(r"(?i)(^|[-_/ ])vl([-_ ]|$)|vision|omni|llava|ocr|glm-4\.?\d*v")
 _listed: dict[str, tuple[float, list[str]]] = {}
 LIST_CACHE_S = 300
 
 
 def models_for(stage: str) -> list[str]:
     """The ids SiliconFlow offers for a stage (chat, stt, tts), asked of the account's own key and kept five minutes."""
+    if stage == "vision":
+        return [name for name in models_for("chat") if _SEES.search(name)]
     if provider(stage) != "siliconflow":
         raise CloudError(f"the list of models is only read from SiliconFlow, and {stage} is served by {provider(stage)}")
     now = time.monotonic()
@@ -257,6 +262,32 @@ def chat_stream(body: dict[str, Any], timeout: float = CHAT_TIMEOUT_S) -> Iterat
             piece = (choices[0].get("delta") or choices[0].get("message") or {}).get("content")
             if piece:
                 yield piece
+
+
+def see(image_jpeg: bytes, prompt: str, max_tokens: int = 300) -> str:
+    """A question about one picture, answered by a model that reads pictures (OpenAI-style image_url, as a data URI)."""
+    import base64
+
+    reply = chat(
+        {
+            "model": model("VR_VISION_MODEL"),
+            "max_tokens": max_tokens,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(image_jpeg).decode("ascii")}},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        },
+        timeout=90,
+    )
+    try:
+        return str(reply["choices"][0]["message"]["content"] or "").strip()
+    except (KeyError, IndexError, TypeError) as error:
+        raise CloudError(f"vision answered without a message: {reply!r:.200}") from error
 
 
 def complete_text(name: str, system: str, user: str, max_tokens: int) -> str:

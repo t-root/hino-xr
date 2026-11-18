@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import cloud, pluginsmith, timing
+from . import cloud, pluginsmith, timing, vision
 from .catalog import catalog, voice_vi_dir, whisper_path, whisper_wake_path
 from .commands import _API, _LOCAL, _PLUGIN, _SWITCH, _heard
 from .wake import letters
@@ -52,13 +52,14 @@ _STAGE_WORDS = {
     "stt": {"nghe", "listen", "listening", "hearing", "stt"},
     "tts": {"doc", "giong", "speak", "speaking", "voice", "tts", "phatam"},
     "chat": {"traloi", "trochuyen", "hoithoai", "chat", "answer", "answers", "talk", "reply", "conversation"},
+    "vision": {"hinh", "anh", "nhin", "hinhanh", "thigiac", "vision", "image", "picture", "camera", "sight"},
 }
-_VARIABLE = {"chat": "VR_LLM_MODEL", "code": "VR_CODE_MODEL", "agent": "VR_AGENT_MODEL", "stt": "VR_STT_MODEL", "tts": "VR_TTS_MODEL"}
-_LISTED_AS = {"chat": "chat", "code": "chat", "agent": "chat", "stt": "stt", "tts": "tts"}
+_VARIABLE = {"chat": "VR_LLM_MODEL", "code": "VR_CODE_MODEL", "agent": "VR_AGENT_MODEL", "stt": "VR_STT_MODEL", "tts": "VR_TTS_MODEL", "vision": "VR_VISION_MODEL"}
+_LISTED_AS = {"chat": "chat", "code": "chat", "agent": "chat", "stt": "stt", "tts": "tts", "vision": "vision"}
 
 _STAGE_NAME = {
-    "vi": {"chat": "trả lời", "code": "viết plugin", "agent": "điều khiển menu", "stt": "nghe", "tts": "đọc"},
-    "en": {"chat": "answering", "code": "writing plugins", "agent": "the menu", "stt": "listening", "tts": "speaking"},
+    "vi": {"chat": "trả lời", "code": "viết plugin", "agent": "điều khiển menu", "stt": "nghe", "tts": "đọc", "vision": "nhìn hình"},
+    "en": {"chat": "answering", "code": "writing plugins", "agent": "the menu", "stt": "listening", "tts": "speaking", "vision": "looking at pictures"},
 }
 _SAY = {
     "vi": {
@@ -91,6 +92,7 @@ _SAY = {
         "menu_keywords": "chỉ lệnh theo từ khoá",
         "wake_model": "nghe từ gọi",
         "second_session": "phiên thứ hai",
+        "not_here": "{name} (chưa tải)",
         "speaks_vi": "tiếng Việt",
         "speaks_en": "tiếng Anh",
     },
@@ -124,6 +126,7 @@ _SAY = {
         "menu_keywords": "keyword commands only",
         "wake_model": "listens for the call",
         "second_session": "second session",
+        "not_here": "{name} (not downloaded)",
         "speaks_vi": "Vietnamese",
         "speaks_en": "English",
     },
@@ -184,6 +187,8 @@ def status(locale: str) -> str:
         row("tts", "Azure Speech" if cloud.provider("tts") == "azure" else f"{cloud.model('VR_TTS_MODEL')} ({_voice_name()})")
     else:
         row("tts", f"VieNeu {Path(voice_vi_dir()).name} ({say['speaks_vi']}), SAPI ({say['speaks_en']})")
+    seen_by = vision.local_files()[0].name if vision.local_ready() else say["not_here"].format(name=vision.local_files()[0].name)
+    row("vision", cloud.model("VR_VISION_MODEL") if _where("vision") == "api" else seen_by)
     lines.append(say["with_key"] if cloud.api_key() else say["no_key_line"])
     if "api" in {_where("stt"), _where("tts")}:
         langs = cloud.voice_langs("stt" if _where("stt") == "api" else "tts")

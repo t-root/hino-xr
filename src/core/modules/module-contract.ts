@@ -54,6 +54,12 @@ export interface ModuleContext {
   readonly screen: ModuleScreen | null;
 }
 
+/**
+ * What a plugin answers to a spoken command: one line to say, or a line to say and a longer text to put on the
+ * screen (the assistant reads the short one aloud and shows the long one, as it does for a list of models).
+ */
+export type CommandReply = string | Readonly<{ say: string; show: string }>;
+
 export interface VisionModule {
   readonly manifest: ModuleManifest;
   initialize(context: ModuleContext): Promise<void>;
@@ -64,6 +70,6 @@ export interface VisionModule {
    * Something said to the headset rather than seen by it, such as the wearer telling the assistant who a face
    * is. Resolves to what to say back, or to null when the command is not one this plugin handles.
    */
-  command?(name: string, payload: Readonly<Record<string, unknown>>): Promise<string | null>;
+  command?(name: string, payload: Readonly<Record<string, unknown>>): Promise<CommandReply | null>;
   dispose(): Promise<void>;
 }

@@ -278,7 +278,7 @@ class Engine:
         plugins: list[dict[str, Any]] | None = None,
         controls: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
-        from . import agent, modelswitch, pluginsmith, tools
+        from . import agent, modelswitch, notes, pluginsmith, tools
         from .commands import plugin_command, say_for
         from .controls import control_command
         from .person_speech import person_command
@@ -307,6 +307,8 @@ class Engine:
             command = sight_command(heard, locale)
         if command is None:
             command = tools.command(heard, locale)
+        if command is None:
+            command = notes.command(heard, locale)
         if command:
             # Switching or writing a plugin is the headset's doing, not the model's: say so and stop.
             if command["action"] == "source":

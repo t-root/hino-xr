@@ -146,6 +146,9 @@ def _ensure_downloads(items: list | None = None) -> None:
         pass
     for item in json.loads(DOWNLOADS.read_text(encoding="utf-8"))["items"] if items is None else items:
         dest, name = ROOT / item["to"], item["what"]
+        when = item.get("when")
+        if when and os.environ.get(when["env"], "").strip().lower() != str(when["equals"]).lower():
+            continue  # only fetched when asked for (a big optional model): nothing to say about it
         if os.environ.get(item.get("env", ""), "").strip():
             _say(f"  {name}: dung duong dan rieng ({item['env']}), khong tai.")
         elif _present(item, dest):

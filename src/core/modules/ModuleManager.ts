@@ -9,7 +9,7 @@ import type { RuntimeEvents } from "../events/events";
 import type { FrameHub } from "../camera/FrameHub";
 import { createLogger } from "../observability/diagnostics";
 import type { Metrics } from "../observability/metrics";
-import type { ModuleContext, VisionModule } from "./module-contract";
+import type { CommandReply, ModuleContext, VisionModule } from "./module-contract";
 import type { ModuleRegistry } from "./module-registry";
 import { budgetFor, withTimeout, type ModuleBudget } from "./ModuleScheduler";
 import type { ModuleScreenFactory, ModuleScreenHandle } from "./ModuleScreenHost";
@@ -191,7 +191,7 @@ export class ModuleManager {
    * which plugin a command is for: a plugin that does not handle it returns null, and one that fails does not
    * stop the others hearing it.
    */
-  async command(name: string, payload: Readonly<Record<string, unknown>>): Promise<string | null> {
+  async command(name: string, payload: Readonly<Record<string, unknown>>): Promise<CommandReply | null> {
     for (const runtime of this.runtimes.values()) {
       if (runtime.state !== "ready" || !runtime.module?.command) continue;
       try {

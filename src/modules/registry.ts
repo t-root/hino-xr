@@ -6,6 +6,7 @@ import map3d from "./map3d/plugin";
 import objectDetection from "./object-detection/plugin";
 import personDetection from "./person-detection/plugin";
 import sceneDescription from "./scene-description/plugin";
+import visionAsk from "./vision-ask/plugin";
 
 /**
  * Every plugin folder that declares itself.
@@ -15,7 +16,7 @@ import sceneDescription from "./scene-description/plugin";
  * Sorted by path so the catalogue, and therefore the palette order, does not
  * depend on how the directory was walked.
  */
-const entries: ReadonlyArray<PluginEntry> = [codeReader, faceRecognition, map3d, objectDetection, personDetection, sceneDescription];
+const entries: ReadonlyArray<PluginEntry> = [codeReader, faceRecognition, map3d, objectDetection, personDetection, sceneDescription, visionAsk];
 
 /**
  * Hands Core the plugins that exist.

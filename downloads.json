@@ -1,5 +1,5 @@
 {
-  "_how_to_add": "Muon tai them mot thu gi: them mot muc vao 'items', khong can sua ma. 'to' tinh tu thu muc goc cua du an. Co 'unpack' thi 'to' la thu muc, giai nen tu goi tai ve (tar.bz2, tar.gz...), 'needs' la nhung muc phai co trong do. 'env' (tuy chon) la ten bien moi truong: dat no thi dung duong dan rieng va khong tai.",
+  "_how_to_add": "Muon tai them mot thu gi: them mot muc vao 'items', khong can sua ma. 'to' tinh tu thu muc goc cua du an. Co 'unpack' thi 'to' la thu muc, giai nen tu goi tai ve (tar.bz2, tar.gz...), 'needs' la nhung muc phai co trong do. 'env' (tuy chon) la ten bien moi truong: dat no thi dung duong dan rieng va khong tai. 'when' (tuy chon): {\"env\": TEN, \"equals\": GIA_TRI}: chi tai khi bien moi truong do (hoac assistant/.env) bang gia tri do.",
   "items": [
     {
       "id": "llm",
@@ -155,6 +155,32 @@
       "to": "public/models/hand_landmarker.task",
       "bytes": 7819105,
       "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+    },
+    {
+      "id": "vision-llm",
+      "what": "Qwen 2.5 VL 3B (nhin hinh: hoi, doc chu, dich), chi tai khi VR_VISION_SOURCE=local",
+      "env": "VR_VISION_MODEL_PATH",
+      "when": {
+        "env": "VR_VISION_SOURCE",
+        "equals": "local"
+      },
+      "url": "https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+      "to": "assistant/weights/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+      "bytes": 1929901056,
+      "sha256": "d02fe9b69ad8cadbbd228e387667af66612c44bed29ffc8eb1e7caf9ac486c12"
+    },
+    {
+      "id": "vision-mmproj",
+      "what": "Qwen 2.5 VL 3B mmproj (bo doc anh), chi tai khi VR_VISION_SOURCE=local",
+      "env": "VR_VISION_MMPROJ_PATH",
+      "when": {
+        "env": "VR_VISION_SOURCE",
+        "equals": "local"
+      },
+      "url": "https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf",
+      "to": "assistant/weights/mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf",
+      "bytes": 844757728,
+      "sha256": "980c9b2f78c04e6cff93d277ada09e768394f112d75db3b4e9dea8a69f9fb904"
     }
   ]
 }
