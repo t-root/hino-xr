@@ -95,16 +95,21 @@ class ListTest(unittest.TestCase):
                 self.assertTrue(item["env"].startswith("VR_"), item["id"])
 
     def test_the_servers_look_for_what_is_downloaded(self) -> None:
-        stages = json.loads((ROOT / "assistant/ai/stages.json").read_text(encoding="utf-8"))["servers"]
-        by_id = {item["id"]: item for item in self.items}
-        for server, key, item in (
-            ("llm", "model", "llm"), ("llm", "mmproj", "llm-mmproj"), ("coder", "model", "coder"), ("whisper", "model", "stt"),
-        ):
-            self.assertEqual(stages[server][key], by_id[item]["to"], f"{server}.{key}")
-        # The programs are zips that land flat in the folder the servers look in.
-        for item, folder in (("bin-llama", "llama"), ("bin-llama-cudart", "llama"), ("bin-whisper", "whisper")):
-            self.assertEqual(by_id[item]["to"], f"assistant/bin/{folder}")
-            self.assertTrue(by_id[item]["flat"] and by_id[item]["unpack"], item)
+        # Whatever the profile (GPU or CPU), every file a server of `stages.json` loads is a file `downloads.json` fetches,
+        # and every program it runs is fetched flat into the folder `servers.py` looks in.
+        servers = json.loads((ROOT / "assistant/ai/stages.json").read_text(encoding="utf-8"))["servers"]
+        fetched = {item["to"]: item for item in self.items}
+        for name, server in servers.items():
+            for key in ("model", "mmproj"):
+                if key in server:
+                    self.assertIn(server[key], fetched, f"{name}.{key}")
+        for kind, exe in (("llama", "llama-server"), ("whisper", "whisper-server")):
+            if not any(server["kind"] == kind for server in servers.values()):
+                continue
+            programs = [item for item in self.items if item["to"] == f"assistant/bin/{kind}"]
+            self.assertTrue(programs, kind)
+            self.assertTrue(all(item["flat"] and item["unpack"] for item in programs), kind)
+            self.assertTrue(any(f"{exe}.exe" in item["needs"] for item in programs), kind)
         # The voice is many files under one folder, which is what the catalog names.
         catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
         voice = [item for item in self.items if item["id"].startswith("voice-vi")]
@@ -116,7 +121,7 @@ class ListTest(unittest.TestCase):
 
     def test_nothing_that_ran_inside_this_process_is_fetched_any_more(self) -> None:
         ids = {item["id"] for item in self.items}
-        self.assertFalse(ids & {"stt-wake", "vision-llm", "vision-mmproj"})
+        self.assertFalse(ids & {"vision-llm", "vision-mmproj"})  # the picture model is the answering model
         self.assertFalse(any("qwen2.5-3b" in item["to"].lower() for item in self.items))
 
     def test_the_hand_model_is_fetched_to_where_the_page_loads_it(self) -> None:

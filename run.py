@@ -276,7 +276,7 @@ def _notes(killed: bool) -> None:
     _say("    / Proceed / Tiep tuc, roi tai lai.")
     _say("  - Lan dau can mang de tai Three.js, MediaPipe va mo hinh thi giac.")
     _say("    Tai xong roi thi nhung lan sau chay duoc ca khi khong co mang.")
-    _say("  - Lan dau se tu tai model va may chu AI (xem downloads.json), khoang 17 GB, co the mat nhieu phut.")
+    _say("  - Lan dau se tu tai model va may chu AI (xem downloads.json), khoang 7 GB, co the mat nhieu phut.")
     _say("  - May chu AI (llama.cpp, whisper.cpp) chay tren may nay, cau hinh o assistant/ai/stages.json.")
     _say("    Muon dung API ben ngoai cho mot viec: dat VR_<VIEC>_URL va VR_<VIEC>_KEY trong assistant/.env.")
     _say("  - Bam Ctrl+C de dung may chu.")

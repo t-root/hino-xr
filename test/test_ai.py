@@ -167,7 +167,7 @@ class AITest(unittest.TestCase):
         self.assertEqual([m["role"] for m in SEEN["body"]["messages"]], ["system", "user"])
 
     def test_listening_sends_the_language_the_words_to_expect_and_the_audio(self) -> None:
-        self.point("stt")
+        self.point("stt", "stt_wake")
         self.assertEqual(ai.transcribe(b"RIFFaudio", "vi", "Hino.", careful=False), "xin chào")
         self.assertEqual(SEEN["path"], "/v1/audio/transcriptions")
         self.assertTrue(SEEN["type"].startswith("multipart/form-data"))
@@ -200,15 +200,16 @@ class AITest(unittest.TestCase):
 
     # the servers of this machine
 
-    def test_the_call_word_has_its_own_stage_that_follows_listening(self) -> None:
+    def test_the_call_word_has_its_own_stage(self) -> None:
         self.assertIn("stt_wake", ai.config.ASSISTANT_STAGES)
-        self.assertEqual(ai.stage("stt_wake").url, ai.stage("stt").url)
+        self.assertEqual(ai.stage("stt_wake").kind, "stt")
+        self.assertNotEqual(ai.stage("stt_wake").name, ai.stage("stt").name)
         os.environ["VR_STT_WAKE_URL"] = "http://127.0.0.1:1/v1"
-        self.assertNotEqual(ai.stage("stt_wake").url, ai.stage("stt").url)  # a lighter model can be set for it alone
+        self.assertEqual(ai.stage("stt_wake").url, "http://127.0.0.1:1/v1")  # a lighter model can be set for it alone
+        self.assertNotEqual(ai.stage("stt").url, "http://127.0.0.1:1/v1")
 
     def test_listening_asks_the_stage_that_fits_the_line(self) -> None:
-        self.point("stt")
-        os.environ["VR_STT_WAKE_URL"] = self.url.replace("/v1", "/v1")
+        self.point("stt", "stt_wake")
         seen = []
         keep = ai.client._request
 
@@ -218,8 +219,6 @@ class AITest(unittest.TestCase):
 
         ai.client._request = spy
         try:
-            os.environ["VR_STT_WAKE_KEY"] = "sk-test"
-            ai.config.reset()
             ai.transcribe(b"RIFFaudio", "vi", None, careful=True)
             ai.transcribe(b"RIFFaudio", "vi", None, careful=False)
         finally:
@@ -259,11 +258,17 @@ class AITest(unittest.TestCase):
         self.assertFalse(ai.servers._wanted("llm"))
         self.assertTrue(ai.servers._wanted("whisper"))
 
-    def test_the_coder_and_the_answering_model_share_one_gpu(self) -> None:
+    def test_the_servers_of_the_profile_are_consistent(self) -> None:
         servers = ai.config.servers()
-        self.assertEqual(servers["llm"]["group"], servers["coder"]["group"])
-        self.assertTrue(servers["coder"]["lazy"])
-        self.assertNotIn("group", servers["whisper"])
+        ports = [server["port"] for server in servers.values()]
+        self.assertEqual(len(ports), len(set(ports)))  # two servers cannot listen on one port
+        self.assertTrue(servers["coder"]["lazy"])  # the code model is started when a plugin is written, not before
+        for name, server in servers.items():
+            if server.get("lazy"):
+                self.assertGreater(server["idle_s"], 0, name)
+        groups = [server["group"] for server in servers.values() if server.get("group")]
+        for group in set(groups):
+            self.assertGreater(groups.count(group), 1, group)  # a group of one is nothing to share
 
 
 if __name__ == "__main__":

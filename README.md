@@ -95,8 +95,8 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 
 | Việc | Cách làm |
 |---|---|
-| Trả lời | Qwen3-VL 8B (llama.cpp, GPU). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. Cũng là model làm menu bằng gọi công cụ và đọc ảnh chụp màn hình. |
-| Nghe | whisper.cpp (large-v3 q5, GPU) chép chữ: nghe từ gọi, câu hỏi và lệnh. |
+| Trả lời | Qwen3-VL 4B (llama.cpp, bản CPU). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. Cũng là model làm menu bằng gọi công cụ và đọc ảnh chụp màn hình. |
+| Nghe | whisper.cpp (bản CPU) chép chữ: `large-v3 q5` nghe câu hỏi và lệnh, `small` nghe từ gọi cho nhanh. |
 | Nói tiếng Việt | VieNeu-TTS v3 Turbo (ONNX, CPU), clone từ giọng mẫu `assistant/voices/hino.wav`. Tải về `assistant/weights/vieneu/` qua `downloads.json`, chạy cục bộ, không cần mạng. |
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
@@ -151,7 +151,7 @@ Nói "tạo plugin đếm số người" rồi mô tả: trợ lý viết một 
 
 **Sửa plugin có sẵn bằng giọng nói:** "sửa plugin bản đồ, thêm nút phóng to" (hoặc "fix the 3D map plugin so …"). Trợ lý đọc các file của plugin (tối đa 60.000 ký tự, không đụng `models.json` và `vendor.json`), viết lại những file cần đổi và để chúng chờ trong `plugins-pending/<id>--edit/`. Nói "duyệt plugin …" thì bản gốc được sao lưu vào `plugins-backup/`, file mới được ghi, server dựng lại và trang nạp lại; dựng lỗi thì mọi thứ trả về như cũ. Chất lượng phụ thuộc vào model của khâu `code`.
 
-Chất lượng phụ thuộc vào người viết: khâu `code` mặc định là Qwen2.5-Coder 14B chạy trên máy; muốn model mạnh hơn thì đặt `VR_CODE_URL`, `VR_CODE_KEY`, `VR_CODE_MODEL` (xem **Một cấu hình cho mọi AI**).
+Chất lượng phụ thuộc vào người viết: khâu `code` mặc định là Qwen2.5-Coder 3B chạy trên CPU; muốn model mạnh hơn thì đặt `VR_CODE_URL`, `VR_CODE_KEY`, `VR_CODE_MODEL` (xem **Một cấu hình cho mọi AI**).
 
 ### Một cấu hình cho mọi AI (`assistant/ai/`)
 
@@ -159,11 +159,11 @@ Mọi lời gọi AI đi qua **một client** (`assistant/ai/client.py`) và **m
 
 | Phía | Khâu | Mặc định |
 |---|---|---|
-| Trợ lý | `chat` (trả lời) | llama.cpp, Qwen3-VL 8B, cổng 8081 |
+| Trợ lý | `chat` (trả lời) | llama.cpp (CPU), Qwen3-VL 4B, cổng 8081, ngữ cảnh 4096, ảnh tối đa 400 token |
 | | `agent` (làm menu bằng gọi công cụ), `vision` (ảnh chụp màn hình) | theo `chat` |
-| | `code` (viết, sửa plugin) | llama.cpp, Qwen2.5-Coder 14B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
+| | `code` (viết, sửa plugin) | llama.cpp (CPU), Qwen2.5-Coder 3B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
 | | `stt` (nghe câu hỏi và lệnh) | whisper.cpp large-v3 q5, cổng 8083 |
-| | `stt_wake` (nghe từ gọi "hino" và "dừng", chạy trên mọi câu mic cắt ra) | theo `stt`; có thể đặt model nhẹ hơn riêng cho nó |
+| | `stt_wake` (nghe từ gọi "hino" và "dừng", chạy trên mọi câu mic cắt ra) | whisper.cpp small, cổng 8084 (hồ sơ GPU: theo `stt`) |
 | | `tts` (nói) | VieNeu (tiếng Việt) và SAPI (tiếng Anh), chạy trong tiến trình |
 | Plugin | `plugin_chat` (`POST /api/plugin-ai/chat`) | theo `chat`, nhưng là khâu riêng |
 
@@ -179,7 +179,7 @@ VR_CHAT_MODEL=ten-model
 
 `<KHÂU>` là `CHAT`, `AGENT`, `VISION`, `CODE`, `STT`, `STT_WAKE`, `TTS`, `PLUGIN_CHAT`. Khâu nào có `use` thì theo khâu kia: đặt `VR_CHAT_URL` là chuyển cả `agent`, `vision`, `plugin_chat` đi theo; đặt `VR_AGENT_URL` riêng thì tách `agent` ra. Điểm cuối cần nói giao thức OpenAI (`/chat/completions`, `/audio/transcriptions`, `/audio/speech`, `/models`). Khâu `tts` không có `VR_TTS_URL` thì dùng giọng trong tiến trình.
 
-**Máy chủ AI trên máy** (`servers` trong `stages.json`): llama.cpp và whisper.cpp là chương trình thường, `run.py` tải về `assistant/bin/` cùng model vào `assistant/weights/` (`downloads.json`, khoảng 17 GB lần đầu), rồi server Python khởi chạy chúng và tắt cùng nó (`assistant/ai/servers.py`). Hai model llama (8B trả lời và 14B viết plugin) cùng `group: "gpu"` vì không vừa chung 16 GB VRAM: viết plugin thì máy chủ 8B được tắt nhường chỗ, và bật lại ở câu hỏi kế tiếp. Chương trình llama.cpp là bản CUDA 13.5 (cần cho RTX 50); whisper.cpp là bản CUDA 12.4 và tự chạy bằng CPU nếu card không nhận. **Chưa chạy thử trên máy có GPU.** Log của từng máy chủ nằm ở `assistant/data/logs/`.
+**Máy chủ AI trên máy** (`servers` trong `stages.json`): llama.cpp và whisper.cpp là chương trình thường, `run.py` tải về `assistant/bin/` cùng model vào `assistant/weights/` (`downloads.json`, khoảng 7 GB lần đầu), rồi server Python khởi chạy chúng và tắt cùng nó (`assistant/ai/servers.py`). **Nhánh `cpu` này** dành cho máy không có card NVIDIA (thử trên laptop i7-8665U 4 nhân, 16 GB RAM): bản CPU của llama.cpp và whisper.cpp, model nhỏ (Qwen3-VL 4B, Qwen2.5-Coder 3B, Whisper large-v3 q5 và small). Máy chủ viết mã chỉ chạy khi cần. Nhánh `gpu` là bản cho card RTX 16 GB (Qwen3-VL 8B, Coder 14B, bản CUDA). Log của từng máy chủ nằm ở `assistant/data/logs/`.
 
 **Không còn "nguồn local/api" để đổi bằng giọng nói, và không còn dự phòng.** Một khâu lỗi thì báo lỗi rõ (tên khâu, địa chỉ), không tự chuyển sang nơi khác. Nói "hiện thông tin model" để xem từng khâu đang dùng gì; "đổi model trả lời sang …" chỉ áp dụng cho khâu đang trỏ tới API bên ngoài (khâu chạy trên máy chỉ có đúng model đã nạp).
 

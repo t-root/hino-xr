@@ -173,9 +173,10 @@ về `sleep`, **không** tắt hẳn: gọi "Hino" lại là mở phiên mới. 
 Nạp mô hình **không** phải bận: tên "Hino" vẫn phải được nghe và có phản hồi.
 Không dùng `busy()` để chặn micro.
 
-**E3.** Hai khâu nghe (`assistant/models/speech.py`): `stt` cho câu hỏi và lệnh (`careful=True`), `stt_wake` cho từ gọi và "dừng" (chạy trên mọi câu mic cắt ra). Hồ sơ GPU cho `stt_wake` theo `stt`; hồ sơ CPU đặt một Whisper nhỏ riêng cho nó. Mặc định GPU: một mô hình, khâu `stt`: whisper.cpp large-v3 q5 chạy trên GPU,
-nghe cả từ gọi lẫn câu hỏi và lệnh. Trước đây có thêm Whisper nhỏ riêng cho từ gọi vì large-v3 trên CPU mất vài giây và người dùng
-tưởng Hino không nghe; trên GPU điều đó không còn, và hai mô hình là hai thứ phải giữ. `careful=True` (beam 5) chỉ cho câu hỏi và lệnh.
+**E3.** Hai khâu nghe (`assistant/models/speech.py`): `stt` cho câu hỏi và lệnh (`careful=True`, beam 5) và `stt_wake` cho từ gọi
+và "dừng", chạy trên **mọi** câu mic cắt ra. Hồ sơ CPU (nhánh `cpu`): `stt` là whisper.cpp large-v3 q5, `stt_wake` là Whisper
+small riêng: large-v3 trên CPU mất vài giây một câu và người dùng tưởng Hino không nghe, nên không dùng nó cho từ gọi. Hồ sơ GPU
+(nhánh `gpu`): `stt_wake` theo `stt`, một mô hình cho cả hai.
 Đã so sánh large-v3 với large-v3-turbo trên cùng các câu: độ chính xác gần nhau, nhưng turbo
 có lúc lặp vòng giải mã (26 giây, ra "Mn-mn-mn") còn large-v3 ổn định và giữ được từ "plugin". Nếu khâu `stt` bị trỏ tới API bên
 ngoài thì **mọi** đoạn âm thanh (kể cả đoạn dò từ gọi, chạy liên tục) đi ra khỏi máy: cân nhắc trước khi làm vậy.
@@ -288,7 +289,7 @@ cho mô hình, kiểm tra kết quả (JSON hợp lệ, build thử trên bản 
 ghi gì vào plugin. Duyệt thì `_apply_edit` sao lưu bản gốc vào `plugins-backup/`, ghi file, build, và **trả lại bản gốc nếu
 build lỗi**. `models.json` và `vendor.json` không bao giờ bị sửa.
 
-**G4.** Ai viết mã: khâu `code` (`assistant/ai/stages.json`), mặc định Qwen2.5-Coder 14B chạy trên máy, nạp khi cần và tắt sau
+**G4.** Ai viết mã: khâu `code` (`assistant/ai/stages.json`), mặc định Qwen2.5-Coder 3B chạy trên CPU, nạp khi cần và tắt sau
 `idle_s` giây. Không có công tắc "dùng API/dùng local" bằng giọng nói: đổi nơi chạy là đổi `VR_CODE_URL`/`VR_CODE_KEY`/`VR_CODE_MODEL`.
 
 **G5.** **Một cấu hình, một client cho mọi AI.** Mã gọi AI chỉ nằm ở `assistant/ai/` (`client.py` gọi, `config.py` đọc `stages.json`
@@ -301,9 +302,10 @@ việc cấu hình sai.
 (`plugin_chat`) là hai nhóm (`config.ASSISTANT_STAGES`, `config.PLUGIN_STAGES`). Plugin chỉ gọi `/api/plugin-ai/*`, không gọi được khâu của
 trợ lý; đổi địa chỉ của `plugin_*` không động tới Hino. `vision` là trợ lý đọc **ảnh chụp màn hình**, không phải camera.
 
-**G6.** Hai model ngôn ngữ chung một GPU (`servers` trong `stages.json`): trả lời (8B) và viết plugin (14B) cùng `group`, nên không chạy đồng thời.
-`servers.use()` giữ máy chủ trong lúc đang gọi: máy chủ khác cùng nhóm chờ đến khi nó rảnh (tối đa 300 giây) rồi mới tắt nó, nên một câu hỏi
-không cắt ngang việc viết plugin đang dở. Khóa `pluginsmith._lock` **không** được giữ trong lúc chờ model (`pluginsmith.draft/revise`).
+**G6.** Trên CPU hai model ngôn ngữ (trả lời 4B, viết plugin 3B) **không** chung nhóm: máy chủ viết mã chỉ chạy khi cần và tự tắt sau
+`idle_s` giây, vừa trong 16 GB RAM cùng Whisper và trình duyệt. Chúng tranh nhau nhân CPU, nên hỏi trong lúc đang viết plugin sẽ chậm đi.
+`servers.py` vẫn hỗ trợ `group` cho máy có một GPU nhỏ dùng chung (nhánh `gpu`): máy chủ cùng nhóm chờ nhau rảnh (tối đa 300 giây)
+rồi mới tắt nhau. Khóa `pluginsmith._lock` **không** được giữ trong lúc chờ model (`pluginsmith.draft/revise`).
 
 **G7.** Đổi model bằng giọng nói (`modelswitch.py`): chỉ áp dụng cho khâu đang trỏ tới API bên ngoài, chỉ nhận tên model **có trong
 danh sách mà điểm cuối đó trả về** (`ai.models`), không bao giờ nhận tên như Whisper nghe được; đổi model luôn **đọc lại tên đầy đủ và

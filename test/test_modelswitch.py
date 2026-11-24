@@ -147,9 +147,9 @@ class ModelSwitchTest(Env):
         out = switch.command("hiện thông tin model", "vi")
         self.assertEqual(out["reply"], "Mình đang hiện cấu hình trợ lý trên màn hình.")
         self.assertEqual(out["open"], "assistant")
-        self.assertIn("Trả lời: máy này · qwen3-vl-8b", out["display"])
+        self.assertIn(f"Trả lời: máy này · {ai.stage('chat').model}", out["display"])
         self.assertIn("Nhìn màn hình: máy này", out["display"])
-        self.assertIn("Viết plugin: máy này · qwen2.5-coder-14b", out["display"])
+        self.assertIn(f"Viết plugin: máy này · {ai.stage('code').model}", out["display"])
         self.assertIn("VieNeu", out["display"])
         self.assertIn("Plugin hỏi đáp", out["display"])
 

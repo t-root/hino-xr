@@ -3,35 +3,43 @@
   "items": [
     {
       "id": "llm",
-      "what": "Qwen3-VL 8B (tra loi, dieu khien menu, nhin man hinh)",
-      "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/Qwen3VL-8B-Instruct-Q4_K_M.gguf",
-      "to": "assistant/weights/Qwen3VL-8B-Instruct-Q4_K_M.gguf",
-      "bytes": 5027784800,
-      "sha256": "67d1659bfe71b89d50b45a4ad1a9e5b997e5bb16ce5da66a6a6167abd569e9e2"
+      "what": "Qwen3-VL 4B (tra loi, dieu khien menu, nhin man hinh va camera)",
+      "url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+      "to": "assistant/weights/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+      "bytes": 2497281664,
+      "sha256": "66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a"
     },
     {
       "id": "llm-mmproj",
-      "what": "Qwen3-VL 8B mmproj (bo doc anh)",
-      "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf",
-      "to": "assistant/weights/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf",
-      "bytes": 752289728,
-      "sha256": "c6ba85508d82f42590e6eb77d5340369ab6fecf107a7561d809523d8aa5f3bfd"
+      "what": "Qwen3-VL 4B mmproj (bo doc anh)",
+      "url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
+      "to": "assistant/weights/mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
+      "bytes": 453974304,
+      "sha256": "30ba2c7dd3127a4561b6cba9d13d0f711c91bdb38742e2f56d73c8cb596bd06d"
     },
     {
       "id": "coder",
-      "what": "Qwen2.5-Coder 14B (viet va sua plugin, chi nap khi can)",
-      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
-      "to": "assistant/weights/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
-      "bytes": 8988110272,
-      "sha256": "c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940"
+      "what": "Qwen2.5-Coder 3B (viet va sua plugin, chi nap khi can)",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+      "to": "assistant/weights/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+      "bytes": 2104932800,
+      "sha256": "724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7"
     },
     {
       "id": "stt",
-      "what": "Whisper large-v3 q5 (nghe cau hoi, lenh va tu goi Hino)",
+      "what": "Whisper large-v3 q5 (nghe cau hoi va lenh)",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
       "to": "assistant/weights/ggml-large-v3-q5_0.bin",
       "bytes": 1081140203,
       "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    },
+    {
+      "id": "stt-wake",
+      "what": "Whisper small (nghe tu goi Hino va 'dung', nhanh)",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+      "to": "assistant/weights/ggml-small.bin",
+      "bytes": 487601967,
+      "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
     },
     {
       "id": "voice-vi-turbo-denoiser-onnx",
@@ -163,42 +171,29 @@
     },
     {
       "id": "bin-llama",
-      "what": "llama.cpp b12681 CUDA 13.5 (may chu AI cho tra loi, nhin man hinh, viet plugin)",
-      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12681/llama-b12681-bin-win-cuda-13.5-x64.zip",
+      "what": "llama.cpp b12681 ban CPU (may chu AI cho tra loi, nhin hinh, viet plugin)",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12681/llama-b12681-bin-win-cpu-x64.zip",
       "to": "assistant/bin/llama",
       "unpack": true,
       "flat": true,
       "needs": [
         "llama-server.exe"
       ],
-      "bytes": 225953336,
-      "sha256": "184f8512ff6e8d16d543033f76d529025bf87130fb43462328871c61fa8e5bdc"
-    },
-    {
-      "id": "bin-llama-cudart",
-      "what": "Thu vien CUDA 13.5 di kem llama.cpp",
-      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12681/cudart-llama-bin-win-cuda-13.5-x64.zip",
-      "to": "assistant/bin/llama",
-      "unpack": true,
-      "flat": true,
-      "needs": [
-        "cudart64_13.dll"
-      ],
-      "bytes": 426314199,
-      "sha256": "c2bf4cc202bfbaaa7a0b75f5082457c3811326947bb216059b72839d844e9cba"
+      "bytes": 25216175,
+      "sha256": "443e41b8216b71e7a8e443fba4bd9502c0b64e9ba226112f47cb074c7a0f29cf"
     },
     {
       "id": "bin-whisper",
-      "what": "whisper.cpp CUDA 12.4 (may chu nghe)",
-      "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5907/whisper-bin-win-cuda-12.4.0-x64.zip",
+      "what": "whisper.cpp ban CPU (may chu nghe)",
+      "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5907/whisper-bin-x64.zip",
       "to": "assistant/bin/whisper",
       "unpack": true,
       "flat": true,
       "needs": [
         "whisper-server.exe"
       ],
-      "bytes": 735571214,
-      "sha256": "34f872ce724ca1ff0a4afca481853e5ee74250f8cb22153e499f953562846039"
+      "bytes": 9168428,
+      "sha256": "ecca07b277d943e9b9f4712856a144b857271a6b333104e511e1988e80db582b"
     }
   ]
 }

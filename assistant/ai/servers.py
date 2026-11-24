@@ -4,8 +4,8 @@ They are ordinary programs that speak the OpenAI HTTP API, started here and stop
 project only ever sees a url (`config.stage`). Nothing in this file knows what a stage is for.
 
 - A server marked `lazy` starts the first time something asks for it and stops after `idle_s` seconds of not being asked.
-- Servers of the same `group` share one GPU: starting one first stops the others, once they are idle. The 8B model that
-  answers and the 14B that writes plugins do not fit in 16 GB together, so writing a plugin swaps them over.
+- Servers of the same `group` share one device (a GPU too small for both models): starting one first stops the others, once
+  they are idle. The GPU profile puts the model that answers and the one that writes plugins in a group; the CPU profile does not.
 - A server that is not running is started on demand, so a crash is healed by the next request.
 """
 
