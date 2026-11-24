@@ -248,8 +248,15 @@ class AITest(unittest.TestCase):
         self.assertEqual(command[command.index("--mmproj") + 1], str(mmproj))
 
     def test_a_server_that_is_not_downloaded_says_what_to_do(self) -> None:
-        with self.assertRaises(ai.servers.ServerError) as caught:
-            ai.servers.command("coder")
+        # Whatever is on this machine: point the server at a file that is not there.
+        keep = dict(ai.config.servers()["coder"])
+        ai.config.servers()["coder"]["model"] = "assistant/weights/not-downloaded.gguf"
+        try:
+            with self.assertRaises(ai.servers.ServerError) as caught:
+                ai.servers.command("coder")
+        finally:
+            ai.config.servers()["coder"].clear()
+            ai.config.servers()["coder"].update(keep)
         self.assertIn("run.py", str(caught.exception))
 
     def test_a_stage_pointed_elsewhere_starts_no_server(self) -> None:

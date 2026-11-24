@@ -19,8 +19,15 @@ bằng con lăn. Đường phố tải sẵn lúc chọn vùng nhưng **ẩn** c
 thiết bị (không bay, vì bản đồ mở ở bên kia trái đất). Nút định vị là biểu tượng ngắm tròn nằm trong hàng nút phía trên
 (`m3-bar`); bấm là bay về lại vị trí đó. `data-busy` khi đang tìm, `data-failed` khi không định vị được (lý do nằm ở `title`).
 
-**L3.** Trong thành phố 3D tay làm việc với thứ nó nắm vào (`Space.handDown`, `twoHand`).
-Một tay chụm vào một tòa thì tòa đó được chọn và kéo đổi chiều cao (lên xuống) và bề rộng (trái phải); chụm vào chỗ
-không có nhà thì kéo là trượt cả cảnh. Hai tay: nếu giữa hai tay (lúc vừa chụm) là một tòa thì dời tòa đó trên mặt đất,
-nếu không thì giang ra hoặc khép vào là thu phóng, vặn là xoay, nâng hoặc hạ cả hai tay là nghiêng. Thứ nằm giữa hai
-tay được quyết khi hai tay chụm và giữ cho đến khi mở.
+**L3.** Trong thành phố 3D, **một tay chỉ chỉnh tòa nhà, không dời gì**: chụm vào một tòa thì tòa đó được chọn và kéo đổi chiều
+cao (lên xuống) và bề rộng (trái phải) (`Space.handDown`, `handMove`). Chụm vào chỗ không có nhà rồi buông mà không kéo (dưới
+`HAND_TAP_PX`, 12 px) thì **bỏ chọn** tòa đang chọn, như bấm ra ngoài bằng chuột (`handUp`); kéo ở chỗ trống không làm gì. Chuột và một ngón chạm cũng vậy: một con trỏ chỉ đổi cao và rộng (`BuildingView.beginSize`), Shift cộng chuột là "tay thứ hai" của chuột và dời tòa.
+Dời tòa bằng tay phải dùng **hai tay**: nếu giữa hai tay (lúc vừa chụm) là một tòa thì dời tòa đó trên mặt đất, nếu không thì giang ra hoặc khép
+vào là thu phóng, vặn là xoay, nâng hoặc hạ cả hai tay là nghiêng (`twoHand`). Thứ nằm giữa hai tay được quyết khi hai tay chụm và
+giữ cho đến khi mở. Một cú chụm trống của tay thứ nhất mà tay thứ hai nhập vào giữa chừng không tính là bấm, nên không bỏ chọn tòa
+đang được mang.
+
+**L4.** Một tòa nhà to ra và nhỏ đi **đều quanh chính nó**, không lệch về một phía. Đường viền của tòa được vẽ quanh tâm của nó và
+nhóm đặt đúng tâm đó (`BuildingView.center`); chiều cao thì mọc lên từ mặt đất. Nếu co giãn quanh tâm thành phố thì mỗi tòa sẽ
+trôi ra xa (hoặc lại gần) tâm khi nở rộng, trông như đang bị dời. Vị trí lưu cho mỗi tòa là **độ lệch so với chỗ cũ** của nó, nên
+`(0, 0, 0)` vẫn là chỗ ban đầu.

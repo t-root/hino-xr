@@ -52,10 +52,10 @@ interface BuildingHost {
 }
 
 /**
- * One extruded building with the original's behaviour: hover lights it up,
- * a press selects it, and once selected a drag moves it over the ground and two
- * fingers resize it — wider when they spread sideways, taller when they spread
- * up and down.
+ * One extruded building: hover lights it up, a press selects it, and once selected one pointer (a mouse, one finger)
+ * only resizes it — up and down is how tall, left and right is how wide, as with one hand. Moving it over the ground
+ * takes a second hand (`Space.twoHand`), or Shift with the mouse. Two fingers still resize, wider when they spread
+ * sideways and taller when they spread up and down.
  */
 class BuildingView {
   readonly group = new THREE.Group();
@@ -63,11 +63,19 @@ class BuildingView {
 
   private readonly edges: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   private readonly depth: number;
+  /**
+   * The middle of the footprint, in the city's coordinates. The outline is drawn around its own middle and the group
+   * stands there, so a building grows and shrinks evenly about itself. Scaled about the city's centre instead, every
+   * building would creep away from it (or towards it) as it widened.
+   */
+  private readonly center: THREE.Vector3;
 
   private hovered = false;
   private selected = false;
   private interaction: "move" | "resize" | null = null;
   private moveOffset: THREE.Vector3 | null = null;
+  /** Where one pointer took hold of the size, and what the size was then. */
+  private dragStart: { x: number; y: number; scale: Vec3 } | null = null;
   private readonly touchPoints = new Map<number, { x: number; y: number }>();
   private pinchStart: { spanX: number; spanY: number; scale: Vec3 } | null = null;
 
@@ -81,10 +89,15 @@ class BuildingView {
     private readonly host: BuildingHost,
   ) {
     this.depth = depth;
-    this.group.position.set(position.x, position.y, position.z);
+    // The mesh is turned flat (x, y, z becomes x, z, -y), so the outline's y is the world's -z.
+    const box = new THREE.Box2().setFromPoints(shape.getPoints());
+    const middle = box.getCenter(new THREE.Vector2());
+    this.center = new THREE.Vector3(middle.x, 0, -middle.y);
+    this.group.position.set(position.x + this.center.x, position.y, position.z + this.center.z);
     this.group.scale.set(buildingScale.x, buildingScale.y, buildingScale.z);
 
     const geometry = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, bevelEnabled: false });
+    geometry.translate(-middle.x, -middle.y, 0);
     this.mesh = new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.12, metalness: 0.35, side: THREE.DoubleSide }),
@@ -164,9 +177,11 @@ class BuildingView {
     if (event.pointerType === "touch") {
       this.touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (this.touchPoints.size === 2) this.beginPinch();
-      else this.beginMove(event);
+      else this.beginSize(event);
     } else {
-      this.beginMove(event);
+      // Shift is the mouse's second hand: it carries the building. Plain, the mouse is one hand: it resizes.
+      if (event.shiftKey) this.beginMove(event);
+      else this.beginSize(event);
       this.host.setCursor("grabbing");
     }
   }
@@ -174,15 +189,19 @@ class BuildingView {
   onPointerMove(event: PointerEvent): void {
     if (event.pointerType === "touch") {
       this.touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      this.updatePinch();
-    } else {
+      if (this.touchPoints.size >= 2) this.updatePinch();
+      else this.updateSize(event);
+    } else if (this.moveOffset) {
       this.updateMove(event);
+    } else {
+      this.updateSize(event);
     }
   }
 
   onPointerUp(event: PointerEvent): void {
     this.host.release(event.pointerId);
     this.moveOffset = null;
+    this.dragStart = null;
     if (event.pointerType === "touch") {
       this.touchPoints.delete(event.pointerId);
       this.pinchStart = null;
@@ -201,6 +220,21 @@ class BuildingView {
     this.applyLook();
   }
 
+  private beginSize(event: PointerEvent): void {
+    this.dragStart = { x: event.clientX, y: event.clientY, scale: { ...this.buildingScale } };
+    this.moveOffset = null;
+    this.setInteraction("resize");
+  }
+
+  /** One pointer: up and down sets the height, left and right the width, in the same drag. */
+  private updateSize(event: PointerEvent): void {
+    const start = this.dragStart;
+    if (!start) return;
+    const width = clamp(start.scale.x + (event.clientX - start.x) * 0.012, 0.35, 3.5);
+    const height = clamp(start.scale.y + (start.y - event.clientY) * 0.016, 0.3, 6);
+    this.applyScale({ x: width, y: height, z: width });
+  }
+
   private beginMove(event: PointerEvent): void {
     const groundPoint = this.host.groundPoint(event);
     if (!groundPoint) return;
@@ -214,7 +248,7 @@ class BuildingView {
     if (!groundPoint) return;
     const position = groundPoint.add(this.moveOffset);
     this.group.position.set(position.x, 0, position.z);
-    this.host.setBuildingPosition(this.id, { x: position.x, y: 0, z: position.z });
+    this.host.setBuildingPosition(this.id, { x: position.x - this.center.x, y: 0, z: position.z - this.center.z });
   }
 
   private beginPinch(): void {
@@ -256,7 +290,7 @@ class BuildingView {
 
   placeAt(x: number, z: number): void {
     this.group.position.set(x, 0, z);
-    this.host.setBuildingPosition(this.id, { x, y: 0, z });
+    this.host.setBuildingPosition(this.id, { x: x - this.center.x, y: 0, z: z - this.center.z });
   }
 
   resize(value: Vec3): void {
@@ -273,13 +307,14 @@ class BuildingView {
 /** A house a hand worked this recently, ms, is still the one a second hand joining means. */
 const RECENT_HOUSE_MS = 1500;
 
+/** A pinch that ends this close, px, to where it began is a tap, not a drag. */
+const HAND_TAP_PX = 12;
+
 type HandDrag = {
   pointerId: number;
-  /** What the hand took hold of: the city (it slides) or a house (its height and width change). */
-  kind: "scene" | "house";
+  /** What the hand took hold of: a house (its height and width change) or nothing (a tap there lets go of the house). */
+  kind: "empty" | "house";
   view: SpaceView;
-  lastX: number;
-  lastY: number;
   startX: number;
   startY: number;
   building: BuildingView | null;
@@ -340,6 +375,8 @@ export class SpaceCore implements BuildingHost {
   /** What a hand's pinch-and-drag does; the same for every eye. */
 
   private hand: HandDrag | null = null;
+  /** A second hand joined while the first was pinching: that pinch is not a tap. */
+  private handJoined = false;
   /** The house a hand last worked and when: a second hand closing right after is meant for that house, not the city. */
   private lastWorked: { building: BuildingView; at: number } | null = null;
   private readonly captures = new Map<number, { building: BuildingView; view: SpaceView }>();
@@ -538,9 +575,9 @@ export class SpaceCore implements BuildingHost {
   // ---- a hand: what it does depends on what it took hold of ----
 
   /**
-   * Pinching a house takes hold of that house (it is chosen, and dragging sets its height and width); pinching
-   * anywhere else takes hold of the city (dragging slides it). There are no modes to pick: the hand is where
-   * the thing is.
+   * One hand does two things only. Pinching a house chooses it, and dragging sets its height (up and down) and its width
+   * (left and right). Pinching where there is no house and letting go without dragging lets go of the chosen house.
+   * Nothing is moved by one hand: carrying a house takes two (`twoHand`).
    */
   handDown(event: PointerEvent, view: SpaceView): void {
     if (this.hand) return;
@@ -548,12 +585,11 @@ export class SpaceCore implements BuildingHost {
     const house = this.pick(event, view);
     if (house && house.id !== this.selectedBuilding) this.select(house.id);
     if (house) this.lastWorked = { building: house, at: performance.now() };
+    this.handJoined = false;
     this.hand = {
       pointerId: event.pointerId,
-      kind: house ? "house" : "scene",
+      kind: house ? "house" : "empty",
       view,
-      lastX: event.clientX,
-      lastY: event.clientY,
       startX: event.clientX,
       startY: event.clientY,
       building: house,
@@ -564,17 +600,10 @@ export class SpaceCore implements BuildingHost {
   handMove(event: PointerEvent): void {
     const drag = this.hand;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.lastX;
-    const dy = event.clientY - drag.lastY;
-    drag.lastX = event.clientX;
-    drag.lastY = event.clientY;
+    if (drag.kind === "empty") return;
     if (drag.building) this.lastWorked = { building: drag.building, at: performance.now() };
     const { height } = drag.view.size();
     const h = Math.max(height, 1);
-    if (drag.kind === "scene") {
-      this.panBy(dx, dy, h);
-      return;
-    }
     // One hand on a house: up and down is how tall, left and right is how wide, in the same drag.
     if (!drag.building || !drag.startSize) return;
     const up = (drag.startY - event.clientY) / h;
@@ -584,7 +613,13 @@ export class SpaceCore implements BuildingHost {
   }
 
   handUp(event: PointerEvent): void {
-    if (this.hand?.pointerId === event.pointerId) this.hand = null;
+    const drag = this.hand;
+    if (drag?.pointerId !== event.pointerId) return;
+    this.hand = null;
+    // A tap on empty ground lets go of the house, as a click does with a mouse. Not when a second hand joined: that
+    // pinch was one of the two carrying a house, and the house stays chosen.
+    const moved = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (drag.kind === "empty" && !this.handJoined && moved <= HAND_TAP_PX) this.select(null);
   }
 
   private selectedView(): BuildingView | null {
@@ -603,20 +638,6 @@ export class SpaceCore implements BuildingHost {
     this.camera.lookAt(this.target);
   }
 
-  /** Slides the view over the ground, so the city follows the hand. */
-  private panBy(dx: number, dy: number, viewHeight: number): void {
-    const distance = this.camera.position.distanceTo(this.target);
-    const perPixel = (2 * distance * Math.tan((this.camera.fov * DEG) / 2)) / viewHeight;
-    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 0);
-    right.y = 0;
-    right.normalize();
-    const forward = new THREE.Vector3(-right.z, 0, right.x).negate();
-    const move = right.multiplyScalar(-dx * perPixel).add(forward.multiplyScalar(-dy * perPixel));
-    this.camera.position.add(move);
-    this.target.add(move);
-    this.camera.lookAt(this.target);
-  }
-
   /** The house two hands are holding, and where it stands against where their midpoint lands on the ground. */
   private held: { building: BuildingView; offset: THREE.Vector3 } | null = null;
 
@@ -628,6 +649,7 @@ export class SpaceCore implements BuildingHost {
    */
   twoHand(step: TwoHandDomDetail, view: SpaceView): void {
     if (step.phase === "start") {
+      this.handJoined = true;
       this.eventView = view;
       // The house between the hands; failing that, the one a hand was working an instant ago. Closing the second
       // hand while the first holds a house is how a house is carried, and must never turn the city.
