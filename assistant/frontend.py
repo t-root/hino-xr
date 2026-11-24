@@ -187,6 +187,32 @@ def _plugin_folders() -> list[Path]:
     return sorted(path for path in modules.iterdir() if path.is_dir())
 
 
+PLUGIN_INDEX = SRC / "modules" / "plugins.generated.ts"
+
+
+def plugin_index() -> str:
+    """The list of plugins, made from the folders: every `src/modules/<id>/plugin.ts` is a plugin, and nothing else names one.
+
+    The bundler has no `import.meta.glob`, so Python writes the imports that glob would have made. Adding a plugin is adding
+    a folder; no file outside it is edited, by a person or by the assistant.
+    """
+    ids = [folder.name for folder in _plugin_folders() if (folder / "plugin.ts").is_file()]
+    lines = ["// Written by assistant/frontend.py at every build from src/modules/*/plugin.ts. Do not edit; it is not in git."]
+    lines.append('import type { PluginEntry } from "@/core/modules/definePlugin";')
+    lines += [f'import plugin{index} from "./{name}/plugin";' for index, name in enumerate(ids)]
+    lines.append(f"export const plugins: ReadonlyArray<PluginEntry> = [{', '.join(f'plugin{index}' for index in range(len(ids)))}];")
+    return "\n".join(lines) + "\n"
+
+
+def write_plugin_index() -> bool:
+    """Writes the index when the folders changed (and only then, so an unchanged tree is not rebuilt). True if it changed."""
+    text = plugin_index()
+    if PLUGIN_INDEX.is_file() and PLUGIN_INDEX.read_text(encoding="utf-8") == text:
+        return False
+    PLUGIN_INDEX.write_text(text, encoding="utf-8", newline="\n")
+    return True
+
+
 def _declared_files(folder: Path) -> list[dict[str, str]]:
     """The on-device files a plugin's own models.json names."""
     spec_path = folder / "models.json"
@@ -338,6 +364,7 @@ CHUNKS = RUNTIME / "chunks"
 
 def bundle(esbuild: Path) -> None:
     RUNTIME.mkdir(parents=True, exist_ok=True)
+    write_plugin_index()
     app_js = RUNTIME / "app.js"
     env = _esbuild_env()
     if _needs_bundle(app_js):

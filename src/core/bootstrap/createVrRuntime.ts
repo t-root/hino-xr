@@ -10,6 +10,7 @@ import { HitTestService } from "../input/HitTestService";
 import { InteractionManager } from "../input/InteractionManager";
 import { InteractiveRegistry } from "../input/InteractiveRegistry";
 import { MediaController } from "../media/MediaController";
+import { setCameraView } from "../screen/ScreenCapture";
 import { ModuleManager } from "../modules/ModuleManager";
 import { ModuleRegistry } from "../modules/module-registry";
 import { ModuleScreenHost } from "../modules/ModuleScreenHost";
@@ -305,6 +306,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     videoLayer.attach(source.video, mirrored, 0);
     videoLayer.mesh.visible = true;
     frameHub.attach(source);
+    setCameraView(() => ({ video: source.video, mirrored }));
     syncCameraOrientation();
     frameHub.start();
 
@@ -330,6 +332,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     void modules.disposeAll();
     frameHub.stop();
     camera.stop();
+    setCameraView(null);
     videoLayer.detach();
   };
 

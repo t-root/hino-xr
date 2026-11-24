@@ -169,9 +169,9 @@ class SpokenPathTest(unittest.TestCase):
 
     def test_a_timer_reaches_the_page_as_a_command_with_its_clock(self) -> None:
         engine = engine_module.Engine()
-        spec = catalog.ModelSpec(id="t", gguf="nowhere.gguf")
-        engine._spec, engine.state, engine._model = spec, "ready", object()
-        engine._ensure_speech = lambda: None
+        spec = catalog.ModelSpec(id="t")
+        engine._spec, engine.state = spec, "ready"
+        engine_module.ai.ready = lambda name: None  # no server of this machine in a test
         keep = (speech_module.speech.transcribe, engine_module._tts)
         speech_module.speech.transcribe = lambda *a, **k: "hẹn giờ năm phút"
         engine_module._tts = lambda text, locale, tuning: None

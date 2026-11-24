@@ -3,9 +3,9 @@
  *
  * The file is optional. A plugin with no weights has nothing to write. Core
  * never names a plugin's model: Python fetches `files` into the plugin's own
- * `models/` folder, and the model server may load `slots` that are local GGUF
- * causal LMs. Anything else a plugin needs — worker, mapping, thresholds,
- * copy — stays in the same folder.
+ * `models/` folder. Anything else a plugin needs — worker, mapping, thresholds,
+ * copy — stays in the same folder. A plugin that wants a language model asks the
+ * server's `plugin_chat` stage (`POST api/plugin-ai/chat`), never loads one.
  */
 import { ENV } from "@/env";
 

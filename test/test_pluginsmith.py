@@ -10,7 +10,8 @@ import unittest
 from helpers import ASSISTANT, SRC
 
 sys.path.insert(0, str(ASSISTANT))
-smith = importlib.import_module("models.pluginsmith")  # a package member: it imports models.cloud
+frontend = importlib.import_module("frontend")
+smith = importlib.import_module("models.pluginsmith")  # a package member: it imports the `ai` package
 sys.path.remove(str(ASSISTANT))
 
 GOOD = smith._EXAMPLE
@@ -76,17 +77,42 @@ class ReplyTest(unittest.TestCase):
 
 
 class InstallTest(unittest.TestCase):
-    def test_a_plugin_is_listed_in_the_registry_by_one_import_and_one_entry(self) -> None:
-        source = (SRC / "modules/registry.ts").read_text(encoding="utf-8")
-        updated = smith._register("ai-people", source)
-        self.assertIn('import aiPeople from "./ai-people/plugin";', updated)
-        self.assertRegex(updated, r"sceneDescription, visionAsk, aiPeople];")
-        self.assertEqual(len(re.findall("aiPeople", updated)), 2)
+    def test_a_plugin_is_found_from_its_folder_and_nothing_outside_it_is_edited(self) -> None:
+        import tempfile
+        from pathlib import Path
 
-    def test_a_draft_cannot_be_listed_twice(self) -> None:
-        source = (SRC / "modules/registry.ts").read_text(encoding="utf-8")
-        with self.assertRaises(ValueError):
-            smith._register("ai-people", smith._register("ai-people", source))
+        with tempfile.TemporaryDirectory() as tmp:
+            modules = Path(tmp) / "modules"
+            for name, has_plugin in (("b-plugin", True), ("a-plugin", True), ("not-a-plugin", False)):
+                (modules / name).mkdir(parents=True)
+                if has_plugin:
+                    (modules / name / "plugin.ts").write_text("export default {};", encoding="utf-8")
+            keep = frontend.SRC, frontend.PLUGIN_INDEX
+            frontend.SRC, frontend.PLUGIN_INDEX = Path(tmp), modules / "plugins.generated.ts"
+            try:
+                before = frontend.plugin_index()
+                self.assertTrue(frontend.write_plugin_index())
+                self.assertFalse(frontend.write_plugin_index())  # unchanged: the file keeps its time, so nothing is rebuilt
+                (modules / "ai-people").mkdir()
+                (modules / "ai-people" / "plugin.ts").write_text("export default {};", encoding="utf-8")
+                after = frontend.plugin_index()
+                self.assertTrue(frontend.write_plugin_index())
+            finally:
+                frontend.SRC, frontend.PLUGIN_INDEX = keep
+        self.assertNotIn("ai-people", before)
+        self.assertIn('import plugin0 from "./a-plugin/plugin";', after)  # in path order
+        self.assertNotIn("not-a-plugin", after)
+        self.assertIn('"./ai-people/plugin"', after)
+        self.assertNotIn("registry", after)
+
+    def test_installing_a_draft_touches_no_file_outside_the_plugin_folder(self) -> None:
+        source = (ASSISTANT / "models/pluginsmith.py").read_text(encoding="utf-8")
+        install = source[source.index("def _approve"):source.index("# --- changing a plugin that exists")]
+        self.assertNotIn("registry", install.lower())
+        self.assertNotIn("write_text", install)
+        self.assertNotIn("_register", source)
+        registry = (SRC / "modules/registry.ts").read_text(encoding="utf-8")
+        self.assertNotRegex(registry, r"from \"\./[a-z-]+/plugin\"")  # no plugin is named there
 
     def test_a_draft_gets_the_permissions_it_asked_for_and_only_those(self) -> None:
         import tempfile
@@ -135,31 +161,88 @@ class InstallTest(unittest.TestCase):
                 smith._lock.release()
             raise smith.DraftError("stop here")
 
-        original = smith._api_complete
-        smith._api_complete = slow_model
+        original = smith._complete
+        smith._complete = slow_model
         try:
             with self.assertRaises(smith.DraftError):
-                smith.draft("count people", "en", kind="api")
+                smith.draft("count people", "en")
         finally:
-            smith._api_complete = original
+            smith._complete = original
         self.assertEqual(free_during_the_ask, [True])
 
-    def test_the_default_is_local_and_api_needs_a_key(self) -> None:
+    def test_the_code_stage_writes_and_its_failure_is_a_draft_error(self) -> None:
         import os
 
-        keys = {k: os.environ.pop(k, None) for k in ("VR_SILICONFLOW_KEY", "SILICONFLOW_API_KEY")}
+        keep = {k: os.environ.pop(k, None) for k in ("VR_CODE_URL",)}
+        os.environ["VR_CODE_URL"] = "http://127.0.0.1:1/v1"
         try:
-            smith.set_source("local")
-            self.assertFalse(smith.set_source("api"))
-            self.assertEqual(smith.source(), "local")
-            os.environ["VR_SILICONFLOW_KEY"] = "test"
-            self.assertTrue(smith.set_source("api"))
-            smith.set_source("local")
+            with self.assertRaises(smith.DraftError) as caught:
+                smith._complete("system", "user")
+            self.assertIn("code", str(caught.exception))
         finally:
-            os.environ.pop("VR_SILICONFLOW_KEY", None)
-            for k, v in keys.items():
+            os.environ.pop("VR_CODE_URL", None)
+            for k, v in keep.items():
                 if v is not None:
                     os.environ[k] = v
+
+
+class RulesTest(unittest.TestCase):
+    """The plugin rules are a file, and it is what the model is shown every time it writes or changes a plugin."""
+
+    def test_the_file_is_there_and_short_enough_for_the_model_window(self) -> None:
+        text = smith.rules()
+        self.assertGreater(len(text), 1500)
+        self.assertLess(len(text), 12000)  # the code model has 16k tokens for the rules, the plugin and the answer
+
+    def test_it_is_put_after_both_prompts(self) -> None:
+        for system in (smith._SYSTEM, smith._REVISE_SYSTEM):
+            shown = smith.with_rules(system)
+            self.assertTrue(shown.startswith(system))
+            self.assertIn(smith.rules(), shown)
+        self.assertIn("with_rules(_SYSTEM)", (ASSISTANT / "models/pluginsmith.py").read_text(encoding="utf-8"))
+        self.assertIn("with_rules(_REVISE_SYSTEM)", (ASSISTANT / "models/pluginsmith.py").read_text(encoding="utf-8"))
+
+    def test_it_is_read_every_time_so_an_edit_applies_at_once(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        keep = smith.RULES
+        with tempfile.TemporaryDirectory() as tmp:
+            smith.RULES = Path(tmp) / "PLUGIN_RULES.md"
+            try:
+                smith.RULES.write_text("first rule", encoding="utf-8")
+                self.assertIn("first rule", smith.with_rules("system"))
+                smith.RULES.write_text("second rule", encoding="utf-8")
+                self.assertIn("second rule", smith.with_rules("system"))
+            finally:
+                smith.RULES = keep
+
+    def test_without_the_file_nothing_is_written(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        keep = smith.RULES
+        smith.RULES = Path(tempfile.gettempdir()) / "no-such-folder" / "PLUGIN_RULES.md"
+        try:
+            with self.assertRaises(smith.DraftError):
+                smith.draft("count people", "en")
+        finally:
+            smith.RULES = keep
+
+    def test_everything_the_checks_refuse_is_said_in_the_rules_first(self) -> None:
+        text = smith.rules()
+        for banned in ("eval", "Function", "import()", "require", "Proxy", "Reflect", "prototype", "__proto__", ".constructor",
+                       "import.meta", "<script", "ServiceWorker", "SharedWorker"):
+            self.assertIn(banned, text, banned)
+
+    def test_what_the_project_tests_enforce_is_in_the_rules(self) -> None:
+        text = smith.rules()
+        for needle in ("text.json", "vi", "en", "@/ui/theme", "SharedState", "CanvasMirror", "frameClock", "Math.random",
+                       "[data-twin-hover]", "overflow", "getUserMedia", "dispose", "plugin-ai/chat", "permissions"):
+            self.assertIn(needle, text, needle)
+
+    def test_a_revision_is_given_less_than_the_window_can_hold(self) -> None:
+        self.assertLessEqual(smith.MAX_SOURCE, 30000)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,12 @@
-"""Answering a question and writing a plugin are two sessions of one model: neither waits for the other."""
+"""A turn of the assistant: the answer comes from the `chat` stage, and the voice is made on its own thread."""
 
 from __future__ import annotations
 
+import contextlib
 import importlib
+import io
 import sys
-import threading
+import time
 import unittest
 
 from helpers import ASSISTANT
@@ -12,89 +14,75 @@ from helpers import ASSISTANT
 sys.path.insert(0, str(ASSISTANT))
 engine_module = importlib.import_module("models.engine")
 catalog = importlib.import_module("models.catalog")
+timing = importlib.import_module("models.timing")
 sys.path.remove(str(ASSISTANT))
 
 
-class FakeSession:
-    """Stands in for a llama.cpp session: says its name, and can be made to hold still half way."""
+class AnswerTest(unittest.TestCase):
+    """What the engine asks of the stage, and what it does when the stage fails."""
 
-    def __init__(self, name: str, hold: threading.Event | None = None, started: threading.Event | None = None) -> None:
-        self.name, self.hold, self.started = name, hold, started
-
-    def create_chat_completion(self, **kwargs):
-        def chunks():
-            yield {"choices": [{"delta": {"content": self.name}}]}
-            if self.started:
-                self.started.set()
-            if self.hold:
-                self.hold.wait(10)
-            yield {"choices": [{"delta": {"content": "!"}}]}
-
-        return chunks()
-
-
-class SessionsTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.spec = catalog.ModelSpec(id="t", gguf="nowhere.gguf")
         self.engine = engine_module.Engine()
-        self.engine._spec, self.engine.state = self.spec, "ready"
-        self.engine._ensure_speech = lambda: None  # no voice weights in a test
+        self.spec = catalog.ModelSpec(id="t")
+        self.ai = engine_module.ai
+        self.keep = (self.ai.ready, self.ai.chat_stream)
+        self.asked: list[tuple] = []
+        self.ai.ready = lambda name: None
 
-    def test_a_question_is_answered_while_a_plugin_is_being_written(self) -> None:
-        hold, started = threading.Event(), threading.Event()
-        self.engine._model = FakeSession("chat")
-        self.engine._code_model = FakeSession("code", hold, started)
-        writing: list[str] = []
+    def tearDown(self) -> None:
+        self.ai.ready, self.ai.chat_stream = self.keep
 
-        def write() -> None:
-            writing.extend(self.engine.generate(self.spec, [{"role": "user", "content": "x"}], 50, "en", session="code"))
+    def test_the_question_goes_to_the_chat_stage_with_the_system_line_first(self) -> None:
+        def stream(name, messages, max_tokens, temperature):
+            self.asked.append((name, [m["role"] for m in messages], max_tokens))
+            yield "Xin "
+            yield "chào"
 
-        thread = threading.Thread(target=write)
-        thread.start()
-        self.assertTrue(started.wait(5), "the code session never started")
-        answer = "".join(self.engine.generate(self.spec, [{"role": "user", "content": "hi"}], 50, "en"))
-        self.assertEqual(answer, "chat!")  # the code session is still holding still
-        self.assertEqual(writing, ["code"])
-        hold.set()
-        thread.join(5)
-        self.assertEqual("".join(writing), "code!")
+        self.ai.chat_stream = stream
+        text = "".join(self.engine.generate(self.spec, [{"role": "user", "content": "hi"}], 9999, "en"))
+        self.assertEqual(text, "Xin chào")
+        self.assertEqual(self.asked, [("chat", ["system", "user"], 512)])  # the length is capped
+        self.assertEqual(self.engine.state, "ready")
 
-    def test_the_code_session_is_made_once_and_only_when_needed(self) -> None:
-        made: list[int] = []
-        self.engine._llama = lambda spec, threads, n_ctx: made.append(threads) or FakeSession("code")
-        self.assertEqual(made, [])
-        for _ in range(2):
-            "".join(self.engine.generate(self.spec, [{"role": "user", "content": "x"}], 50, "en", session="code"))
-        self.assertEqual(len(made), 1)
+    def test_a_failed_stage_is_a_failed_state_and_a_RuntimeError(self) -> None:
+        def stream(*args):
+            raise self.ai.AIError("chat: /chat/completions failed")
+            yield  # pragma: no cover
 
-    def test_the_code_session_gets_a_share_of_the_threads(self) -> None:
-        import os
+        self.ai.chat_stream = stream
+        with self.assertRaises(RuntimeError):
+            list(self.engine.generate(self.spec, [{"role": "user", "content": "hi"}], 50, "en"))
+        self.assertEqual(self.engine.state, "failed")
+        self.assertIn("chat", self.engine.error)
 
-        keep = {k: os.environ.get(k) for k in ("VR_N_THREADS", "VR_N_THREADS_CODE")}
-        try:
-            os.environ["VR_N_THREADS"] = "9"
-            os.environ.pop("VR_N_THREADS_CODE", None)
-            seen: list[int] = []
-            self.engine._llama = lambda spec, threads, n_ctx: seen.append(threads) or FakeSession("code")
-            self.engine._code_session(self.spec)
-            self.assertEqual(seen, [3])
-        finally:
-            for key, value in keep.items():
-                os.environ.pop(key, None)
-                if value is not None:
-                    os.environ[key] = value
+    def test_a_server_that_will_not_start_fails_the_load(self) -> None:
+        def ready(name):
+            raise self.ai.AIError("chat: llama-server.exe is not in assistant/bin/llama: run run.py to download it")
 
+        self.ai.ready = ready
+        with self.assertRaises(RuntimeError) as caught:
+            self.engine.load(self.spec)
+        self.assertIn("run.py", str(caught.exception))
+        self.assertEqual(self.engine.snapshot(self.spec)["state"], "failed")
+
+    def test_the_snapshot_says_where_the_answers_come_from(self) -> None:
+        self.engine.load(self.spec)
+        shot = self.engine.snapshot(self.spec)
+        self.assertEqual((shot["state"], shot["device"]), ("ready", "local"))
+        self.assertIsNone(self.engine.snapshot(catalog.ModelSpec(id="other"))["device"])
+
+    def test_the_old_id_the_page_saved_still_means_the_assistant(self) -> None:
+        self.assertEqual(engine_module.resolve("qwen-2.5-3b").id, "assistant")
+        with self.assertRaises(KeyError):
+            engine_module.resolve("nonsense")
 
 
 class PipelineTest(unittest.TestCase):
     """The voice is made on its own thread: the model goes on writing while a sentence is being spoken."""
 
     def setUp(self) -> None:
-        import contextlib
-        import io
-
         self.engine = engine_module.Engine()
-        self.spec = catalog.ModelSpec(id="t", gguf="nowhere.gguf")
+        self.spec = catalog.ModelSpec(id="t")
         self.keep = engine_module._tts
         self.out = contextlib.redirect_stdout(io.StringIO())
         self.out.__enter__()
@@ -104,8 +92,6 @@ class PipelineTest(unittest.TestCase):
         self.out.__exit__(None, None, None)
 
     def test_tokens_are_not_held_up_by_the_voice(self) -> None:
-        import time
-
         times: list[float] = []
 
         def slow_voice(text, locale, tuning):
@@ -130,7 +116,6 @@ class PipelineTest(unittest.TestCase):
         self.assertLess(times[-1], 0.25)  # the last token came before the first sentence was even spoken
 
     def test_a_turn_leaves_its_timings(self) -> None:
-        timing = importlib.import_module("models.timing")
         timing.begin()
         with timing.measure("listen"):
             pass

@@ -1,10 +1,9 @@
 """Speech in and speech out on Core. The web sends a WAV and plays a WAV.
 
-STT is a local Whisper GGML/GGUF file (whisper.cpp). TTS is VieNeu-TTS v3 Turbo
-(ONNX, on the CPU) for Vietnamese, cloned from assistant/voices/hino.wav, and the
-machine's own SAPI voice for English. Neither local path loads a remote checkpoint.
-VR_STT_SOURCE / VR_TTS_SOURCE=api send a language in VR_CLOUD_VOICE_LANGS to SiliconFlow
-instead (cloud.py), and any failure there falls back to the local path.
+Listening is the `stt` stage of `ai/stages.json` (whisper.cpp on this machine, or any OpenAI-style
+`/audio/transcriptions`). Speaking is the `tts` stage: with an url it is an OpenAI-style `/audio/speech`; without one it is
+VieNeu-TTS v3 Turbo (ONNX, on the CPU) for Vietnamese, cloned from assistant/voices/hino.wav, and the machine's own SAPI
+voice for English.
 """
 
 from __future__ import annotations
@@ -22,8 +21,8 @@ from array import array
 from pathlib import Path
 from typing import Any
 
-from . import cloud
-from .catalog import _env, voice_reference, voice_vi_dir, whisper_path, whisper_wake_path
+import ai
+from .catalog import voice_reference, voice_vi_dir
 from .tuning import VoiceTuning, default_tuning, voice_spec
 from .wake import is_made_up
 
@@ -32,13 +31,6 @@ MAX_SPEAK_CHARS = 400
 
 class Speech:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._stt: Any = None
-        self._stt_run = threading.Lock()  # one Whisper run at a time: the model is not re-entrant
-        # A second, smaller Whisper for the short checks that wait for the call ("hino"): a
-        # big one takes seconds per line on a CPU, and the wearer waits for that to be heard.
-        self._wake: Any = None
-        self._wake_run = threading.Lock()
         self._tts_lock = threading.Lock()
         self._tts_vi: Any = None
         self.state = "idle"
@@ -47,40 +39,20 @@ class Speech:
     def snapshot(self) -> dict[str, str | None]:
         return {"state": self.state, "error": self.error}
 
-    def ensure(self, locale: str = "vi") -> None:
-        del locale  # language is chosen per transcribe call
-        with self._lock:
-            if self._stt is not None:
-                return
-            self.state = "loading"
-            self.error = None
-            try:
-                self._load_unlocked()
-            except Exception as error:  # noqa: BLE001
-                self.state = "failed"
-                self.error = str(error)
-                self._stt = None
-                raise
-
     def warm(self) -> None:
-        """Load Whisper and the voice now, in the background, so the first greeting is not a minute late."""
+        """Load the Vietnamese voice now, in the background, so the first greeting is not a minute late."""
         try:
-            if not (cloud.wants("stt", "vi") and cloud.wants("stt", "en")):
-                self.ensure()
-            with self._tts_lock:
-                if self._tts_vi is None and not cloud.wants("tts", "vi"):
-                    self._tts_vi = _load_vieneu(voice_vi_dir(), voice_reference())
+            if ai.stage("tts").inprocess:
+                with self._tts_lock:
+                    if self._tts_vi is None:
+                        self.state = "loading"
+                        self._tts_vi = _load_vieneu(voice_vi_dir(), voice_reference())
+            self.state = "ready"
             print("  voice    ready", flush=True)
         except Exception as error:  # noqa: BLE001
+            self.state = "failed"
+            self.error = str(error)
             print(f"  voice    could not warm up: {error}", flush=True)
-
-    def _load_unlocked(self) -> None:
-        self._stt = _load_whisper(whisper_path(), "VR_WHISPER_PATH")
-        wake = whisper_wake_path()
-        # No second file, or the same one: one model does both jobs.
-        self._wake = _load_whisper(wake, "VR_WHISPER_WAKE_PATH") if wake.is_file() and wake != whisper_path() else None
-        self.state = "ready"
-        self.error = None
 
     def transcribe(
         self,
@@ -89,63 +61,19 @@ class Speech:
         language: str | None = None,
         prompt: str | None = None,
         careful: bool = False,
-        quick: bool = False,
     ) -> str:
         """Speech to text. `language` overrides the locale's; `prompt` hints at the words to expect.
 
-        `careful` searches more candidate sentences (beam search): slower, right more often.
-        It is for what the wearer says to the assistant; the short checks for the wake
-        words stay quick; `quick` runs them on the small model when there is one.
+        `careful` searches more candidate sentences (beam search): slower, right more often. It is for what the
+        wearer says to the assistant; the short checks for the wake words stay quick.
         """
-        # The microphone is listened to all the time for the call word: that stays on this machine, for privacy, cost
-        # and speed. Only what the wearer says to the assistant (or dictates) may go to the cloud.
-        if not quick and cloud.wants("stt", language or locale):
-            try:
-                heard = cloud.transcribe(_pad_wav(_clean(_to_16k_mono(wav_bytes))), language or ("vi" if locale == "vi" else "en"), prompt)
-                if is_made_up(heard):
-                    print(f"  stt      dropped a made-up line: {heard!r}", flush=True)
-                    return ""
-                return heard
-            except (cloud.CloudError, OSError) as error:
-                cloud.failed("stt")
-                print(f"  cloud    speech to text failed, using Whisper here: {error}", flush=True)
-        self.ensure(locale)
-        with self._lock:
-            stt = self._wake if quick and self._wake is not None else self._stt
-        run_lock = self._wake_run if stt is self._wake and stt is not None else self._stt_run
-        if stt is None:
-            raise RuntimeError(self.error or "speech is not ready")
         language = language or ("vi" if locale == "vi" else "en")
-        wav_bytes = _pad_wav(_clean(_to_16k_mono(wav_bytes)))
-        # Without a token cap Whisper can loop on a short line ("Màm-en-nâu? Màm-en-nâu? ..."), and
-        # with the lock held that one line freezes every later one for minutes.
-        options: dict[str, Any] = {
-            "language": language,
-            "audio_ctx": _audio_ctx(wav_bytes),
-            "single_segment": True,
-            "no_context": True,
-            "max_tokens": MAX_TOKENS_CAREFUL if careful else MAX_TOKENS_QUICK,
-        }
-        if prompt:
-            options["initial_prompt"] = prompt
-        if careful:
-            options["beam_search"] = {"beam_size": max(1, int(_env("VR_WHISPER_BEAM") or BEAM_SIZE)), "patience": -1}
-        with tempfile.TemporaryDirectory() as folder:
-            dest = Path(folder) / "in.wav"
-            dest.write_bytes(wav_bytes)
-            with run_lock:
-                segments = stt.transcribe(str(dest), **options)
-        if isinstance(segments, str):
-            return "" if is_made_up(segments) else segments.strip()
-        parts = []
-        for segment in segments or []:
-            if isinstance(segment, dict):
-                text = str(segment.get("text") or "")
-            else:
-                text = str(getattr(segment, "text", None) or "")
-            if text.strip():
-                parts.append(text.strip())
-        heard = " ".join(parts).strip()
+        try:
+            heard = ai.transcribe(_pad_wav(_clean(_to_16k_mono(wav_bytes))), language, prompt, careful)
+        except ai.AIError as error:
+            self.state, self.error = "failed", str(error)
+            raise RuntimeError(str(error)) from error
+        self.state, self.error = "ready", None
         if is_made_up(heard):
             print(f"  stt      dropped a made-up line: {heard!r}", flush=True)
             return ""
@@ -156,12 +84,11 @@ class Speech:
         if not spoken:
             return b""
         tuning = tuning or default_tuning()
-        if cloud.wants("tts", locale):
+        if not ai.stage("tts").inprocess:
             try:
-                return cloud.speak(spoken, tuning.speed, locale)
-            except (cloud.CloudError, OSError) as error:
-                cloud.failed("tts")
-                print(f"  cloud    text to speech failed, using the voice here: {error}", flush=True)
+                return ai.speak(spoken, tuning.speed)
+            except ai.AIError as error:
+                raise RuntimeError(str(error)) from error
         if locale == "vi":
             return self._vieneu_vi(spoken, tuning)
         return _sapi(spoken, locale, tuning)
@@ -184,22 +111,6 @@ class Speech:
 STT_RATE = 16_000
 VIENEU_RATE = 48_000
 VOICE_NAME = "hino"
-BEAM_SIZE = 5
-MAX_TOKENS_CAREFUL = 80  # a spoken question; also what a looping decode is cut off at
-MAX_TOKENS_QUICK = 20  # the call word, a name and a few more
-
-
-def _load_whisper(path: Path, variable: str) -> Any:
-    from pywhispercpp.model import Model
-
-    if not path.is_file():
-        raise FileNotFoundError(f"Whisper GGUF/GGML not found: {path}. Put the file there or set {variable}.")
-    return Model(
-        str(path),
-        n_threads=int(_env("VR_N_THREADS") or os.cpu_count() or 4),
-        print_progress=False,
-        print_realtime=False,
-    )
 
 
 def _to_16k_mono(wav_bytes: bytes) -> bytes:
@@ -352,20 +263,6 @@ def _pad_wav(wav_bytes: bytes) -> bytes:
         out.setparams(params)
         out.writeframes(pcm.tobytes())
     return buffer.getvalue()
-
-
-def _audio_ctx(wav_bytes: bytes) -> int:
-    """Whisper reads 30 seconds of audio unless told otherwise, 50 frames a second.
-
-    A spoken question is a few seconds, so reading only that much is several times
-    faster and the words come out the same.
-    """
-    try:
-        with wave.open(io.BytesIO(wav_bytes)) as clip:
-            seconds = clip.getnframes() / float(clip.getframerate())
-    except (wave.Error, EOFError, ZeroDivisionError):
-        return 1500
-    return max(250, min(1500, int(seconds * 50) + 100))
 
 
 def _load_vieneu(folder: Path, reference: Path) -> Any:

@@ -23,8 +23,6 @@ _REVISE = {"sua", "sualoi", "chinh", "chinhsua", "capnhat", "fix", "edit", "repa
 _APPROVE = {"duyet", "chapnhan", "chapthuan", "dongy", "approve", "accept", "allow", "chophep", "xacnhan"}
 _REJECT = {"tuchoi", "huy", "bo", "reject", "discard", "cancel"}
 _SWITCH = {"dung", "use", "chuyen", "switch", "chon", "doi", "set"}
-_API = {"api", "cloud", "siliconflow", "online"}
-_LOCAL = {"local", "offline", "cucbo", "noibo"}
 _MIN_BRIEF = 2
 _MATCH = 0.78
 _SUBSTRING_FROM = 5
@@ -44,9 +42,6 @@ _SAY: dict[str, dict[str, str]] = {
         "brief": "Bạn muốn plugin làm gì? Nói: tạo plugin, rồi mô tả.",
         "drafted": "Mình đã viết xong plugin {name}. Nói duyệt plugin {name} để cài, hoặc từ chối plugin {name} để bỏ.",
         "draft_failed": "Mình viết plugin chưa được. Bạn thử mô tả đơn giản hơn nhé.",
-        "api_missing": "Chưa có khoá API trong tệp env, mình vẫn dùng mô hình trên máy.",
-        "source_api": "Từ giờ mình dùng API để viết plugin.",
-        "source_local": "Từ giờ mình viết plugin bằng mô hình trên máy, không cần mạng.",
         "approved": "Đã cài plugin {name}. Mình nạp lại ứng dụng ngay.",
         "approve_failed": "Mình chưa cài được plugin này.",
         "rejected": "Đã bỏ plugin {name}.",
@@ -67,9 +62,6 @@ _SAY: dict[str, dict[str, str]] = {
         "brief": "What should the plugin do? Say: create a plugin, then describe it.",
         "drafted": "I wrote the {name} plugin. Say approve the {name} plugin to install it, or reject the {name} plugin to drop it.",
         "draft_failed": "I could not get a working plugin written. Try a simpler description.",
-        "api_missing": "There is no API key in the env file, so I am still using the model on this machine.",
-        "source_api": "From now on I use the API to write plugins.",
-        "source_local": "From now on I write plugins with the model on this machine, no network.",
         "approved": "The {name} plugin is installed. Reloading the app now.",
         "approve_failed": "I could not install that plugin.",
         "rejected": "The {name} plugin is dropped.",
@@ -197,7 +189,6 @@ def plugin_command(
     - "create": write a new one; `description` says what it should do;
     - "revise": change an installed one (`id`); `description` says what to change;
     - "approve" / "reject": install or drop a draft;
-    - "source": who writes the code, `value` "api" or "local" (the server acts on it);
     - "none": a command that named nothing the headset has.
     """
     words = heard.replace("-", " ").split()
@@ -210,13 +201,6 @@ def plugin_command(
     say = _SAY["vi" if locale == "vi" else "en"]
     before = _heard(words[:at])
     after = words[at + took :]
-
-    # Who writes the code: "dùng API để viết plugin", "use local for plugins".
-    if heard_set & _SWITCH:
-        wants_api = bool(heard_set & _API)
-        wants_local = bool(heard_set & _LOCAL)
-        if wants_api != wants_local:
-            return {"action": "source", "id": None, "value": "api" if wants_api else "local", "reply": ""}
 
     # Changing a plugin that exists: "sửa plugin bản đồ, thêm nút…" (the verb comes before the word plugin).
     if before & _REVISE and not before & _CREATE:

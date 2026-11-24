@@ -98,7 +98,7 @@ type PipelineSettings = Readonly<{
 type AssistantSettings = Readonly<{
   /** When on, the assistant loads and greets as soon as the wearer presses Start. */
   enabled: boolean;
-  /** Catalog slot id, e.g. `qwen-2.5-3b`. */
+  /** The assistant to talk to: `assistant`. */
   modelId: string;
   /** How the reply sounds. */
   voice: VoiceSettings;
@@ -254,7 +254,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   assistant: {
     enabled: true,
-    modelId: "qwen-2.5-3b",
+    modelId: "assistant",
     voice: DEFAULT_VOICE,
     listenSeconds: DEFAULT_LISTEN_SECONDS,
     bargeIn: false,

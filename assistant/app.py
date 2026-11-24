@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+import ai
 from access import AccessMiddleware
 from models import pluginsmith, vision
 from models.commands import parse_plugins, say_for
@@ -207,24 +208,48 @@ async def talk(
     return _sse(engine.talk(spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls))
 
 
-class SeeBody(BaseModel):
-    image: str = Field(min_length=1)  # a JPEG, base64
-    what: str = Field(pattern="^(ask|read|translate)$")
-    question: str = Field(default="", max_length=400)
-    locale: str = "vi"
-
-
-@app.post("/api/vision/ask")
-async def vision_ask(body: SeeBody) -> dict[str, str]:
-    """One picture from the camera and what was asked about it: answered here or by the API (`VR_VISION_SOURCE`)."""
+def _decode_image(raw: str) -> bytes:
     try:
-        image = base64.b64decode(body.image, validate=True)
+        image = base64.b64decode(raw, validate=True)
     except ValueError as error:
         raise HTTPException(status_code=400, detail="invalid image") from error
     if len(image) > vision.MAX_IMAGE:
         raise HTTPException(status_code=413, detail="image too large")
+    return image
+
+
+# The AI a plugin may use. Its stage (`plugin_chat`) is not the assistant's: it has its own
+# url, key and model in `ai/stages.json`, so pointing a plugin at another endpoint never touches Hino.
+class PluginChatBody(BaseModel):
+    messages: list[dict[str, str]] = Field(min_length=1, max_length=20)
+    maxTokens: int = Field(default=256, ge=8, le=1024)
+
+
+@app.post("/api/plugin-ai/chat")
+async def plugin_chat(body: PluginChatBody) -> dict[str, str]:
+    """A question to the language model, for a plugin: the messages go in, the whole answer comes out."""
     try:
-        return await run_in_threadpool(vision.ask, image, body.what, body.question, _locale(body.locale))
+        messages = parse_messages(body.messages)
+        reply = await run_in_threadpool(ai.chat, "plugin_chat", messages, body.maxTokens, 0.4)
+        return {"text": str(reply["choices"][0]["message"]["content"] or "").strip()}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except (ai.AIError, KeyError, IndexError, TypeError) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+
+class ScreenBody(BaseModel):
+    image: str = Field(min_length=1)  # a JPEG of the screen the wearer is looking at, base64
+    question: str = Field(default="", max_length=400)
+    locale: str = "vi"
+
+
+@app.post("/api/assistant/screen")
+async def assistant_screen(body: ScreenBody) -> dict[str, str]:
+    """The assistant's own use of pictures: a question about what is on the screen (an error, a log, a page)."""
+    image = _decode_image(body.image)
+    try:
+        return await run_in_threadpool(vision.ask_screen, image, body.question, _locale(body.locale))
     except vision.VisionError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
@@ -236,7 +261,7 @@ class DraftBody(BaseModel):
 
 @app.get("/api/plugins/pending")
 def pending_plugins() -> dict:
-    return {"pending": pluginsmith.pending(), "source": pluginsmith.source()}
+    return {"pending": pluginsmith.pending()}
 
 
 @app.post("/api/plugins/draft")
@@ -304,11 +329,11 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
     if expect == "stop":
-        # Heard while the assistant itself is talking: local and quick, and only a line that is nothing but "stop" counts.
+        # Heard while the assistant itself is talking: only a line that is nothing but "stop" counts.
         own_language = "vi" if _locale(locale) == "vi" else "en"
         try:
             said = await run_in_threadpool(
-                speech.transcribe, wav, _locale(locale), own_language, "Dừng lại. Im đi. Stop.", False, True
+                speech.transcribe, wav, _locale(locale), own_language, "Dừng lại. Im đi. Stop."
             )
         except Exception as error:  # noqa: BLE001
             raise HTTPException(status_code=503, detail=str(error)) from error
@@ -326,7 +351,7 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
             break
         try:
             heard = await run_in_threadpool(
-                speech.transcribe, wav, _locale(locale), language, f"{phrase.title()}.", False, True
+                speech.transcribe, wav, _locale(locale), language, f"{phrase.title()}."
             )
         except Exception as error:  # noqa: BLE001
             raise HTTPException(status_code=503, detail=str(error)) from error
@@ -415,5 +440,4 @@ async def dictate(request: Request, locale: str = "vi") -> dict[str, str]:
     return {"text": text}
 
 
-pluginsmith.default_source()
 attach_frontend(app)

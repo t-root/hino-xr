@@ -94,20 +94,30 @@ class ListTest(unittest.TestCase):
             if "env" in item:
                 self.assertTrue(item["env"].startswith("VR_"), item["id"])
 
-    def test_the_assistant_looks_for_what_is_downloaded(self) -> None:
-        catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
+    def test_the_servers_look_for_what_is_downloaded(self) -> None:
+        stages = json.loads((ROOT / "assistant/ai/stages.json").read_text(encoding="utf-8"))["servers"]
         by_id = {item["id"]: item for item in self.items}
-        for name in ("llm", "stt"):
-            item = by_id[name]
-            self.assertIn(Path(item["to"]).name, catalog)
-            self.assertIn(item["env"], catalog)
+        for server, key, item in (
+            ("llm", "model", "llm"), ("llm", "mmproj", "llm-mmproj"), ("coder", "model", "coder"), ("whisper", "model", "stt"),
+        ):
+            self.assertEqual(stages[server][key], by_id[item]["to"], f"{server}.{key}")
+        # The programs are zips that land flat in the folder the servers look in.
+        for item, folder in (("bin-llama", "llama"), ("bin-llama-cudart", "llama"), ("bin-whisper", "whisper")):
+            self.assertEqual(by_id[item]["to"], f"assistant/bin/{folder}")
+            self.assertTrue(by_id[item]["flat"] and by_id[item]["unpack"], item)
         # The voice is many files under one folder, which is what the catalog names.
+        catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
         voice = [item for item in self.items if item["id"].startswith("voice-vi")]
         self.assertGreater(len(voice), 1)
         folder = re.search(r'_DEFAULT_VOICE_VI = "([^"]+)"', catalog).group(1)
         for item in voice:
             self.assertTrue(item["to"].startswith(folder + "/"), item["id"])
         self.assertIn("VR_VOICE_VI_PATH", catalog)
+
+    def test_nothing_that_ran_inside_this_process_is_fetched_any_more(self) -> None:
+        ids = {item["id"] for item in self.items}
+        self.assertFalse(ids & {"stt-wake", "vision-llm", "vision-mmproj"})
+        self.assertFalse(any("qwen2.5-3b" in item["to"].lower() for item in self.items))
 
     def test_the_hand_model_is_fetched_to_where_the_page_loads_it(self) -> None:
         item = next(item for item in self.items if item["id"] == "hand-landmarker")
@@ -210,10 +220,26 @@ class FetchTest(unittest.TestCase):
         run._ensure_downloads([item])
         self.assertTrue((self.out / "w.bin").exists())
 
-    def test_the_vision_model_is_optional(self) -> None:
-        items = {item["id"]: item for item in json.loads((ROOT / "downloads.json").read_text(encoding="utf-8"))["items"]}
-        for name in ("vision-llm", "vision-mmproj"):
-            self.assertEqual(items[name]["when"], {"env": "VR_VISION_SOURCE", "equals": "local"})
+    def test_a_zip_of_programs_is_unpacked_flat_next_to_another_one(self) -> None:
+        import zipfile
+
+        def make(name: str, data: bytes) -> bytes:
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w") as archive:
+                archive.writestr("release/" + name, data)
+            return buffer.getvalue()
+
+        first, second = make("llama-server.exe", b"exe"), make("cudart64_13.dll", b"dll")
+        for body, needs in ((first, ["llama-server.exe"]), (second, ["cudart64_13.dll"])):
+            server = Server(body)
+            self.addCleanup(server.close)
+            item = _item(body, server.url, to="out/bin", unpack="zip", flat=True, needs=needs)
+            del item["env"]
+            self.assertFalse(run._present(item, self.out / "bin"))
+            run._ensure_downloads([item])
+            self.assertTrue(run._present(item, self.out / "bin"))
+        self.assertEqual({path.name for path in (self.out / "bin").rglob("*") if path.is_file()}, {"llama-server.exe", "cudart64_13.dll"})
+        self.assertFalse((self.out / "bin.unpack").exists())
 
     def test_an_entry_without_env_is_always_checked(self) -> None:
         server = Server(self.body)

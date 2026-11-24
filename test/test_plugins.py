@@ -42,12 +42,23 @@ class PluginDiscoveryTest(unittest.TestCase):
                 offenders.append(rel(path))
         self.assertEqual(offenders, [])
 
-    def test_rules_file_covers_sync_and_plugins(self) -> None:
-        # rules.md, at the root: the rules for rendering both eyes through Core
-        # and for plugins that keep everything in their own folder.
-        rules = (SRC.parent / "rules.md").read_text(encoding="utf-8")
+    def test_the_plugin_rules_cover_sync_and_the_plugin_folder(self) -> None:
+        # src/modules/PLUGIN_RULES.md is the one file of rules for writing a plugin (the assistant reads it too);
+        # rules.md at the root keeps Core's rules and points to it.
+        plugin_rules = (SRC / "modules" / "PLUGIN_RULES.md").read_text(encoding="utf-8")
         for needle in ("@/core/sync", "SharedState", "CanvasMirror", "frameClock", "models/", "vendor.json"):
-            self.assertIn(needle, rules)
+            self.assertIn(needle, plugin_rules)
+        self.assertIn("PLUGIN_RULES.md", (SRC.parent / "rules.md").read_text(encoding="utf-8"))
+        core_rules = (SRC.parent / "rules.md").read_text(encoding="utf-8")
+        for needle in ("@/core/sync", "SharedState", "CanvasMirror", "frameClock"):
+            self.assertIn(needle, core_rules)
+
+    def test_design_notes_of_a_plugin_live_in_its_own_folder(self) -> None:
+        for folder in ("map3d", "face-recognition", "scene-description", "code-reader"):
+            self.assertTrue((SRC / "modules" / folder / "NOTES.md").is_file(), folder)
+        core_rules = (SRC.parent / "rules.md").read_text(encoding="utf-8")
+        self.assertNotIn("MATCH_THRESHOLD", core_rules)  # the face plugin's thresholds are the face plugin's
+        self.assertNotIn("Space.handDown", core_rules)
 
     def test_plugins_do_not_reach_into_each_other(self) -> None:
         offenders: list[str] = []
@@ -88,8 +99,6 @@ class PluginDiscoveryTest(unittest.TestCase):
         helper = (SRC / "core/modules/plugin-models.ts").read_text(encoding="utf-8")
         self.assertIn("plugins/${encodeURIComponent(pluginId)}/models/", helper)
         self.assertNotIn("publicModelUrl", helper)
-        catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
-        self.assertIn('str(folder / slot["gguf"])', catalog)
         shared = SRC.parent / "public" / "models"
         for folder in self.folders:
             spec_path = SRC / "modules" / folder / "models.json"
@@ -118,7 +127,8 @@ class PluginDiscoveryTest(unittest.TestCase):
         catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
         config = (SRC / "core/config.ts").read_text(encoding="utf-8")
         self.assertIn("models.json", frontend)
-        self.assertIn("models.json", catalog)
+        # A plugin has no weights of its own on the server: the AI it may ask is the `plugin_chat` stage.
+        self.assertNotIn("slots", catalog)
         self.assertNotRegex(frontend, r"efficientdet|blaze_face|face-detection|person-detection")
         self.assertNotRegex(catalog, r"face-detection|person-detection")
         self.assertNotRegex(config, r"efficientdet|blaze_face")

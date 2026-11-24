@@ -9,7 +9,7 @@ export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enable
 
 /** What the wearer asked the headset to do, rather than the model to answer. */
 export type SpokenCommand = Readonly<{
-  action: "enable" | "disable" | "create" | "revise" | "approve" | "reject" | "setting" | "person" | "sight" | "timer" | "none";
+  action: "enable" | "disable" | "create" | "revise" | "approve" | "reject" | "setting" | "person" | "sight" | "screen" | "timer" | "none";
   id: string | null;
   /** For `create`: what the new plugin should do, in the wearer's words. */
   description: string;
@@ -20,7 +20,7 @@ export type SpokenCommand = Readonly<{
 /** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
 export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
 
-const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "reject", "setting", "person", "sight", "timer", "none"]);
+const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "reject", "setting", "person", "sight", "screen", "timer", "none"]);
 
 type TalkResult = Readonly<{
   transcript: string;
@@ -182,7 +182,22 @@ export class ModelClient {
     return `${this.base.replace(/\/models$/, "")}/plugins`;
   }
 
-  /** Has the assistant write a plugin. Slow with the local model: minutes, not seconds. */
+  /** The assistant reads a picture of the screen with the line that came with it. `say` is read aloud, `show` is all of it. */
+  async askScreen(image: string, question: string, locale: string): Promise<Readonly<{ say: string; show: string }>> {
+    const response = await this.send(`${this.base.replace(/\/models$/, "")}/assistant/screen`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image, question, locale }),
+    });
+    if (!response) throw new Error("offline");
+    if (!response.ok) throw new Error(await readDetail(response));
+    const body = (await response.json()) as { say?: unknown; show?: unknown };
+    const say = typeof body.say === "string" ? body.say : "";
+    if (!say) throw new Error("the server sent no answer");
+    return { say, show: typeof body.show === "string" && body.show ? body.show : say };
+  }
+
+  /** Has the assistant write a plugin. Slow: the code model is started for it, and it writes for minutes, not seconds. */
   async draftPlugin(description: string, locale: string): Promise<PluginOutcome> {
     return this.postPlugin(`${this.pluginsBase()}/draft`, { description, locale });
   }

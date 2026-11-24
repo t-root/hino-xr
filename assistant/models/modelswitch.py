@@ -1,26 +1,26 @@
-"""Choosing the models by voice: where each stage runs, which models SiliconFlow has, and which one to use.
+"""Looking at and choosing the models by voice, for the assistant's own stages.
 
-Three things the wearer can say, for any stage (answering, writing plugins, the menu, listening, speaking):
+Where a stage runs is not changed by voice any more: it is `ai/stages.json` and `.env` (a url, a key, a model), the same
+for every stage. What can be said:
 
-- "dùng API để trả lời", "nghe bằng local": where a stage runs. Applied at once; it is easy to undo.
-- "có những model nào", "model qwen nào để viết plugin": reads what SiliconFlow offers, asked of the
-  account's own key (`cloud.models_for`).
+- "hiện thông tin model", "model nào đang dùng": the setup, on the screen (the assistant's stages and the plugins');
+- "có những model nào", "model qwen nào để viết plugin": what the endpoint of a stage offers (`ai.models`);
 - "đổi model trả lời sang qwen 72b": the name is matched against that list, never taken as said, and the
   assistant reads back the full name and waits for a "đúng" before it changes anything. Whisper spells model
-  names badly, and a wrong one would cost money or break the stage.
+  names badly, and a wrong one would cost money or break the stage. It only applies to a stage whose endpoint is
+  somebody else's: a server of this machine runs the one model it was started with.
 
-What is chosen lasts until the server restarts, like the plugin writer's source. `.env` is never touched.
+What is chosen lasts until the server restarts. `.env` is never touched.
 """
 
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from typing import Any
 
-from . import cloud, pluginsmith, timing, vision
-from .catalog import catalog, voice_vi_dir, whisper_path, whisper_wake_path
-from .commands import _API, _LOCAL, _PLUGIN, _SWITCH, _heard
+import ai
+from . import timing
+from .commands import _PLUGIN, _SWITCH, _heard
 from .wake import letters
 
 CONFIRM_FOR_S = 60
@@ -52,83 +52,52 @@ _STAGE_WORDS = {
     "stt": {"nghe", "listen", "listening", "hearing", "stt"},
     "tts": {"doc", "giong", "speak", "speaking", "voice", "tts", "phatam"},
     "chat": {"traloi", "trochuyen", "hoithoai", "chat", "answer", "answers", "talk", "reply", "conversation"},
-    "vision": {"hinh", "anh", "nhin", "hinhanh", "thigiac", "vision", "image", "picture", "camera", "sight"},
+    "vision": {"manhinh", "screen", "nhin", "vision", "image", "picture", "sight"},
 }
-_VARIABLE = {"chat": "VR_LLM_MODEL", "code": "VR_CODE_MODEL", "agent": "VR_AGENT_MODEL", "stt": "VR_STT_MODEL", "tts": "VR_TTS_MODEL", "vision": "VR_VISION_MODEL"}
-_LISTED_AS = {"chat": "chat", "code": "chat", "agent": "chat", "stt": "stt", "tts": "tts", "vision": "vision"}
 
 _STAGE_NAME = {
-    "vi": {"chat": "trả lời", "code": "viết plugin", "agent": "điều khiển menu", "stt": "nghe", "tts": "đọc", "vision": "nhìn hình"},
-    "en": {"chat": "answering", "code": "writing plugins", "agent": "the menu", "stt": "listening", "tts": "speaking", "vision": "looking at pictures"},
+    "vi": {"chat": "trả lời", "code": "viết plugin", "agent": "điều khiển menu", "stt": "nghe", "tts": "đọc", "vision": "nhìn màn hình"},
+    "en": {"chat": "answering", "code": "writing plugins", "agent": "the menu", "stt": "listening", "tts": "speaking", "vision": "looking at the screen"},
 }
+_PLUGIN_NAME = {"vi": {"plugin_chat": "plugin hỏi đáp"}, "en": {"plugin_chat": "plugin chat"}}
 _SAY = {
     "vi": {
-        "source_api": "Từ giờ mình dùng API cho việc {stage}.",
-        "source_local": "Từ giờ mình dùng mô hình trên máy cho việc {stage}.",
-        "api_missing": "Chưa có khoá SiliconFlow trong tệp env, nên mình vẫn dùng mô hình trên máy.",
-        "voice_note": " Tiếng Việt vẫn chạy trên máy vì SiliconFlow không ghi hỗ trợ tiếng Việt.",
-        "which_stage": "Bạn muốn đổi cho việc nào: trả lời, nghe, đọc hay viết plugin?",
-        "no_agent_local": "Việc điều khiển menu bằng mô hình chỉ chạy với API; trên máy mình chỉ hiểu lệnh theo từ khoá.",
-        "lookup_failed": "Mình chưa tra được danh sách model của SiliconFlow. Kiểm tra khoá và mạng giúp mình nhé.",
-        "no_key": "Chưa có khoá SiliconFlow trong tệp env nên mình chưa tra được danh sách model.",
-        "none_found": "Mình không thấy model nào khớp trong danh sách của SiliconFlow.",
-        "list_head": "SiliconFlow có {count} model cho việc {stage}. {names}. Nói đổi model {stage} sang, rồi tên model.",
+        "lookup_failed": "Mình chưa tra được danh sách model của việc này. Kiểm tra địa chỉ và khoá trong tệp env giúp mình nhé.",
+        "none_found": "Mình không thấy model nào khớp trong danh sách.",
+        "list_head": "Có {count} model cho việc {stage}. {names}. Nói đổi model {stage} sang, rồi tên model.",
         "list_filtered": "Có {count} model khớp cho việc {stage}: {names}.",
         "which_model": "Bạn muốn đổi sang model nào? Nói: đổi model {stage} sang, rồi tên model.",
         "confirm": "Bạn muốn đổi model {stage} sang {name}, đúng không?",
         "confirmed": "Đã đổi model {stage} sang {name}.",
-        "still_local": " Việc này đang chạy trên máy; nói dùng API để {stage} thì mới dùng model này.",
+        "fixed_here": "Việc {stage} đang chạy bằng model nạp sẵn trên máy này nên mình không đổi bằng giọng nói được. Muốn đổi thì sửa tệp stages.json hoặc đặt địa chỉ API trong tệp env.",
         "cancelled": "Mình giữ nguyên model cũ.",
         "title": "Cấu hình trợ lý",
-        "list_title": "Model của SiliconFlow cho việc {stage} ({count}):",
+        "plugins_title": "Plugin",
+        "list_title": "Model cho việc {stage} ({count}):",
         "more": "… và {count} model nữa. Nói tên để mình lọc.",
         "status_spoken": "Mình đang hiện cấu hình trợ lý trên màn hình.",
-        "listed_spoken": "Mình đã hiện danh sách trên màn hình.",
-        "api": "API",
-        "machine": "máy",
-        "with_key": "Khoá SiliconFlow: có",
-        "no_key_line": "Khoá SiliconFlow: chưa có",
-        "voice_on_api": "Nghe và đọc gửi lên API cho: {langs}",
-        "menu_keywords": "chỉ lệnh theo từ khoá",
-        "wake_model": "nghe từ gọi",
-        "second_session": "phiên thứ hai",
-        "not_here": "{name} (chưa tải)",
-        "speaks_vi": "tiếng Việt",
-        "speaks_en": "tiếng Anh",
+        "api": "API ngoài",
+        "machine": "máy này",
+        "voice_vi": "VieNeu (tiếng Việt), SAPI (tiếng Anh)",
     },
     "en": {
-        "source_api": "From now on I use the API for {stage}.",
-        "source_local": "From now on I use the model on this machine for {stage}.",
-        "api_missing": "There is no SiliconFlow key in the env file, so I am still using the model on this machine.",
-        "voice_note": " Vietnamese still runs on this machine, because SiliconFlow does not list Vietnamese.",
-        "which_stage": "Which one: answering, listening, speaking or writing plugins?",
-        "no_agent_local": "Working the menu with a model only runs on the API; on this machine I only understand keyword commands.",
-        "lookup_failed": "I could not get the model list from SiliconFlow. Please check the key and the network.",
-        "no_key": "There is no SiliconFlow key in the env file, so I cannot look up the model list.",
-        "none_found": "I found no model that matches in SiliconFlow's list.",
-        "list_head": "SiliconFlow has {count} models for {stage}. {names}. Say change the {stage} model to, then a name.",
+        "lookup_failed": "I could not get the model list for this stage. Please check the address and the key in the env file.",
+        "none_found": "I found no model that matches in the list.",
+        "list_head": "There are {count} models for {stage}. {names}. Say change the {stage} model to, then a name.",
         "list_filtered": "{count} models match for {stage}: {names}.",
         "which_model": "Which model? Say: change the {stage} model to, then its name.",
         "confirm": "Change the {stage} model to {name}, is that right?",
         "confirmed": "The {stage} model is now {name}.",
-        "still_local": " That stage runs on this machine; say use the API for {stage} to use this model.",
+        "fixed_here": "{stage} runs on the model loaded on this machine, so I cannot change it by voice. Edit stages.json, or put an API address in the env file.",
         "cancelled": "I keep the old model.",
         "title": "Assistant setup",
-        "list_title": "SiliconFlow models for {stage} ({count}):",
+        "plugins_title": "Plugins",
+        "list_title": "Models for {stage} ({count}):",
         "more": "… and {count} more. Say a name to narrow it.",
         "status_spoken": "I am showing the assistant's setup on the screen.",
-        "listed_spoken": "I put the list on the screen.",
-        "api": "API",
+        "api": "an outside API",
         "machine": "this machine",
-        "with_key": "SiliconFlow key: set",
-        "no_key_line": "SiliconFlow key: missing",
-        "voice_on_api": "Listening and speaking go to the API for: {langs}",
-        "menu_keywords": "keyword commands only",
-        "wake_model": "listens for the call",
-        "second_session": "second session",
-        "not_here": "{name} (not downloaded)",
-        "speaks_vi": "Vietnamese",
-        "speaks_en": "English",
+        "voice_vi": "VieNeu (Vietnamese), SAPI (English)",
     },
 }
 
@@ -159,48 +128,29 @@ def _out(reply: str, display: str | None = None, show: bool = False) -> dict[str
     return out
 
 
-def _where(stage: str) -> str:
-    """`api` only when the stage will really go to the cloud: chosen, and with a key to do it."""
-    chosen = pluginsmith.source() if stage in {"code", "agent"} else cloud.source(stage)
-    return "api" if chosen == "api" and cloud.key_for(stage if stage in {"stt", "tts"} else "chat") else "local"
+def _where(name: str, say: dict[str, str]) -> str:
+    return say["api"] if ai.stage(name).external else say["machine"]
+
+
+def _model_of(name: str, say: dict[str, str]) -> str:
+    stage = ai.stage(name)
+    return say["voice_vi"] if stage.kind == "tts" and stage.inprocess else (stage.model or "-")
 
 
 def status(locale: str) -> str:
     """The setup as lines for the screen: where each stage runs and which model it uses."""
     say = _say(locale)
     names = _STAGE_NAME["vi" if locale == "vi" else "en"]
-    spot = {"api": say["api"], "local": say["machine"]}
-    llm = Path(catalog()[0].gguf).name
     lines = [say["title"]]
-
-    def row(stage: str, detail: str) -> None:
-        lines.append(f"{names[stage].capitalize()}: {spot[_where(stage)]} · {detail}")
-
-    row("chat", cloud.model("VR_LLM_MODEL") if _where("chat") == "api" else llm)
-    row("code", cloud.model("VR_CODE_MODEL") if _where("code") == "api" else f"{llm} ({say['second_session']})")
-    row("agent", cloud.model("VR_AGENT_MODEL") if _where("agent") == "api" else say["menu_keywords"])
-    if _where("stt") == "api":
-        row("stt", cloud.model("VR_STT_MODEL"))
-    else:
-        row("stt", f"{whisper_path().name}; {say['wake_model']}: {whisper_wake_path().name}")
-    if _where("tts") == "api":
-        row("tts", "Azure Speech" if cloud.provider("tts") == "azure" else f"{cloud.model('VR_TTS_MODEL')} ({_voice_name()})")
-    else:
-        row("tts", f"VieNeu {Path(voice_vi_dir()).name} ({say['speaks_vi']}), SAPI ({say['speaks_en']})")
-    seen_by = vision.local_files()[0].name if vision.local_ready() else say["not_here"].format(name=vision.local_files()[0].name)
-    row("vision", cloud.model("VR_VISION_MODEL") if _where("vision") == "api" else seen_by)
-    lines.append(say["with_key"] if cloud.api_key() else say["no_key_line"])
-    if "api" in {_where("stt"), _where("tts")}:
-        langs = cloud.voice_langs("stt" if _where("stt") == "api" else "tts")
-        lines.append(say["voice_on_api"].format(langs=", ".join(sorted(langs))))
+    for name in ai.config.ASSISTANT_STAGES:
+        lines.append(f"{names[name].capitalize()}: {_where(name, say)} · {_model_of(name, say)}")
+    lines.append(say["plugins_title"])
+    for name, label in _PLUGIN_NAME["vi" if locale == "vi" else "en"].items():
+        lines.append(f"{label.capitalize()}: {_where(name, say)} · {_model_of(name, say)}")
     turn = timing.summary(locale)
     if turn:
         lines.append(turn)
     return "\n".join(lines)
-
-
-def _voice_name() -> str:
-    return cloud._env("VR_TTS_VOICE") or cloud.DEFAULT_VOICE
 
 
 def _spoken(model_id: str) -> str:
@@ -231,28 +181,6 @@ def find(ids: list[str], wanted: list[str]) -> list[str]:
     return sorted(hits, key=lambda item: (len(item), item))
 
 
-def _use(stage: str, value: str, locale: str) -> tuple[str, bool]:
-    """Switch where a stage runs: what to say, and whether it happened."""
-    say, name = _say(locale), _STAGE_NAME["vi" if locale == "vi" else "en"][stage]
-    if stage == "agent" and value == "local":
-        return say["no_agent_local"], False
-    if stage in {"code", "agent"}:
-        if not pluginsmith.set_source(value):
-            return say["api_missing"], False
-    elif not cloud.set_source(stage, value):
-        return say["api_missing"], False
-    line = say[f"source_{value}"].format(stage=name)
-    if value == "api" and stage in {"stt", "tts"} and locale not in cloud.voice_langs(stage):
-        line += say["voice_note"]
-    return line, True
-
-
-def _running(stage: str) -> str:
-    if stage in {"code", "agent"}:
-        return pluginsmith.source()
-    return cloud.source(stage)
-
-
 def _listing(ids: list[str], stage_name: str, locale: str) -> str:
     """The models on offer as lines for the screen, as many as fit; the voice reads only the first few."""
     say = _say(locale)
@@ -280,16 +208,14 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
 
     if _pending:
         # "dùng" is also "đúng" once accents go, so an answer is a short line that is not itself a request.
-        short_answer = len(words) <= 4 and not seen & (_MODEL | _API | _LOCAL)
+        short_answer = len(words) <= 4 and not seen & _MODEL
         if time.monotonic() > _pending["until"]:
             _pending.clear()
         elif short_answer and seen & _YES and not seen & _NO:
             stage, chosen = _pending["stage"], _pending["id"]
             _pending.clear()
-            cloud.set_model(_VARIABLE[stage], chosen)
+            ai.config.set_model(stage, chosen)
             reply = say["confirmed"].format(stage=stage_names[stage], name=_spoken(chosen))
-            if _running(stage) != "api":
-                reply += say["still_local"].format(stage=stage_names[stage])
             return _out(reply, f"{reply}\n\n{status(locale)}", show=True)
         elif short_answer and seen & _NO:
             _pending.clear()
@@ -305,15 +231,6 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
     shows, asks_now = bool(seen & _SHOW), bool(seen & {"dang", "current", "currently", "now"})
     if (shows and (about_models or seen & _ASSISTANT) and (seen & _INFO or not seen & _LIST)) or (about_models and asks_now):
         return _out(say["status_spoken"], status(locale), show=True)
-
-    # Where a stage runs: "dùng API để trả lời", "nghe bằng local".
-    wants_api, wants_local = bool(seen & _API), bool(seen & _LOCAL)
-    if not about_models and wants_api != wants_local and seen & (_CHANGE | _TO):
-        value = "api" if wants_api else "local"
-        if stage is None:
-            return _out(say["which_stage"]) if len(words) <= 4 else None
-        reply, done = _use(stage, value, locale)
-        return _out(reply, f"{reply}\n\n{status(locale)}", show=True) if done else _out(reply)
 
     if not about_models:
         return None
@@ -336,10 +253,10 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
     if seen & _LIST:
         wanted = _search_words(words, stage_words)
         try:
-            ids = cloud.models_for(_LISTED_AS[target])
-        except cloud.CloudError as error:
-            print(f"  cloud    model list failed: {error}", flush=True)
-            return _out(say["lookup_failed" if cloud.api_key() else "no_key"])
+            ids = ai.models(target)
+        except ai.AIError as error:
+            print(f"  ai       model list failed: {error}", flush=True)
+            return _out(say["lookup_failed"])
         hits = find(ids, wanted) if wanted else ids
         if not hits:
             return _out(say["none_found"])
@@ -351,16 +268,18 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
 
 def _ask_which(stage: str, wanted: list[str], locale: str) -> dict[str, Any]:
     say = _say(locale)
+    names = _STAGE_NAME["vi" if locale == "vi" else "en"]
+    if not ai.stage(stage).external:
+        return _out(say["fixed_here"].format(stage=names[stage].capitalize()))
     try:
-        ids = cloud.models_for(_LISTED_AS[stage])
-    except cloud.CloudError as error:
-        print(f"  cloud    model list failed: {error}", flush=True)
-        return _out(say["lookup_failed" if cloud.api_key() else "no_key"])
+        ids = ai.models(stage)
+    except ai.AIError as error:
+        print(f"  ai       model list failed: {error}", flush=True)
+        return _out(say["lookup_failed"])
     hits = find(ids, wanted)
     if not hits:
         return _out(say["none_found"])
     _pending.update(stage=stage, id=hits[0], until=time.monotonic() + CONFIRM_FOR_S)
-    names = _STAGE_NAME["vi" if locale == "vi" else "en"]
     asked = say["confirm"].format(stage=names[stage], name=_spoken(hits[0]))
     # The full id is put on the screen: it is the thing to check before saying yes.
     return _out(asked, f"{asked}\n{hits[0]}", show=True)

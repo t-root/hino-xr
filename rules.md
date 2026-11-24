@@ -1,15 +1,29 @@
-# Quy tắc dự án VR — đồng bộ hai mắt và plugin
+# Quy tắc dự án VR
 
-Đọc trước khi sửa phần giao diện/render của Core, hoặc tạo/sửa bất kỳ plugin nào.
-Phần lớn các quy tắc dưới đây được test kiểm tra (`python run.py test`).
-Test đỏ nghĩa là chưa xong.
+Quy tắc của **Core, trợ lý và máy chủ**: đọc trước khi sửa giao diện/render, luồng giọng nói, cấu hình AI hay cách trợ lý viết
+plugin. Quy tắc **viết một plugin** ở file riêng, `src/modules/PLUGIN_RULES.md`: đó là file trợ lý đọc mỗi lần viết hoặc sửa
+plugin, nên nó phải đủ để một plugin viết theo nó chạy đúng trong dự án này (B, G12). Thiết kế riêng của từng plugin ở
+`src/modules/<id>/NOTES.md`. Phần lớn quy tắc được test kiểm tra (`python run.py test`); test đỏ nghĩa là chưa xong.
 
 Ba quy tắc gốc, không có ngoại lệ:
 
 1. **Đồng bộ hai mắt luôn đi qua Core.** Không nơi nào khác tự chế cơ chế đồng bộ.
-2. **Mỗi plugin độc lập, gói gọn trong thư mục của chính nó.**
+2. **Mỗi plugin độc lập, gói gọn trong thư mục của chính nó**, kể cả việc cài nó: không file nào ngoài thư mục bị sửa.
 3. **Mọi thứ plugin phụ thuộc** (mô hình, thư viện, file tải về) **nằm trong thư mục
    của chính plugin đó.** Không tải về, không đặt vào nơi khác.
+
+Bản đồ nhanh:
+
+| Thứ | Ở đâu |
+|---|---|
+| Giao diện, render hai mắt, lõi trình duyệt | `src/core`, `src/ui`, `src/shared` |
+| Plugin (mỗi plugin một thư mục) | `src/modules/<id>/`; quy tắc `src/modules/PLUGIN_RULES.md` |
+| Danh sách plugin | tự dựng: `src/modules/plugins.generated.ts` (không trong git) |
+| Cấu hình mọi AI (khâu, máy chủ, model) | `assistant/ai/stages.json`, ghi đè bằng `assistant/.env` |
+| Client AI duy nhất, máy chủ llama.cpp/whisper.cpp | `assistant/ai/client.py`, `servers.py` |
+| Giọng nói, lệnh, viết plugin, ảnh chụp | `assistant/models/` |
+| Model tải về, chương trình AI, log | `assistant/weights/`, `assistant/bin/`, `assistant/data/` (không trong git) |
+| Bản nháp plugin, bản sao lưu | `plugins-pending/`, `plugins-backup/` (không trong git) |
 
 ---
 
@@ -101,59 +115,22 @@ màn hình nào được che nó. Thêm lớp mới thì ghi vào đây.
 
 ---
 
-## B. Plugin độc lập, gói gọn trong thư mục của nó
+## B. Plugin: phần của Core
 
-**B1.** Một plugin là một thư mục `src/modules/<id>/`, `<id>` trùng `manifest.id`
-(kebab-case). Mọi thứ của plugin nằm trong thư mục đó và chỉ ở đó:
+Quy tắc **viết** một plugin (thư mục, import, chữ, màu, CSS, hai mắt, nhận diện, màn hình riêng, quyền, dùng AI, dọn dẹp) nằm ở
+**một file duy nhất: `src/modules/PLUGIN_RULES.md`**. Trợ lý đọc đúng file đó mỗi lần viết hoặc sửa plugin
+(`pluginsmith.rules`, G12), người viết tay cũng vậy. Sửa quy tắc plugin thì sửa file đó, không chép sang đây. Dưới đây chỉ là
+phần của Core đứng sau các quy tắc ấy.
 
-| File | Bắt buộc | Vai trò |
-|---|---|---|
-| `plugin.ts` | có | `definePlugin({ manifest, load })`. **Chỉ** import `./manifest` và `@/core/modules/definePlugin`; phần còn lại tải bằng `await import()` trong `load`, nên plugin chưa bật thì code chưa tải, chưa chạy (mỗi plugin thành một file riêng trong `chunks/`). |
-| `manifest.ts` | có | id, version, tên/mô tả (từ `text.json`), `input`, `outputKinds`, `execution`, `permissions`. |
-| `text.json` | có | Mọi chữ hiển thị, đủ `vi` và `en`. Không viết câu tiếng Việt trong `.ts`. |
-| `models.json` | khi cần | Mô hình: `files[]` (`file`, `url`, `sha256`) và/hoặc `slots[]` GGUF. Python tải vào `models/` **trong thư mục plugin**, phục vụ ở `/plugins/<id>/models/<file>` (chỉ file đã khai). URL lấy bằng `pluginModelUrl(manifest.id, file)`. Đường `gguf` của slot tính từ thư mục plugin. |
-| `vendor.json` | khi cần | Thư viện **chỉ plugin này dùng**, ghim phiên bản chính xác. Python giải nén vào `vendor/` **trong thư mục plugin**; import theo đường tương đối (`./vendor/...`). |
-| còn lại | khi cần | worker, mapping, CSS, `LICENSE`… đều trong thư mục. |
+**B5.** Core không nêu tên plugin. Danh sách plugin do Python tự dựng từ các thư mục (`frontend.plugin_index` viết
+`src/modules/plugins.generated.ts` ở mỗi lần dựng, không đưa vào git); chỗ duy nhất còn viết id plugin là phần cấp quyền trong
+`src/core/modules/permissions.ts`. Thêm plugin là thêm một thư mục, không sửa file nào ngoài nó.
 
-**B2.** Không import chéo giữa các plugin: không `../<plugin-khác>`, không
-`@/modules/...`. Thứ nhiều plugin cần thì đưa lên Core (`src/core`, `src/shared`).
+**B6.** Quyền không tự cấp được. Ngoài `camera-frame`, mọi quyền (`network`, `snapshot`, `screen`) phải ghi tay trong
+`permissions.ts`; chưa ghi thì Core chặn plugin trước khi tải. Ngoại lệ duy nhất là plugin do trợ lý viết (id `ai-`, G2).
 
-**B3.** Plugin chỉ import từ: thư mục của nó (kể cả `./vendor/` của nó), `@/core/...`,
-`@/shared/...`, `@/i18n/text`, `@/ui/theme`, và thư viện **của Core** trong
-`vendor.json` gốc (three, MediaPipe…). `vendor.json` gốc chỉ chứa thứ Core dùng.
-
-**B4.** Mọi thứ plugin tải về nằm trong thư mục của nó: mô hình → `models/`, thư viện →
-`vendor/` (cả hai bị gitignore). Không đặt vào `public/models` (chỉ dành cho mô hình
-tay của Core), `vendor/` gốc hay chỗ dùng chung nào.
-
-**B5.** Core không nêu tên plugin. Chỉ hai chỗ được viết id plugin: một dòng trong
-`src/modules/registry.ts`, và phần cấp quyền trong `src/core/modules/permissions.ts`.
-
-**B6.** Quyền không tự cấp được. Ngoài `camera-frame`, mọi quyền (`network`,
-`snapshot`, `screen`) phải ghi tay trong `permissions.ts`; chưa ghi thì Core chặn
-plugin trước khi tải.
-
-**B7.** Không Node.js / npm. Gói ngoài tải bằng Python từ `vendor.json` (của Core hoặc
-của plugin). Không thêm alias vào `assistant/frontend.py` cho plugin.
-
-**B8.** CSS có phạm vi: mọi selector nằm dưới class gốc riêng của plugin
-(ví dụ `.map3d …`). Không đụng selector của Core.
-
-**B9.** Màu theo theme: không mã màu cứng (`#…`, `rgb(`, `hsl(`, `0x…`). Lấy từ
-`@/ui/theme` (`uiColorHex`, `uiColor`, `ALPHA`), hoặc ghi số RGB rồi xoay sắc theo
-theme như `map3d/palette.ts`.
-
-**B10.** Bật/tắt/huỷ phải dọn sạch: `setEnabled(false)` dừng mọi việc đang chạy;
-`dispose()` gỡ listener, timer, WebGL context, request đang chờ.
-
-**B11.** Lỗi không làm sập Core: Core đã bắt lỗi ở `process()` và lúc vẽ màn hình
-plugin. Lỗi mạng / dữ liệu hỏng thì plugin tự bắt, báo bằng `LocalizedError`
-(chữ từ `text.json`).
-
-**B12.** Plugin không gọi `getUserMedia`. Camera là của Core; plugin nhận `FramePacket`.
-
-**B13.** Plugin nhận diện dùng `createDetectorModule` của Core. Nhãn theo ngôn ngữ
-truyền qua `label(locale, detection)`; worker không biết ngôn ngữ.
+**B7.** Không Node.js / npm. Gói ngoài tải bằng Python từ `vendor.json` (của Core hoặc của plugin). Không thêm alias vào
+`assistant/frontend.py` cho plugin. `vendor.json` gốc chỉ chứa thứ Core dùng.
 
 **B14.** Một plugin chậm thì **chậm đi, không bị tắt**. `ModuleScheduler`: một khung được phép tốn tối thiểu 2,5 giây và
 tối đa 4 giây (`8` lần khoảng cách giữa các khung), và phải hỏng **năm khung liền** mới bị đặt vào trạng thái `failed`.
@@ -161,7 +138,6 @@ tối đa 4 giây (`8` lần khoảng cách giữa các khung), và phải hỏn
 nói) chạy chung một máy, nên một mô hình mất nửa giây lúc rảnh có thể mất hai giây lúc tất cả cùng chạy. Plugin bị đặt vào
 `failed` vì "Inference aborted" là dấu hiệu máy quá tải hoặc worker kẹt: xem số liệu `module.<id>.inference` trước khi nới
 ngân sách thêm.
-
 ---
 
 ## C. Trước khi coi là xong
@@ -177,20 +153,12 @@ ngân sách thêm.
 7. Chạm vào nhận diện mặt: đo lại cùng người và khác người bằng ảnh có đáp án (K2) trước khi tin ngưỡng.
 8. Chạm vào bản đồ hay thành phố 3D: kéo chọn vùng không được làm bản đồ dịch; đường phố không hiện ở bước bản đồ.
 
-## D. Thêm plugin mới — từng bước
+## D. Thêm plugin mới
 
-1. Tạo `src/modules/<id>/` với `plugin.ts`, `manifest.ts`, `text.json`.
-2. Viết module (`VisionModule`); detector chạy worker thì dùng `createDetectorModule`.
-3. Thêm một dòng vào `src/modules/registry.ts` (giữ thứ tự theo tên thư mục).
-4. Quyền ngoài `camera-frame`: ghi tay vào `src/core/modules/permissions.ts`.
-5. Thư viện riêng: `vendor.json` trong thư mục plugin. Mô hình: `models.json`
-   (file tự vào `models/` của plugin).
-6. Chạy test, rồi thử stereo.
-
-Ví dụ: `face-recognition` / `person-detection` /
-`object-detection` (worker + MediaPipe, mô hình trong `models/` của từng plugin),
-`map3d` (màn hình riêng, Leaflet trong `vendor/` của nó, dùng đủ bộ `@/core/sync`).
-
+Tạo thư mục `src/modules/<id>/` theo `PLUGIN_RULES.md` §1. Không có bước đăng ký. Quyền ngoài `camera-frame` thì ghi tay vào
+`permissions.ts` (B6). Chạy test rồi thử stereo. Mẫu: `face-recognition`, `person-detection`, `object-detection` (worker +
+MediaPipe, mô hình trong `models/` của từng plugin), `map3d` (màn hình riêng, Leaflet trong `vendor/` của nó, dùng đủ bộ
+`@/core/sync`).
 ---
 
 ## E. Trợ lý giọng nói (Hino)
@@ -205,12 +173,12 @@ về `sleep`, **không** tắt hẳn: gọi "Hino" lại là mở phiên mới. 
 Nạp mô hình **không** phải bận: tên "Hino" vẫn phải được nghe và có phản hồi.
 Không dùng `busy()` để chặn micro.
 
-**E3.** Hai mô hình nghe, hai việc khác nhau (`assistant/models/speech.py`):
-Whisper nhỏ (`VR_WHISPER_WAKE_PATH`, `quick=True`) chỉ nghe từ gọi, mất khoảng 2 giây;
-Whisper lớn (`VR_WHISPER_PATH`, mặc định large-v3 q5, `careful=True`) nghe câu hỏi và lệnh.
+**E3.** Một mô hình nghe cho mọi việc (`assistant/models/speech.py`, khâu `stt`): whisper.cpp large-v3 q5 chạy trên GPU,
+nghe cả từ gọi lẫn câu hỏi và lệnh. Trước đây có thêm Whisper nhỏ riêng cho từ gọi vì large-v3 trên CPU mất vài giây và người dùng
+tưởng Hino không nghe; trên GPU điều đó không còn, và hai mô hình là hai thứ phải giữ. `careful=True` (beam 5) chỉ cho câu hỏi và lệnh.
 Đã so sánh large-v3 với large-v3-turbo trên cùng các câu: độ chính xác gần nhau, nhưng turbo
-có lúc lặp vòng giải mã (26 giây, ra "Mn-mn-mn") còn large-v3 ổn định và giữ được từ "plugin". Không dùng mô hình
-lớn cho việc nghe từ gọi: trên CPU nó mất vài giây và người dùng tưởng Hino không nghe.
+có lúc lặp vòng giải mã (26 giây, ra "Mn-mn-mn") còn large-v3 ổn định và giữ được từ "plugin". Nếu khâu `stt` bị trỏ tới API bên
+ngoài thì **mọi** đoạn âm thanh (kể cả đoạn dò từ gọi, chạy liên tục) đi ra khỏi máy: cân nhắc trước khi làm vậy.
 Muốn đổi mô hình thì đổi biến môi trường hoặc `downloads.json`, không sửa mã.
 Mô hình chỉ dành cho tiếng Việt (ví dụ PhoWhisper) đã thử và **không** dùng: nghe câu
 thuần Việt tốt hơn nhưng làm mất các từ mượn như "plugin", mà lệnh dựa vào các từ đó,
@@ -303,8 +271,8 @@ Câu nói của Hino nằm trong `_SAY` (vi và en); thêm loại phản hồi m
 ## G. Plugin do trợ lý tự viết
 
 **G1.** "Tạo plugin …" sinh bản **nháp** trong `plugins-pending/<id>/` (gitignore), chưa cài,
-chưa chạy. Chỉ khi người dùng nói "duyệt plugin …" mới chuyển vào `src/modules/`, thêm vào
-`registry.ts` và build lại; trang nạp lại. Từ chối thì xoá bản nháp.
+chưa chạy. Chỉ khi người dùng nói "duyệt plugin …" mới chuyển vào `src/modules/`,
+build lại (dựng tự thấy thư mục mới); trang nạp lại. Từ chối thì xoá bản nháp.
 
 **G2.** Plugin do trợ lý viết (id có tiền tố `ai-`) được cấp **mọi quyền** mà nó xin trong `manifest.ts`: `permissions.ts` miễn kiểm tra
 theo tiền tố (`ASSISTANT_PLUGIN_PREFIX`). Bản nháp chỉ xin quyền nằm trong `camera-frame`, `network`, `screen`, `snapshot`
@@ -320,23 +288,27 @@ cho mô hình, kiểm tra kết quả (JSON hợp lệ, build thử trên bản 
 ghi gì vào plugin. Duyệt thì `_apply_edit` sao lưu bản gốc vào `plugins-backup/`, ghi file, build, và **trả lại bản gốc nếu
 build lỗi**. `models.json` và `vendor.json` không bao giờ bị sửa.
 
-**G4.** Ai viết mã: mặc định **local** (Qwen, ngoại tuyến, chỉ làm được plugin đơn giản).
-"Dùng API" là SiliconFlow, cần khoá trong `.env` (`VR_SILICONFLOW_KEY`); không có khoá thì giữ local và nói
-rõ. Mỗi lần khởi động lại server là về local, trừ khi `VR_CODE_SOURCE=api`.
+**G4.** Ai viết mã: khâu `code` (`assistant/ai/stages.json`), mặc định Qwen2.5-Coder 14B chạy trên máy, nạp khi cần và tắt sau
+`idle_s` giây. Không có công tắc "dùng API/dùng local" bằng giọng nói: đổi nơi chạy là đổi `VR_CODE_URL`/`VR_CODE_KEY`/`VR_CODE_MODEL`.
 
-**G5.** Mọi khâu chạy được trên máy đều có công tắc riêng `local`|`api` (`VR_LLM_SOURCE`, `VR_STT_SOURCE`,
-`VR_TTS_SOURCE`, `VR_CODE_SOURCE`), mặc định `local`; mã gọi API chỉ nằm ở `assistant/models/cloud.py`. Gọi API lỗi thì **luôn rơi về
-model trên máy**, không để câu hỏi mất. Nghe và đọc chỉ gửi lên API những ngôn ngữ trong `VR_CLOUD_VOICE_LANGS` (mặc định `en`), vì
-model giọng của SiliconFlow không ghi hỗ trợ tiếng Việt.
+**G5.** **Một cấu hình, một client cho mọi AI.** Mã gọi AI chỉ nằm ở `assistant/ai/` (`client.py` gọi, `config.py` đọc `stages.json`
+và `.env`, `servers.py` chạy llama.cpp/whisper.cpp). Một khâu chỉ là `url`, `key`, `model`; thêm một khâu mới là thêm **một mục** vào
+`stages.json` và một dòng vào `config.KIND`, không thêm công tắc hay nhánh mã riêng. Không viết `urllib`/`requests` gọi AI ở chỗ khác.
+**Không có dự phòng**: khâu lỗi thì báo rõ tên khâu và địa chỉ (`AIError`), không tự rơi sang model khác, vì dự phòng giấu mất
+việc cấu hình sai.
 
-**G7.** Đổi model bằng giọng nói (`modelswitch.py`): chỉ nhận tên model **có trong danh sách SiliconFlow trả về** (`cloud.models_for`), không
-bao giờ nhận tên như Whisper nghe được; đổi model luôn **đọc lại tên đầy đủ và chờ "đúng"** (hết hạn sau 60 giây, câu khác thì bỏ câu hỏi);
-đổi nơi chạy (`local`|`api`) thì làm ngay vì dễ hoàn tác. Lựa chọn chỉ nằm trong bộ nhớ (`cloud._sources`, `cloud._models`), không ghi `.env`.
-Chữ "đúng" và "dùng" giống nhau khi bỏ dấu, nên câu trả lời chỉ tính khi ngắn và không có `model`/`api`/`local`.
-Thứ cần xem thì **hiện lên màn hình**, không chỉ đọc: kết quả có `display` (toàn bộ chữ) và `open` (trang menu cần mở); `engine.talk` gửi
-lệnh `setting` `page.<open>` rồi gửi `display` làm chữ trả lời, còn giọng chỉ đọc `reply` (một dòng ngắn). Không thêm lớp giao diện mới:
-trang Trợ lý của menu đã in chữ trả lời giữ nguyên xuống dòng (`white-space: pre-wrap`) và đã đủ quy tắc hai mắt (A1, A12).
+**G5b.** **Trợ lý và plugin tách bạch.** Khâu của trợ lý (`chat`, `agent`, `vision`, `code`, `stt`, `tts`) và khâu của plugin
+(`plugin_chat`) là hai nhóm (`config.ASSISTANT_STAGES`, `config.PLUGIN_STAGES`). Plugin chỉ gọi `/api/plugin-ai/*`, không gọi được khâu của
+trợ lý; đổi địa chỉ của `plugin_*` không động tới Hino. `vision` là trợ lý đọc **ảnh chụp màn hình**, không phải camera.
 
+**G6.** Hai model ngôn ngữ chung một GPU (`servers` trong `stages.json`): trả lời (8B) và viết plugin (14B) cùng `group`, nên không chạy đồng thời.
+`servers.use()` giữ máy chủ trong lúc đang gọi: máy chủ khác cùng nhóm chờ đến khi nó rảnh (tối đa 300 giây) rồi mới tắt nó, nên một câu hỏi
+không cắt ngang việc viết plugin đang dở. Khóa `pluginsmith._lock` **không** được giữ trong lúc chờ model (`pluginsmith.draft/revise`).
+
+**G7.** Đổi model bằng giọng nói (`modelswitch.py`): chỉ áp dụng cho khâu đang trỏ tới API bên ngoài, chỉ nhận tên model **có trong
+danh sách mà điểm cuối đó trả về** (`ai.models`), không bao giờ nhận tên như Whisper nghe được; đổi model luôn **đọc lại tên đầy đủ và
+chờ "đúng"** (hết hạn sau 60 giây, câu khác thì bỏ câu hỏi). Lựa chọn chỉ nằm trong bộ nhớ (`ai.config._models`), không ghi `.env`.
+Chữ "đúng" và "dùng" giống nhau khi bỏ dấu, nên câu trả lời chỉ tính khi ngắn và không có chữ `model`.
 **G8.** "Chậm" phải đo được: mỗi lượt nói ghi một dòng `time` vào log (`assistant/models/timing.py`): nghe, chữ đầu tiên, token mỗi giây, thời
 gian đọc mỗi câu, tổng; số của lượt gần nhất cũng nằm trong bảng cấu hình ("hiện thông tin model"). Giọng đọc chạy ở **luồng riêng, từng câu theo
 thứ tự** (`Engine.reply`), không được đọc ngay trong vòng lặp nhận chữ: nếu không, model dừng viết lúc giọng đang đọc. Đổi mô hình nghe
@@ -352,17 +324,17 @@ không gọi `fetch` thẳng vào `/api`. Thêm đường `/api` mới thì khô
 `VR_TOOLS=off`. "sau" (sau mười phút) và "sáu" chỉ khác dấu: số chữ phải xét dấu, không xét chữ đã bỏ dấu (`_digit`). Đoạn dò từ gọi (`quick`) **không bao giờ**
 đi qua API. Ngắt lời bằng giọng (`bargeIn`) mặc định tắt vì tiếng loa lọt vào mic; chỉ câu **chỉ gồm** lệnh dừng mới tính (`wake.is_stop`).
 
-**G11.** Nhìn bằng model đọc ảnh (`assistant/models/vision.py`, plugin `vision-ask`): cũng có hai nơi chạy (`VR_VISION_SOURCE` local|api), API lỗi thì rơi
-về local nếu có file, và model local chỉ được tải khi `VR_VISION_SOURCE=local` (`"when"` trong `downloads.json`, gần 3 GB). Ảnh **chỉ** được gửi khi có câu hỏi, qua
-`/api/vision/ask` (có khoá truy cập, G9), và plugin chỉ giữ **một** ảnh mới nhất trong `OffscreenCanvas` khi đang bật. Plugin trả `{say, show}`: giọng đọc `say`
-(tối đa 190 ký tự, vì `/api/voice/preview` nhận 200), trang Trợ lý in `show`. Việc đọc chữ và dịch cũng là câu hỏi cho model này, không có OCR riêng.
+**G11.** Trợ lý nhìn ảnh chụp màn hình (`assistant/models/vision.py`, khâu `vision`, `POST /api/assistant/screen`; lệnh từ khoá ở `screen_speech.py`, ảnh do
+`src/core/screen/ScreenCapture.ts` chụp một mắt, không dùng `getDisplayMedia`; ảnh là hình camera hiện tại phủ giao diện, nên "cái này là gì" cũng chạy qua đây): chạy bằng chính model
+trả lời. Ảnh **chỉ** được gửi khi có câu hỏi, qua đường có khoá truy cập (G9); không có plugin nhìn camera nào gọi model ảnh. Kết quả là `{say, show}`:
+giọng đọc `say` (tối đa 190 ký tự, vì `/api/voice/preview` nhận 200), trang Trợ lý in `show`. Việc đọc chữ cũng là câu hỏi cho model này, không có OCR riêng.
 Ghi chú (`notes.py`) là lệnh từ khoá lưu `assistant/data/notes.json`; xóa hết phải hỏi lại.
 
-**G6.** Một model ngôn ngữ, nhiều phiên. Trả lời và viết plugin **không** được dùng chung một khóa: viết plugin chạy phiên riêng
-(`engine.generate(..., session="code")`, khóa `_code_generate_lock`), nên không làm chậm hàng đợi trả lời. Cấu hình local và API đi theo
-cùng một bảng (README, `.env.example`): thêm một khâu mới thì thêm **một công tắc `VR_<KHÂU>_SOURCE`** và **một biến tên model**,
-rồi ghi vào đúng bảng đó. Biến model của khâu phụ (`VR_CODE_MODEL`, `VR_AGENT_MODEL`) mặc định theo `VR_LLM_MODEL`
-(`cloud.FOLLOWS_LLM`). Khóa `pluginsmith._lock` **không** được giữ trong lúc chờ model (`pluginsmith.draft/revise`).
+**G12.** Quy tắc cho plugin do trợ lý viết là file `src/modules/PLUGIN_RULES.md`, không phải prompt gõ cứng trong mã.
+`pluginsmith.with_rules` đọc file đó **mỗi lần** viết (`draft`) hoặc sửa (`revise`) rồi nối sau lời dặn định dạng, nên sửa file là
+đổi cách viết ngay, không cần chạy lại server. Thiếu file thì **không viết** (`DraftError`), không viết khi không có luật. Cửa sổ
+của model viết mã là 16 nghìn token, chứa cả luật, các file của plugin và câu trả lời: vì vậy `MAX_SOURCE` là 28.000 ký tự và
+file luật phải ngắn (test giữ dưới 12.000 ký tự). Mỗi cấm của `check_code` phải có trong file luật, để model biết trước thay vì bị từ chối sau.
 
 ---
 
@@ -403,12 +375,11 @@ Test hiện chỉ bắt khoá thừa, không bắt khoá thiếu: tự grep trư
 
 ---
 
-## I. Quy tắc bổ sung cho plugin nhận diện
+## I. Kiểm thử worker nhận diện
 
-**I1.** Mô hình lượng tử hoá int8 (hiện là `object-detection`, EfficientDet-Lite0 int8) **chỉ
-chạy CPU**. GPU delegate nạp được nhưng trả kết quả sai (ảnh mèo và chó ra "thuyền 0,11") và
-khung hình đầu mất 26 giây để biên dịch. Mô hình float16 (`face-recognition`, `person-detection`)
-được thử GPU rồi CPU. Thêm mô hình mới thì **thử trên ảnh có đáp án** trước khi tin GPU.
+**I1.** Mô hình lượng tử hoá int8 chỉ chạy CPU, mô hình mới thì thử trên ảnh có đáp án trước khi tin GPU (lý do và số đo ở
+`PLUGIN_RULES.md` §6). GPU delegate của `object-detection` nạp được nhưng trả kết quả sai (mèo và chó ra "thuyền 0,11") và
+khung hình đầu mất 26 giây để biên dịch.
 
 **I2.** Cách kiểm tra worker nhận diện không cần camera: phục vụ file worker đã build, mô hình
 và wasm qua một máy chủ `http://127.0.0.1` tạm, tạo `Worker`, gửi `init` rồi `infer` với một
@@ -417,56 +388,13 @@ Trang HTTPS tự ký của Core bị trình duyệt nhúng chặn chứng chỉ,
 
 ---
 
-## L. Bản đồ và thành phố 3D (`map3d`)
+## L. Ghi chú riêng của từng plugin
 
-**L1.** Nguồn dữ liệu. Ô bản đồ lấy ở `tile.openstreetmap.de` (nhiều mạng chặn DNS `tile.openstreetmap.org` về `127.0.0.1`). Khi thử
-một nguồn ô phải **tải ô về xem**, không chỉ nhìn mã trạng thái: có nguồn trả mã 200 kèm ảnh "API KEY REQUIRED". Toà nhà và
-đường phố lấy theo thứ tự: API OpenStreetMap (không gọi lại sau lần đầu bị từ chối kết nối), ô vector OpenFreeMap
-(`vectorTiles.ts`, tự giải mã, không cần khóa), rồi các máy chủ Overpass. Chiều cao toà nhà trong ô là 5 khi
-OpenStreetMap không có chiều cao: coi là "không biết".
-
-**L2.** Chọn vùng: hai tay cùng chụm (`twohand`) vẽ vùng, hai góc là chỗ từng tay chụm (`detail.hands`), mở tay là chốt vùng;
-chuột thì Shift và kéo (Leaflet `boxZoom` tắt vì nó cũng dùng Shift). Một tay dời bản đồ. Chọn lại là vẽ lại: vùng mới
-thay vùng cũ (`handleDone` bỏ thành phố cũ). Thu phóng bản đồ cũng là hai tay, phân biệt bằng **chỗ bắt đầu**: hai tay chụm
-gần nhau (khoảng cách ban đầu `DRAW_FROM_WITHIN` = 0,16 khung hình) là vẽ vùng, chụm xa nhau là thu phóng quanh điểm giữa
-(`zoomSnap: 0` để mọi mức zoom ở giữa đều được); quyết định lúc hai tay vừa chụm và giữ đến khi mở. Bằng chuột thì thu phóng
-bằng con lăn. Đường phố tải sẵn lúc chọn vùng nhưng **ẩn** cho đến bước thành phố 3D, nếu không chúng lộ ra dưới bản đồ.
-
-**L2b.** Định vị: mỗi lần plugin được bật, `Map3dApp.setActive(true)` gọi `requestLocation(false)` và bản đồ **nhảy** tới vị trí
-thiết bị (không bay, vì bản đồ mở ở bên kia trái đất). Nút định vị là biểu tượng ngắm tròn nằm trong hàng nút phía trên
-(`m3-bar`); bấm là bay về lại vị trí đó. `data-busy` khi đang tìm, `data-failed` khi không định vị được (lý do nằm ở `title`).
-
-**L3.** Trong thành phố 3D tay làm việc với thứ nó nắm vào (`Space.handDown`, `twoHand`).
-Một tay chụm vào một tòa thì tòa đó được chọn và kéo đổi chiều cao (lên xuống) và bề rộng (trái phải); chụm vào chỗ
-không có nhà thì kéo là trượt cả cảnh. Hai tay: nếu giữa hai tay (lúc vừa chụm) là một tòa thì dời tòa đó trên mặt đất,
-nếu không thì giang ra hoặc khép vào là thu phóng, vặn là xoay, nâng hoặc hạ cả hai tay là nghiêng. Thứ nằm giữa hai
-tay được quyết khi hai tay chụm và giữ cho đến khi mở.
+Thiết kế riêng của một plugin nằm **trong thư mục của plugin đó** (`src/modules/<id>/NOTES.md`), không ở đây: `map3d` (nguồn
+bản đồ, chọn vùng bằng hai tay, định vị, thành phố 3D), `face-recognition` (mô hình, ngưỡng khớp, nơi lưu người),
+`scene-description` và `code-reader`. Quy tắc chung của mọi plugin ở `src/modules/PLUGIN_RULES.md`.
 
 ---
-
-## K. Nhận diện khuôn mặt
-
-**K1.** Một plugin duy nhất lo mặt: `face-recognition`. Worker tìm mặt
-(BlazeFace), căn thẳng bằng mắt, mũi, miệng (`align.ts`) rồi chạy SFace bằng onnxruntime-web, trả về mỗi mặt **128
-số** (base64 trong `attributes.embedding`). Ảnh không rời worker và không được lưu. Thư viện chạy mô hình và mô hình
-đều khai trong `models.json` của plugin (có sha256), không có gì ngoài thư mục plugin.
-
-**K2.** Khớp mặt là k-NN trên cosine (`matching.ts`, ngưỡng `MATCH_THRESHOLD` = 0,4; đo thật: cùng người 0,75, khác
-người từ −0,03 đến 0,25). Đổi mô hình thì **đo lại** bằng ảnh có đáp án trước khi tin ngưỡng.
-
-**K3.** Người, năm sinh, thông tin và các số mặt do **máy chủ** giữ (`assistant/models/people.py`, file
-`assistant/data/people.json`, gitignore, ghi nguyên tử). Plugin chỉ gọi `/api/people`; quyền `network` và `screen`
-ghi tay ở `permissions.ts`.
-
-**K4.** Lưu bằng giọng nói đi qua từ khoá (`assistant/models/person_speech.py`), không qua mô hình ngôn ngữ (F1), rồi
-thành lệnh `person` gửi cho trang. Core không biết plugin nào lo: `ModuleManager.command` đưa lệnh cho từng plugin đang
-chạy, plugin nào xử lý thì trả câu để Hino nói (`VisionModule.command`), plugin không biết thì trả `null`.
-
-**K5.** Khung nhãn của mặt đã biết tự viết cả nhãn (tên - năm sinh - thông tin, ngăn cách bằng dấu gạch ngang) và đặt `attributes.plainLabel` để Core
-không thêm phần trăm phía sau.
-
----
-
 
 ## M. Nhìn bằng giọng nói
 
@@ -475,20 +403,15 @@ chỉ plugin mới có khung hình. Máy chủ chỉ nhận ra câu hỏi bằng
 `sight` với `what` là `scene` hoặc `code`; `ModelBridge` đưa cho `ModuleManager.command`, plugin nào đúng `what` thì trả câu
 để Hino nói, còn lại trả `null`. Không plugin nào nhận (đang tắt) thì Hino nói câu `missing` do máy chủ viết sẵn.
 
-**M2.** `scene-description` không thấy kết quả của plugin khác (B2): nó chạy bộ nhận đồ vật riêng, mô hình riêng trong
-thư mục của nó, và **không vẽ gì** (`detections: []`). Câu trả lời lấy số lượng lớn nhất của từng loại trong 2,5 giây gần
-nhất, vì một khung có thể bỏ sót còn hai lần thấy thì không thành hai vật.
-
-**M3.** `code-reader` nạp zxing-wasm bằng bản iife và `importScripts`, còn lõi wasm tìm bằng `locateFile` trỏ vào thư mục
-plugin; cả hai khai trong `models.json` (có sha256) và không có địa chỉ ngoài trong worker (B4). Hộp mã đặt
-`attributes.plainLabel` để nhãn là nội dung mã, không có phần trăm.
+**M2.** Mọi câu hỏi về thứ trước camera hay trên màn hình ("cái này là gì", "đọc chữ trên biển", "dịch cái này", "đọc lỗi trên
+màn hình") **không** thuộc plugin nào: `screen_speech.py` nhận ra bằng từ khoá rồi trang chụp một ảnh và hỏi trợ lý (G11).
 
 ---
 
 ## J. Làm việc với mô hình và kho mã
 
 **J1.** Mô hình nặng tải bằng `downloads.json` (có `sha256` và `bytes`), không commit.
-`assistant/weights/` bị gitignore. Đổi mô hình mặc định thì sửa `downloads.json`, `catalog.py`,
+`assistant/weights/` bị gitignore. Chương trình chạy chúng (llama.cpp, whisper.cpp) cũng tải bằng `downloads.json` vào `assistant/bin/`. Đổi mô hình mặc định thì sửa `downloads.json`, `assistant/ai/stages.json`,
 `.env.example` và README **cùng lúc**, rồi xoá file cũ không còn dùng.
 
 **J2.** Không có chữ tiếng Việt trong file `.ts` (kể cả chú thích): `test_i18n` quét và báo lỗi.
@@ -497,8 +420,7 @@ Python phía server.
 
 **J4.** Máy chủ chạy bằng **Python 3.11 trở lên** (chạy bằng `py -3.11 run.py`, `run.py` kiểm). Trên Windows máy chủ chạy
 trên vòng lặp *selector* (`main.py`), vì vòng *proactor* mà uvicorn tự chọn in traceback `WinError 10054` mỗi khi trình duyệt
-ngắt một kết nối (mỗi lần tải lại trang). Dòng `whisper_init_state: compute buffer…` trong log là thông báo nạp mô hình,
-không phải lỗi.
+ngắt một kết nối (mỗi lần tải lại trang). Log của từng máy chủ AI nằm ở `assistant/data/logs/<tên>.log`; máy chủ llama.cpp và whisper.cpp tự khởi chạy, và máy chủ viết mã chỉ chạy khi cần.
 
 **J3.** Trước khi báo xong: chạy **toàn bộ** `python run.py test`, và build thử
 `src/main.ts` bằng esbuild (không có Node nên không có `tsc`: kiểu TypeScript chưa được

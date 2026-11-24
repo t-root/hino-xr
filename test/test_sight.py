@@ -59,10 +59,9 @@ class SightWordsTest(unittest.TestCase):
 
 
 class PluginsTest(unittest.TestCase):
-    def test_both_are_registered(self) -> None:
-        registry = (SRC / "modules/registry.ts").read_text(encoding="utf-8")
-        self.assertIn("scene-description/plugin", registry)
-        self.assertIn("code-reader/plugin", registry)
+    def test_both_are_plugins_by_having_a_plugin_file(self) -> None:
+        for folder in ("scene-description", "code-reader"):
+            self.assertTrue((SRC / "modules" / folder / "plugin.ts").is_file(), folder)
 
     def test_what_they_download_is_declared_with_a_hash(self) -> None:
         for plugin, assets in ((SCENE, "assets.ts"), (CODE, "assets.ts")):

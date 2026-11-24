@@ -1,7 +1,7 @@
 """Who may use the `/api`.
 
 The server listens on the whole network so a phone can reach it, and what is behind `/api` is worth
-protecting: it installs and runs plugins an AI wrote, spends the cloud key, and holds the faces and
+protecting: it installs and runs plugins an AI wrote, spends an API key, and holds the faces and
 names of the people the headset knows. So:
 
 - The computer's own browser (loopback) needs nothing.

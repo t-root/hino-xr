@@ -17,11 +17,11 @@ Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, 
 
 - **Điện thoại:** cùng Wi-Fi, mở địa chỉ **có `?key=...`** mà server in ra lúc khởi động, dạng `https://<địa-chỉ-máy>:5173/?key=...` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Điện thoại nhớ khoá sau lần đầu và tự xoá nó khỏi địa chỉ; lần sau mở không cần `?key=`. Máy tính chạy server không cần khoá. Hiện lỗi `access key needed` nghĩa là điện thoại chưa có khoá: mở lại địa chỉ có `?key=`. Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
 - **Lần chạy đầu cần mạng** để tải thư viện (Three.js, MediaPipe, esbuild dạng file thực thi), mô hình thị giác và mô hình trợ lý. Mọi thứ cần tải khai báo trong `downloads.json` và `vendor.json`; file có sẵn thì bỏ qua, bị ngắt thì tải tiếp, sai sha256 thì tải lại. Lần sau chạy offline.
-- Mô hình trợ lý nặng vài GB, nằm trong `assistant/weights/` (không đưa vào git). Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
+- Mô hình trợ lý (khoảng 15 GB) nằm trong `assistant/weights/`, các chương trình chạy chúng (llama.cpp, whisper.cpp) trong `assistant/bin/`; cả hai đều không đưa vào git. Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
 
 ### Bảo mật
 
-Server nghe trên cả mạng để điện thoại vào được, mà `/api` cài và chạy plugin do AI viết, dùng khoá SiliconFlow và giữ khuôn mặt, tên của những người trợ lý biết. Vì vậy (`assistant/access.py`):
+Server nghe trên cả mạng để điện thoại vào được, mà `/api` cài và chạy plugin do AI viết, dùng khoá API (nếu bạn đặt) và giữ khuôn mặt, tên của những người trợ lý biết. Vì vậy (`assistant/access.py`):
 
 - Trình duyệt trên **chính máy tính chạy server** không cần khoá. Thiết bị khác phải gửi khoá trong header `X-Access-Key`. Khoá là `VR_ACCESS_TOKEN`, hoặc khoá ngẫu nhiên tự sinh lần chạy đầu và giữ trong `assistant/data/access.key` (không đưa vào git). **Giữ kín địa chỉ có `?key=`**: ai có nó, cùng Wi-Fi, điều khiển được trợ lý. Muốn đổi khoá thì xoá file đó rồi chạy lại.
 - Yêu cầu tự nhận đến từ **trang web khác** (header `Origin` không phải chính server) bị từ chối, kể cả trên máy tính, để một trang độc hại mở trong trình duyệt không điều khiển được trợ lý.
@@ -95,13 +95,13 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 
 | Việc | Cách làm |
 |---|---|
-| Trả lời | Qwen 2.5 3B (GGUF, llama.cpp, CPU mặc định). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. |
-| Nghe | Whisper chép chữ. `ggml-small` nghe từ gọi cho nhanh, `ggml-large-v3` nghe câu hỏi và lệnh. |
+| Trả lời | Qwen3-VL 8B (llama.cpp, GPU). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. Cũng là model làm menu bằng gọi công cụ và đọc ảnh chụp màn hình. |
+| Nghe | whisper.cpp (large-v3 q5, GPU) chép chữ: nghe từ gọi, câu hỏi và lệnh. |
 | Nói tiếng Việt | VieNeu-TTS v3 Turbo (ONNX, CPU), clone từ giọng mẫu `assistant/voices/hino.wav`. Tải về `assistant/weights/vieneu/` qua `downloads.json`, chạy cục bộ, không cần mạng. |
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
 
-Mỗi lượt nói ghi một dòng `time` vào log của máy chủ và vào mục **nhật ký** của trang (nghe, chữ đầu tiên, token mỗi giây, đọc mỗi câu, tổng) để biết chậm ở khâu nào; bảng "hiện thông tin model" cũng in lượt gần nhất. Giọng đọc chạy song song với model viết, từng câu theo thứ tự. Máy yếu thì chỉnh `VR_N_THREADS` (số nhân **vật lý**) và `VR_WHISPER_BEAM` (1 đến 2 nhanh hơn nhiều), hoặc đặt `VR_LLM_SOURCE=api`.
+Mỗi lượt nói ghi một dòng `time` vào log của máy chủ và vào mục **nhật ký** của trang (nghe, chữ đầu tiên, token mỗi giây, đọc mỗi câu, tổng) để biết chậm ở khâu nào; bảng "hiện thông tin model" cũng in lượt gần nhất. Giọng đọc chạy song song với model viết, từng câu theo thứ tự. Chậm ở khâu nào thì trỏ khâu đó tới máy mạnh hơn hoặc API bên ngoài bằng `VR_<KHÂU>_URL`.
 
 Trợ lý đang nói thì micro tạm tắt để không nghe lại chính nó. Trình duyệt chỉ cắt các đoạn có tiếng theo độ to và gửi lên `/api/voice/listen`; việc nhận cụm gọi làm ở Python (`assistant/models/wake.py`).
 
@@ -112,7 +112,7 @@ Hai nhóm lệnh được xử lý trước khi hỏi mô hình (`assistant/mode
 - **Plugin:** "bật plugin bản đồ", "tắt plugin nhận diện khuôn mặt"; tiếng Anh cũng được.
 - **Menu:** "tăng tốc độ đọc", "giảm độ rõ con trỏ", "tắt chẩn đoán", "chuyển sang tiếng Anh", "mở mục giọng đọc". Hỗ trợ số (tăng/giảm, đặt giá trị, tối đa/tối thiểu/mặc định/phần trăm), công tắc (bật/tắt), lựa chọn và mở một mục menu. Danh sách thứ chỉnh được nằm trong `src/shared/voice-controls.json`.
 
-- **Model (`assistant/models/modelswitch.py`):** "dùng API để trả lời" / "nghe bằng local" (đổi nơi chạy của từng khâu: trả lời, viết plugin, điều khiển menu, nghe, đọc); "có những model nào để trả lời" (đọc danh sách thật từ SiliconFlow, thêm tên để lọc: "model qwen 72b nào"); "đổi model trả lời sang qwen 72b" (tên được so với danh sách thật, trợ lý đọc lại tên đầy đủ và chờ bạn nói "đúng" mới đổi). Lựa chọn bằng giọng nói chỉ có hiệu lực đến khi khởi động lại server và không sửa `.env`. **Hiện lên màn hình:** "hiện thông tin model", "model nào đang dùng", "cho tôi xem cấu hình trợ lý" mở trang Trợ lý của menu và in bảng cấu hình (mỗi khâu chạy ở đâu, dùng model nào, có khoá chưa); danh sách model, câu hỏi xác nhận và kết quả sau khi đổi cũng được in ra, còn giọng chỉ đọc một dòng ngắn.
+- **Model (`assistant/models/modelswitch.py`):** "hiện thông tin model", "model nào đang dùng", "cho tôi xem cấu hình trợ lý" mở trang Trợ lý và in bảng cấu hình (mỗi khâu chạy ở đâu, dùng model nào, kể cả khâu của plugin); "có những model nào để trả lời" đọc danh sách thật từ điểm cuối của khâu đó; "đổi model trả lời sang qwen 72b" (chỉ khi khâu trỏ tới API bên ngoài; tên được so với danh sách thật, trợ lý đọc lại tên đầy đủ và chờ bạn nói "đúng" mới đổi). Lựa chọn bằng giọng nói chỉ có hiệu lực đến khi khởi động lại server và không sửa `.env`.
 
 ### Công cụ (hẹn giờ, thời tiết, tra cứu)
 
@@ -124,24 +124,18 @@ Ba việc mà mô hình ngôn ngữ không biết hay không làm được, đ�
 
 Thời tiết và tra cứu gửi tên nơi hoặc chủ đề bạn nói tới Open-Meteo và Wikipedia, và không gì khác. `VR_TOOLS=off` tắt cả hai.
 
-### Hỏi về hình ảnh (đọc chữ, dịch)
+### Nhìn những gì bạn đang thấy (trợ lý)
 
-Plugin **Hỏi về hình ảnh** (`src/modules/vision-ask`) cho trợ lý nhìn qua camera và trả lời bằng một model đọc được ảnh:
+Trợ lý đọc **một ảnh chụp đúng cái bạn đang thấy**: giao diện (menu, nhật ký, chữ) vẽ lên hình camera trước mắt. Nói:
 
-- "cái này là gì", "đây là con gì", "what is this": hỏi về thứ đang đưa trước camera.
-- "đọc chữ trên biển", "đọc thực đơn", "trên biển ghi gì", "read this sign": đọc nguyên văn chữ nhìn thấy.
-- "dịch cái này", "translate this menu": dịch chữ đó sang ngôn ngữ của bạn.
+- về giao diện: "đọc lỗi trên màn hình", "màn hình này bị gì", "lỗi này là gì", "what is this error", "read the screen";
+- về thứ trước camera: "cái này là gì", "đây là con gì", "đọc chữ trên biển", "đọc thực đơn", "dịch cái này", "what is this", "translate this menu".
 
-Trợ lý nói ngay "Để mình xem", rồi đọc một đoạn ngắn và hiện **toàn bộ** câu trả lời lên trang Trợ lý. Model chạy ở hai nơi, chọn bằng `VR_VISION_SOURCE` (hoặc nói "dùng API để nhìn hình" / "dùng local để nhìn hình"):
+Trợ lý nói ngay "Để mình xem", trang chụp ảnh và gửi tới `POST /api/assistant/screen` (khâu `vision`, chính model trả lời Qwen3-VL), rồi đọc một đoạn ngắn và hiện **toàn bộ** câu trả lời lên trang Trợ lý. "Tôi đang thấy gì" và "đọc mã QR" vẫn là của plugin **Mô tả cảnh** và **Đọc mã** (chạy trên trình duyệt, không gọi model).
 
-| | Local | API |
-|---|---|---|
-| Model | Qwen2.5-VL 3B (llama.cpp): `VR_VISION_MODEL_PATH`, `VR_VISION_MMPROJ_PATH` | `VR_VISION_MODEL` (mặc định `Qwen/Qwen2.5-VL-32B-Instruct` của SiliconFlow) |
-| Tải về | Chỉ tải (gần 3 GB) khi đặt `VR_VISION_SOURCE=local` rồi chạy `run.py` | Không cần |
-| Tốc độ | Chậm trên CPU, có thể tới vài chục giây một ảnh | Vài giây |
-| Ảnh đi đâu | Không rời máy tính | Đi tiếp tới SiliconFlow |
+Ảnh do `src/core/screen/ScreenCapture.ts` chụp: lấy khung hình camera hiện tại đặt vào ô vuông mà mắt đầu tiên hiển thị (lật gương nếu trang đang lật), rồi chép tài liệu, cho trình duyệt vẽ giao diện vào ảnh SVG và phủ lên trên, cắt lấy **một mắt**. Không xin quyền, chạy được trên điện thoại (`getDisplayMedia` thì không). Ảnh chỉ được chụp khi bạn hỏi, gửi qua đường có khoá truy cập, không được lưu. Chưa xử lý việc trang tự xoay hình (`viewTurn`): khi trang đang xoay thì hình camera trong ảnh có thể lệch hướng so với thứ bạn thấy.
 
-API lỗi mà model local có sẵn thì dùng model local. Ảnh chỉ được chụp khi bạn hỏi và gửi tới máy chủ trợ lý; plugin giữ đúng một ảnh mới nhất trong bộ nhớ khi đang bật và bỏ ngay khi tắt. Plugin xin quyền `network` và `snapshot`, cấp tay ở `permissions.ts`. Tên model API là mặc định mình chọn, chưa kiểm với tài khoản của bạn: xem danh sách bằng "có những model nào để nhìn hình".
+Plugin **Hỏi về hình ảnh** (`vision-ask`) đã bỏ; việc của nó giờ là của trợ lý.
 
 ### Ghi chú và việc cần làm
 
@@ -155,32 +149,44 @@ Mục **trợ lý** có công tắc **Ngắt lời bằng giọng** (mặc đị
 
 Nói "tạo plugin đếm số người" rồi mô tả: trợ lý viết một bản nháp vào `plugins-pending/` (kiểm tra mã, biên dịch, **chưa cài**). Bạn nói "duyệt plugin …" để cài (server dựng lại, trang tự nạp lại, **không cần chạy lại server**) hoặc "từ chối plugin …" để bỏ. Plugin do trợ lý viết (id `ai-…`) được cấp **mọi quyền** mà nó xin: `network`, `screen`, `snapshot`; bản nháp ghi rõ quyền nó dùng trong `manifest.ts`. Các bước kiểm tra chỉ là lưới đỡ lỗi chứ không phải hộp cát (chỉ cấm `eval`, `Function`, `import()`), nên bạn nên đọc thư mục nháp trước khi duyệt.
 
-**Sửa plugin có sẵn bằng giọng nói:** "sửa plugin bản đồ, thêm nút phóng to" (hoặc "fix the 3D map plugin so …"). Trợ lý đọc các file của plugin (tối đa 60.000 ký tự, không đụng `models.json` và `vendor.json`), viết lại những file cần đổi và để chúng chờ trong `plugins-pending/<id>--edit/`. Nói "duyệt plugin …" thì bản gốc được sao lưu vào `plugins-backup/`, file mới được ghi, server dựng lại và trang nạp lại; dựng lỗi thì mọi thứ trả về như cũ. Chất lượng phụ thuộc vào người viết: mô hình trên máy chỉ sửa được việc nhỏ, "dùng API" (khoá SiliconFlow trong `.env`) cho kết quả tốt hơn nhiều.
+**Sửa plugin có sẵn bằng giọng nói:** "sửa plugin bản đồ, thêm nút phóng to" (hoặc "fix the 3D map plugin so …"). Trợ lý đọc các file của plugin (tối đa 60.000 ký tự, không đụng `models.json` và `vendor.json`), viết lại những file cần đổi và để chúng chờ trong `plugins-pending/<id>--edit/`. Nói "duyệt plugin …" thì bản gốc được sao lưu vào `plugins-backup/`, file mới được ghi, server dựng lại và trang nạp lại; dựng lỗi thì mọi thứ trả về như cũ. Chất lượng phụ thuộc vào model của khâu `code`.
 
-Nguồn viết mã: `VR_CODE_SOURCE=local` (mặc định, ngoại tuyến, chỉ lệnh theo từ khoá) hoặc `api` (SiliconFlow, cần `VR_SILICONFLOW_KEY`; mô hình thêm hiểu những yêu cầu từ khoá không bắt được và làm menu bằng gọi công cụ). Nói "dùng API" hoặc "dùng local" để đổi khi đang chạy.
+Chất lượng phụ thuộc vào người viết: khâu `code` mặc định là Qwen2.5-Coder 14B chạy trên máy; muốn model mạnh hơn thì đặt `VR_CODE_URL`, `VR_CODE_KEY`, `VR_CODE_MODEL` (xem **Một cấu hình cho mọi AI**).
 
-### Nguồn API (SiliconFlow)
+### Một cấu hình cho mọi AI (`assistant/ai/`)
 
-Mỗi khâu chọn riêng `local` (mặc định, ngoại tuyến) hoặc `api` (SiliconFlow, cần `VR_SILICONFLOW_KEY`). Khâu nào gọi API lỗi thì tự dùng lại model trên máy, và một phút sau mới thử lại.
+Mọi lời gọi AI đi qua **một client** (`assistant/ai/client.py`) và **một file cấu hình** (`assistant/ai/stages.json`). Mỗi việc cần AI là một **khâu**, và khâu chỉ là `url`, `key`, `model`:
 
-| Khâu | Công tắc | Local (file trên máy) | API (tên model) |
-|---|---|---|---|
-| Trả lời câu hỏi | `VR_LLM_SOURCE` | `VR_MODEL_PATH` (Qwen 3B) | `VR_LLM_MODEL` |
-| Viết, sửa plugin | `VR_CODE_SOURCE` | cùng Qwen đó, phiên thứ hai | `VR_CODE_MODEL` (mặc định `VR_LLM_MODEL`) |
-| Làm menu bằng gọi công cụ | `VR_CODE_SOURCE` | không có (chỉ lệnh từ khoá) | `VR_AGENT_MODEL` (mặc định `VR_LLM_MODEL`) |
-| Nghe | `VR_STT_SOURCE` | `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH` | `VR_STT_MODEL` |
-| Đọc | `VR_TTS_SOURCE` | `VR_VOICE_VI_PATH` (VieNeu), SAPI cho tiếng Anh | `VR_TTS_MODEL`, `VR_TTS_VOICE` |
+| Phía | Khâu | Mặc định |
+|---|---|---|
+| Trợ lý | `chat` (trả lời) | llama.cpp, Qwen3-VL 8B, cổng 8081 |
+| | `agent` (làm menu bằng gọi công cụ), `vision` (ảnh chụp màn hình) | theo `chat` |
+| | `code` (viết, sửa plugin) | llama.cpp, Qwen2.5-Coder 14B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
+| | `stt` (nghe) | whisper.cpp large-v3 q5, cổng 8083 |
+| | `tts` (nói) | VieNeu (tiếng Việt) và SAPI (tiếng Anh), chạy trong tiến trình |
+| Plugin | `plugin_chat` (`POST /api/plugin-ai/chat`) | theo `chat`, nhưng là khâu riêng |
 
-**Nghe và đọc tiếng Việt qua API.** Model của SiliconFlow không hỗ trợ tiếng Việt, nên nghe và đọc có thể dùng nhà khác, mỗi khâu một nhà (`assistant/models/cloud.py`): nghe qua `VR_STT_URL` + `VR_STT_KEY` + `VR_STT_MODEL` (mọi API kiểu OpenAI `/audio/transcriptions`, ví dụ Groq `https://api.groq.com/openai/v1` với `whisper-large-v3-turbo`); đọc qua `VR_TTS_URL` + `VR_TTS_KEY` + `VR_TTS_MODEL` (API kiểu OpenAI `/audio/speech`) hoặc `VR_TTS_PROVIDER=azure` với `VR_AZURE_KEY`, `VR_AZURE_REGION`, `VR_AZURE_VOICE_VI` (mặc định `vi-VN-HoaiMyNeural`). Khâu có nhà riêng thì gửi cả tiếng Việt lên (đổi bằng `VR_STT_LANGS`, `VR_TTS_LANGS`). Đoạn dò từ gọi "hino" **không bao giờ** đi qua API. Phần này viết theo tài liệu từng nhà, chưa thử với dịch vụ thật.
-**Một model, hai phiên.** Cả hai phía chỉ cần một model ngôn ngữ: trả lời và viết plugin dùng chung nó. Trên máy, viết plugin chạy thành phiên thứ hai của cùng file GGUF (trọng số dùng chung, chỉ thêm bộ nhớ làm việc), nên hỏi chuyện khác trong lúc plugin đang viết vẫn được trả lời; hai bên dùng chung CPU nên đều chậm đi một chút. `VR_N_THREADS_CODE` (mặc định một phần ba `VR_N_THREADS`) và `VR_N_CTX_CODE` (mặc định lớn hơn trong 8192 và `VR_N_CTX`) chỉnh phiên này. Trên API, hai phiên chỉ là hai yêu cầu song song; chỉ đặt `VR_CODE_MODEL` hoặc `VR_AGENT_MODEL` khi muốn model mạnh hơn cho việc đó.
+Trợ lý và plugin tách bạch: plugin không bao giờ chạm tới khâu của trợ lý, và đổi địa chỉ của `plugin_*` không ảnh hưởng Hino.
 
-Model nghe và đọc của SiliconFlow không ghi hỗ trợ tiếng Việt, nên khâu nghe và đọc chỉ gửi lên API những ngôn ngữ trong `VR_CLOUD_VOICE_LANGS` (mặc định `en`); tiếng Việt vẫn chạy trên máy. Thêm `vi` vào đó nếu muốn thử. Tên model mặc định ghi trong `assistant/models/cloud.py`; danh sách model hiện có xem ở trang Models của SiliconFlow.
+**Muốn dùng API bên ngoài cho một việc**, đặt trong `assistant/.env` (không sửa code, không sửa JSON):
+
+```
+VR_CHAT_URL=https://api.example.com/v1
+VR_CHAT_KEY=...
+VR_CHAT_MODEL=ten-model
+```
+
+`<KHÂU>` là `CHAT`, `AGENT`, `VISION`, `CODE`, `STT`, `TTS`, `PLUGIN_CHAT`. Khâu nào có `use` thì theo khâu kia: đặt `VR_CHAT_URL` là chuyển cả `agent`, `vision`, `plugin_chat` đi theo; đặt `VR_AGENT_URL` riêng thì tách `agent` ra. Điểm cuối cần nói giao thức OpenAI (`/chat/completions`, `/audio/transcriptions`, `/audio/speech`, `/models`). Khâu `tts` không có `VR_TTS_URL` thì dùng giọng trong tiến trình.
+
+**Máy chủ AI trên máy** (`servers` trong `stages.json`): llama.cpp và whisper.cpp là chương trình thường, `run.py` tải về `assistant/bin/` cùng model vào `assistant/weights/` (`downloads.json`, khoảng 17 GB lần đầu), rồi server Python khởi chạy chúng và tắt cùng nó (`assistant/ai/servers.py`). Hai model llama (8B trả lời và 14B viết plugin) cùng `group: "gpu"` vì không vừa chung 16 GB VRAM: viết plugin thì máy chủ 8B được tắt nhường chỗ, và bật lại ở câu hỏi kế tiếp. Chương trình llama.cpp là bản CUDA 13.5 (cần cho RTX 50); whisper.cpp là bản CUDA 12.4 và tự chạy bằng CPU nếu card không nhận. **Chưa chạy thử trên máy có GPU.** Log của từng máy chủ nằm ở `assistant/data/logs/`.
+
+**Không còn "nguồn local/api" để đổi bằng giọng nói, và không còn dự phòng.** Một khâu lỗi thì báo lỗi rõ (tên khâu, địa chỉ), không tự chuyển sang nơi khác. Nói "hiện thông tin model" để xem từng khâu đang dùng gì; "đổi model trả lời sang …" chỉ áp dụng cho khâu đang trỏ tới API bên ngoài (khâu chạy trên máy chỉ có đúng model đã nạp).
 
 ### Cấu hình trợ lý
 
-Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_MODEL_PATH`, `VR_WHISPER_PATH`, `VR_WHISPER_WAKE_PATH`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_N_THREADS`, `VR_N_GPU_LAYERS` (`0` = CPU, `-1` = hết lớp lên GPU), `VR_N_CTX`, `VR_N_THREADS_CODE`, `VR_N_CTX_CODE`, `VR_CHAT_FORMAT`, cùng các biến nguồn API ở trên và `VR_SILICONFLOW_KEY`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
+Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_<KHÂU>_URL`, `VR_<KHÂU>_KEY`, `VR_<KHÂU>_MODEL` (xem trên), `VR_TTS_VOICE`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_TOOLS`, `VR_HOME_CITY`, `VR_ACCESS_TOKEN`, `VR_ACCESS`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
 
-API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/voice/preview`, `/api/voice/listen`, `/api/voice/dictate` (giọng thành chữ cho phím Đọc chữ), `/api/people` (người đã lưu, xem mục Nhận diện khuôn mặt).
+API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/plugin-ai/chat` (cho plugin), `/api/assistant/screen` (ảnh chụp màn hình), `/api/voice/preview`, `/api/voice/listen`, `/api/voice/dictate` (giọng thành chữ cho phím Đọc chữ), `/api/people` (người đã lưu, xem mục Nhận diện khuôn mặt).
 
 ## Plugin có sẵn
 
@@ -259,7 +265,7 @@ camera → FrameHub ─┬→ HandTracking → làm mượt → GestureStateMach
                    └→ ModuleManager → plugin (worker, MediaPipe) → DetectionBatch → OverlayRenderer
                                          StereoRenderer vẽ scene hai lần (mắt trái, mắt phải)
 
-micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisper + VieNeu)
+micro / giao diện ──HTTPS /api──► Python :5173 (trang + VieNeu) ──HTTP──► llama.cpp, whisper.cpp
 ```
 
 | Đường dẫn | Nội dung |
@@ -278,10 +284,11 @@ micro / giao diện ──HTTPS /api──► Python :5173 (trang + Qwen + Whisp
 | `src/modules/*` | Một thư mục một plugin |
 | `src/shared` | Hợp đồng dùng chung, `assistant.json`, `wake.json`, `voice.json`, `voice-controls.json` |
 | `src/i18n` | `text.json` và lớp gắn kiểu |
-| `assistant/` | Tiến trình Python: trang + `/api`, llama.cpp, Whisper, VieNeu, lệnh giọng nói, viết plugin |
+| `assistant/` | Tiến trình Python: trang + `/api`, VieNeu, lệnh giọng nói, viết plugin; `assistant/ai/` là cấu hình và client chung cho mọi AI, và khởi chạy llama.cpp, whisper.cpp |
 | `run.py` | Khởi động; `downloads.json`, `vendor.json` ghim những gì cần tải |
 | `public/` | Mô hình thị giác, WASM, JS đã đóng gói; sinh ra nên không nằm trong git |
-| `rules.md` | Quy tắc bắt buộc cho Core và plugin |
+| `rules.md` | Quy tắc bắt buộc cho Core, trợ lý và máy chủ |
+| `src/modules/PLUGIN_RULES.md` | Quy tắc viết một plugin: file trợ lý đọc mỗi lần viết hoặc sửa plugin |
 
 Quyết định đáng nhớ: một `CoordinateMapper` duy nhất; overlay là con của mặt phẳng video nên hai mắt tự có thị sai đúng; hàng đợi mỗi bên nhận độ sâu 1 (khung mới thay khung cũ); kết quả plugin đi qua Zod và phải khớp `sourceFrameId`; plugin không khai báo màu (hiển thị thuộc về Core); không gọi CDN công cộng lúc chạy (nhân WASM chép từ `vendor/` để không lệch phiên bản với JS, mô hình ghim SHA-256).
 
@@ -310,7 +317,7 @@ export default definePlugin({
 - Camera chỉ mở sau cú bấm dấu vân tay.
 - Khung hình **không rời máy** và không được lưu. Telemetry chỉ là số liệu tổng hợp, đi qua `redactRecord`.
 - Mô hình thị giác chạy trong trình duyệt từ `public/`; trợ lý chạy trên máy tính của bạn.
-- Ngoại lệ có ghi quyền: `map3d` gọi OpenStreetMap, openstreetmap.de (ô bản đồ), Overpass và jsDelivr (xem trên). Khâu nào bật nguồn `api` thì gửi dữ liệu của khâu đó (câu hỏi, đoạn âm thanh, mô tả plugin) tới API của SiliconFlow; mặc định không khâu nào bật.
+- Ngoại lệ có ghi quyền: `map3d` gọi OpenStreetMap, openstreetmap.de (ô bản đồ), Overpass và jsDelivr (xem trên). Khâu nào bạn trỏ tới API bên ngoài (`VR_<KHÂU>_URL`) thì gửi dữ liệu của khâu đó (câu hỏi, đoạn âm thanh, ảnh chụp màn hình, mô tả plugin) tới địa chỉ bạn đặt; mặc định không khâu nào ra ngoài máy.
 - Mã trợ lý viết ra chỉ chạy sau khi bạn duyệt.
 
 ## Kiểm thử

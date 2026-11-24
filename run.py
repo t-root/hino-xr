@@ -13,6 +13,7 @@ import sys
 import tarfile
 import time
 import traceback
+import zipfile
 from pathlib import Path
 
 PORT = 5173
@@ -24,8 +25,6 @@ PACKAGES = (
     "fastapi",
     "uvicorn",
     "cryptography",
-    "llama_cpp",
-    "pywhispercpp",
     "pyttsx3",
     "vieneu",
     "librosa",
@@ -86,9 +85,7 @@ def _ensure_packages() -> bool:
         _say()
         return True
     _say()
-    _say("[LOI] pip install that bai.")
-    _say("llama-cpp-python can wheel CPU, khong bien dich. Kiem tra mang")
-    _say("roi chay lai. Khong cai Visual Studio chi de mo ung dung.")
+    _say("[LOI] pip install that bai. Kiem tra mang roi chay lai.")
     _say()
     return False
 
@@ -103,7 +100,7 @@ def _sha256(path: Path) -> str:
 
 def _present(item: dict, dest: Path) -> bool:
     if item.get("unpack"):
-        return dest.is_dir() and all((dest / name).exists() for name in item["needs"])
+        return dest.is_dir() and all(any(dest.rglob(name)) for name in item["needs"])
     return dest.is_file() and dest.stat().st_size == item["bytes"]
 
 
@@ -122,6 +119,20 @@ def _fetch(item: dict, dest: Path) -> None:
     stage = dest.with_name(dest.name + ".unpack")
     shutil.rmtree(stage, ignore_errors=True)
     stage.mkdir(parents=True)
+    if item.get("flat"):
+        # A zip of programs: its files go straight into `to`, next to the ones another zip put there.
+        try:
+            with zipfile.ZipFile(part) as archive:
+                if any(Path(name).is_absolute() or ".." in Path(name).parts for name in archive.namelist()):
+                    raise ValueError("goi tai ve co duong dan la")
+                archive.extractall(stage)
+            if not all(any(stage.rglob(name)) for name in item["needs"]):
+                raise ValueError("goi tai ve thieu file")
+            shutil.copytree(stage, dest, dirs_exist_ok=True)
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
+            part.unlink(missing_ok=True)
+        return
     try:
         with tarfile.open(part) as archive:  # not tar.exe: Windows' one hangs on .bz2
             if any(Path(m.name).is_absolute() or ".." in Path(m.name).parts for m in archive.getmembers()):
@@ -265,7 +276,9 @@ def _notes(killed: bool) -> None:
     _say("    / Proceed / Tiep tuc, roi tai lai.")
     _say("  - Lan dau can mang de tai Three.js, MediaPipe va mo hinh thi giac.")
     _say("    Tai xong roi thi nhung lan sau chay duoc ca khi khong co mang.")
-    _say("  - Lan dau se tu tai model (xem downloads.json), co the mat vai phut.")
+    _say("  - Lan dau se tu tai model va may chu AI (xem downloads.json), khoang 17 GB, co the mat nhieu phut.")
+    _say("  - May chu AI (llama.cpp, whisper.cpp) chay tren may nay, cau hinh o assistant/ai/stages.json.")
+    _say("    Muon dung API ben ngoai cho mot viec: dat VR_<VIEC>_URL va VR_<VIEC>_KEY trong assistant/.env.")
     _say("  - Bam Ctrl+C de dung may chu.")
     _say()
 

@@ -5,11 +5,11 @@ asking for a change ("nói chậm lại chút", "chạy cái nhận diện khuô
 shown the controls and may call `change_setting` on them. It does not act: it names an id,
 an action and maybe a value, and `apply_action` decides whether that is allowed and what it
 becomes. The id can only be one the page sent, so a wrong guess cannot reach anything else.
-It runs only when the wearer has chosen the API as the thinker ("dùng API").
+It is the `agent` stage of `ai/stages.json`: the same model as the answers unless that stage is pointed elsewhere.
 
-The small model that runs on this machine was tried for this and was not good enough: it
-named the wrong setting for plain questions (a clock question switched the menu) and took
-7 to 26 seconds. It is not used for this; the keyword commands cover the local case.
+A small model (the 3B Qwen this was first tried with) named the wrong setting for plain questions and took 7 to 26
+seconds; an 8B one with tool calls is what this is meant for, and `sounds_like_a_request` still keeps plain questions
+away from it.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from . import cloud, pluginsmith
+import ai
 from .commands import _heard, _overlap
 from .controls import _RELATIVE_SHARE, _SAY, _label, _names, _show, _snap
 
@@ -184,10 +184,8 @@ _SYSTEM = (
 )
 
 
-def _post_to_api(body: dict[str, Any]) -> dict[str, Any]:
-    if not pluginsmith.api_key():
-        raise RuntimeError("api key missing")
-    return cloud.chat(body, timeout=TIMEOUT_S)
+def _post_to_model(body: dict[str, Any]) -> dict[str, Any]:
+    return ai.chat("agent", body["messages"], body["max_tokens"], 0.1, tools=body["tools"], timeout=TIMEOUT_S)
 
 
 def _tool_calls(reply: dict[str, Any]) -> list[dict[str, Any]]:
@@ -215,7 +213,6 @@ def plan(
     ids = [entry["id"] for entry in entries]
     listing = "\n".join(_describe(entry, locale) for entry in entries)
     body = {
-        "model": cloud.model("VR_AGENT_MODEL"),
         "max_tokens": 400,
         "tools": [_tool(ids)],
         "messages": [
@@ -224,8 +221,8 @@ def plan(
         ],
     }
     try:
-        reply = (post or _post_to_api)(body)
-    except (cloud.CloudError, ValueError, RuntimeError, OSError):
+        reply = (post or _post_to_model)(body)
+    except (ai.AIError, ValueError, RuntimeError, OSError):
         return []
     by_id = {entry["id"]: entry for entry in entries}
     commands: list[dict[str, Any]] = []

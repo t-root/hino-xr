@@ -77,9 +77,11 @@ class CommandTest(unittest.TestCase):
     def test_plugin_questions_are_not_requests_to_write_one(self) -> None:
         self.assertIsNone(commands.plugin_command("Plugin này làm gì vậy", PLUGINS, "vi"))
 
-    def test_the_wearer_picks_who_writes_the_code(self) -> None:
-        self.assertEqual(commands.plugin_command("dùng API để viết plugin", PLUGINS, "vi")["value"], "api")
-        self.assertEqual(commands.plugin_command("chuyển sang local để viết plugin", PLUGINS, "vi")["value"], "local")
+    def test_who_writes_the_code_is_not_a_voice_command_any_more(self) -> None:
+        # It is `ai/stages.json` and `.env`: the `code` stage, the same url, key and model as every other stage.
+        for line in ("dùng API để viết plugin", "chuyển sang local để viết plugin"):
+            out = commands.plugin_command(line, PLUGINS, "vi")
+            self.assertNotEqual((out or {}).get("action"), "source", line)
         self.assertEqual(commands.plugin_command("dừng plugin bản đồ", PLUGINS, "vi")["action"], "disable")
 
     def test_a_draft_is_approved_or_dropped_by_name(self) -> None:

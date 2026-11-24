@@ -19,7 +19,6 @@ files that can be read first.
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -28,12 +27,11 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from . import cloud
+import ai
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
 MODULES = SRC / "modules"
-REGISTRY = MODULES / "registry.ts"
 PENDING = ROOT / "plugins-pending"
 BACKUP = ROOT / "plugins-backup"
 EDIT_SUFFIX = "--edit"
@@ -53,35 +51,10 @@ IMPORT_OK = re.compile(r"^(@/[\w./-]+|\./[\w.-]+)$")
 ID_OK = re.compile(r"^[a-z][a-z0-9-]{2,60}$")
 
 _lock = threading.Lock()
-_source = "local"
 
 
 class DraftError(Exception):
     """Something that stopped the draft; its text is for logs, the wearer hears a fixed line."""
-
-
-def api_key() -> str | None:
-    return cloud.api_key()
-
-
-def source() -> str:
-    return _source
-
-
-def set_source(value: str) -> bool:
-    """Chooses who writes the code. "api" needs a key in .env, else stays as it was."""
-    global _source
-    if value not in {"local", "api"}:
-        return False
-    if value == "api" and not api_key():
-        return False
-    _source = value
-    return True
-
-
-def default_source() -> None:
-    """Every start is local and offline unless VR_CODE_SOURCE=api and a SiliconFlow key is present."""
-    set_source(cloud.normalize(os.environ.get("VR_CODE_SOURCE", "local")))
 
 
 # --- drafts on disk ----------------------------------------------------------------
@@ -120,11 +93,6 @@ def _unique_id(raw: str) -> str:
         candidate = f"{base[:36]}-{number}"
         number += 1
     return candidate
-
-
-def _camel(identifier: str) -> str:
-    head, *rest = identifier.split("-")
-    return head + "".join(part.capitalize() for part in rest)
 
 
 # --- asking a model ----------------------------------------------------------------
@@ -197,22 +165,12 @@ export const createModule = (): VisionModule => new Module();
 """
 
 
-def _local_complete(system: str, user: str) -> str:
-    from .catalog import catalog
-    from .engine import engine
-
-    spec = catalog()[0]
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    return "".join(engine.generate(spec, messages, 1800, "en", ceiling=2048, cloud_ok=False, session="code"))
-
-
-def _api_complete(system: str, user: str) -> str:
-    if not api_key():
-        raise DraftError("api key missing")
+def _complete(system: str, user: str) -> str:
+    """The `code` stage writes: a model of this machine started for the occasion, or an endpoint set in `.env`."""
     try:
-        return cloud.complete_text("VR_CODE_MODEL", system, user, 2500)
-    except (cloud.CloudError, OSError) as error:
-        raise DraftError(f"api failed: {error}") from error
+        return ai.text("code", system, user, 2500)
+    except ai.AIError as error:
+        raise DraftError(f"the code model failed: {error}") from error
 
 
 def _parse(reply: str) -> tuple[dict[str, Any], str]:
@@ -316,10 +274,8 @@ def compile_check(folder: Path) -> None:
         raise ValueError(result.stderr.strip()[-600:] or "build failed")
 
 
-def draft(description: str, locale: str, kind: str | None = None) -> dict[str, str]:
+def draft(description: str, locale: str) -> dict[str, str]:
     """Has a model write the plugin, checks it, and leaves it in `plugins-pending/`."""
-    use = kind or _source
-    ask = _api_complete if use == "api" else _local_complete
     request = f"Write a plugin that does this: {description.strip()[:400]}"
     last = ""
     for _ in range(ATTEMPTS):
@@ -328,7 +284,7 @@ def draft(description: str, locale: str, kind: str | None = None) -> dict[str, s
             prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
         # The model is asked with no lock held: that takes minutes, and approving or rejecting another
         # plugin must not wait for it. The lock covers only the files this draft puts on disk.
-        reply = ask(_SYSTEM, prompt)
+        reply = _complete(with_rules(_SYSTEM), prompt)
         with _lock:
             folder: Path | None = None
             try:
@@ -344,7 +300,7 @@ def draft(description: str, locale: str, kind: str | None = None) -> dict[str, s
                 last = str(error)
                 continue
         name = meta["displayName"]["vi" if locale == "vi" else "en"]
-        return {"id": plugin_id, "name": name, "source": use}
+        return {"id": plugin_id, "name": name}
     raise DraftError(f"could not produce a valid plugin: {last}")
 
 
@@ -366,23 +322,8 @@ def reject(plugin_id: str) -> bool:
     return True
 
 
-def _register(plugin_id: str, source_text: str) -> str:
-    var = _camel(plugin_id)
-    imports = list(re.finditer(r"^import .*;$", source_text, re.M))
-    if not imports or f"./{plugin_id}/plugin" in source_text:
-        raise ValueError("registry.ts is not in the expected shape")
-    end = imports[-1].end()
-    with_import = source_text[:end] + f'\nimport {var} from "./{plugin_id}/plugin";' + source_text[end:]
-    pattern = re.compile(r"(const entries: ReadonlyArray<PluginEntry> = \[)([^\]]*)(\];)")
-    found = pattern.search(with_import)
-    if not found:
-        raise ValueError("registry.ts has no entries array")
-    items = found.group(2).strip().rstrip(",")
-    return with_import[: found.start()] + f"{found.group(1)}{items}, {var}{found.group(3)}" + with_import[found.end():]
-
-
 def approve(plugin_id: str) -> None:
-    """Installs a draft into `src/modules/`, lists it in the registry and rebuilds the app."""
+    """Installs a draft into `src/modules/` and rebuilds the app, which finds the new folder."""
     with _lock:  # one install at a time, and not while a draft is putting its files down
         _approve(plugin_id)
 
@@ -401,20 +342,15 @@ def _approve(plugin_id: str) -> None:
     target = MODULES / plugin_id
     if target.exists():
         raise DraftError("a plugin with that id already exists")
-    original = REGISTRY.read_text(encoding="utf-8")
-    try:
-        updated = _register(plugin_id, original)
-    except ValueError as error:
-        raise DraftError(str(error)) from error
+    # The folder is the whole install: the build finds it (`frontend.plugin_index`), no other file is touched.
     shutil.move(str(folder), str(target))
-    REGISTRY.write_text(updated, encoding="utf-8")
     try:
         import frontend
 
         frontend.bundle(_esbuild())
     except Exception as error:  # noqa: BLE001 — put everything back whatever broke
-        REGISTRY.write_text(original, encoding="utf-8")
         shutil.move(str(target), str(folder))
+        frontend.write_plugin_index()
         raise DraftError(f"build failed: {error}") from error
 
 
@@ -423,7 +359,22 @@ def _approve(plugin_id: str) -> None:
 EDITABLE = {".ts", ".json", ".css"}
 # Downloads and pinned packages are not for a model to rewrite.
 LOCKED = {"models.json", "vendor.json"}
-MAX_SOURCE = 60000
+MAX_SOURCE = 28000  # characters of a plugin's files; the code model's window (16k tokens) also holds the rules and the answer
+
+RULES = MODULES / "PLUGIN_RULES.md"
+
+
+def rules() -> str:
+    """The plugin rules, read at every use so an edit to the file applies to the next plugin without a restart."""
+    try:
+        return RULES.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise DraftError(f"the plugin rules are missing ({RULES.name}): nothing is written without them") from error
+
+
+def with_rules(system: str) -> str:
+    return f"{system}\n\nThe rules of this project for every plugin. The plugin must follow them:\n\n{rules()}"
+
 
 _REVISE_SYSTEM = """You fix or change one plugin of an AR headset, written in TypeScript. You are given all its files and a request.
 Reply with every file you change, each whole, in this format and nothing else:
@@ -462,21 +413,19 @@ def _parse_files(reply: str, known: set[str]) -> dict[str, str]:
     return found
 
 
-def revise(plugin_id: str, request: str, locale: str, kind: str | None = None) -> dict[str, str]:
+def revise(plugin_id: str, request: str, locale: str) -> dict[str, str]:
     """Has a model change an installed plugin and stages the result for approval; nothing is touched yet."""
     target = MODULES / plugin_id
     if not ID_OK.match(plugin_id) or not (target / "plugin.ts").is_file():
         raise DraftError("no such plugin")
     files = _plugin_files(target)
-    use = kind or _source
-    ask = _api_complete if use == "api" else _local_complete
     listing = "\n\n".join(f"FILE: {name}\n```\n{text}```" for name, text in files.items())
     last = ""
     for _ in range(ATTEMPTS):
         prompt = f"Request: {request.strip()[:600]}\n\nThe plugin's files:\n\n{listing}"
         if last:
             prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
-        reply = ask(_REVISE_SYSTEM, prompt)  # no lock held while the model writes
+        reply = _complete(with_rules(_REVISE_SYSTEM), prompt)  # no lock held while the model writes
         with _lock:
             check = PENDING / f"_check-{plugin_id}"
             try:
@@ -505,7 +454,7 @@ def revise(plugin_id: str, request: str, locale: str, kind: str | None = None) -
             # Listed under the plugin's own name (see `pending`).
             shutil.copyfile(target / "text.json", folder / "text.json") if "text.json" not in changed else None
             names = json.loads((target / "text.json").read_text(encoding="utf-8"))["displayName"]
-        return {"id": folder.name, "name": names["vi" if locale == "vi" else "en"] + (" (bản sửa)" if locale == "vi" else " (edit)"), "source": use}
+        return {"id": folder.name, "name": names["vi" if locale == "vi" else "en"] + (" (bản sửa)" if locale == "vi" else " (edit)")}
     raise DraftError(f"could not produce a valid change: {last}")
 
 

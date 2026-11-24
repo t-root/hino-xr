@@ -1,4 +1,3 @@
-import type { HandTrackingStatus } from "@/core/input/HandTrackingService";
 import type { SettingsCategory } from "@/core/state/SharedUiStore";
 import { LOCALES, type Locale, type LocalizedText } from "@/shared/contracts/locale";
 import type { VoiceIssue, VoiceState, ModelState } from "@/shared/contracts/model";
@@ -80,8 +79,6 @@ export const pluginStateKey = (state: PluginPaletteItemState): MessageKey => `pl
 export const permissionKey = (permission: ModulePermission): MessageKey => `permission.${permission}`;
 
 export const micModeKey = (mode: string): MessageKey => `diagnostics.mic.${mode}` as MessageKey;
-
-export const handStateKey = (status: HandTrackingStatus): MessageKey => `hand.${status}`;
 
 export const assistantStateKey = (state: ModelState): MessageKey => `assistant.${state}`;
 

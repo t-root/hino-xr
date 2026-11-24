@@ -1,9 +1,11 @@
-"""Load and stream a GGUF causal LM through llama.cpp."""
+"""The assistant's turn: hear a line, work out what it asks for, answer it and say the answer.
+
+Every AI it needs is a stage of `ai/stages.json` (chat, agent, stt, tts); this file holds none of them.
+"""
 
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
 from collections import deque
@@ -11,8 +13,9 @@ from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
-from . import cloud, timing
-from .catalog import ModelSpec, _env, assistant_greeting, assistant_name, get_spec
+import ai
+from . import timing
+from .catalog import ModelSpec, assistant_greeting, assistant_name, get_spec
 from .chunks import next_chunk
 from .prompts import system_prompt
 from .tuning import VoiceTuning
@@ -26,143 +29,46 @@ MAX_MESSAGE_CHARS = 4000
 class Engine:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._load_lock = threading.Lock()
-        self._generate_lock = threading.Lock()
-        # The second local session, for writing plugins; made the first time one is written.
-        self._code_model: Any = None
-        self._code_load_lock = threading.Lock()
-        self._code_generate_lock = threading.Lock()
         self._spec: ModelSpec | None = None
-        self._model: Any = None
         self.state = "idle"
         self.error: str | None = None
-        self.device = "cpu"
+
+    @staticmethod
+    def device() -> str:
+        return "api" if ai.stage("chat").external else "local"
 
     def snapshot(self, spec: ModelSpec) -> dict[str, Any]:
         from .speech import speech
 
         loaded = self._spec is not None and self._spec.id == spec.id
-        if not loaded and not spec.path().is_file() and not cloud.wants("chat"):
-            return {
-                "id": spec.id,
-                "source": spec.source,
-                "state": "failed",
-                "device": None,
-                "error": (
-                    f"GGUF not found: {spec.path()}. "
-                    "Put the file there or set VR_MODEL_PATH."
-                ),
-                "voice": "idle",
-                "voiceError": None,
-            }
         voice = speech.snapshot()
         return {
             "id": spec.id,
-            "source": spec.source,
+            "source": ai.stage("chat").url or "-",
             "state": self.state if loaded else "idle",
-            "device": self.device if loaded else None,
+            "device": self.device() if loaded else None,
             "error": self.error if loaded else None,
             "voice": voice["state"] if loaded else "idle",
             "voiceError": voice["error"] if loaded else None,
         }
 
     def load(self, spec: ModelSpec) -> None:
-        if cloud.wants("chat"):
-            # Answers come from SiliconFlow: nothing to load here. The local model waits in case the cloud fails.
-            with self._lock:
-                self._spec = spec
-                self.state = "ready"
-                self.error = None
-                self.device = "cloud"
-            self._ensure_speech()
-            return
-        self._load_local(spec)
-
-    def _load_local(self, spec: ModelSpec) -> None:
-        with self._load_lock:
-            with self._lock:
-                already = self._spec is not None and self._spec.id == spec.id and self.state == "ready"
-                if not already:
-                    self.state = "loading"
-                    self.error = None
-                    self._spec = spec
-                    self._model = None
-            if already:
-                self._ensure_speech()
-                return
-            try:
-                self._load_unlocked(spec)
-            except Exception as error:  # noqa: BLE001 — surface any load failure to the web
-                with self._lock:
-                    self.state = "failed"
-                    self.error = str(error)
-                    self._model = None
-                raise
-
-    def _ensure_speech(self) -> None:
-        try:
-            from .speech import speech
-
-            # Whisper is loaded only if some language still hears locally.
-            if speech.state != "ready" and not (cloud.wants("stt", "vi") and cloud.wants("stt", "en")):
-                speech.ensure()
-        except Exception:  # noqa: BLE001 — text still works if voice weights fail
-            pass
-
-    @staticmethod
-    def _llama(spec: ModelSpec, threads: int, n_ctx: int) -> Any:
-        """One llama.cpp session on the spec's file. Sessions of one file share its weights (mmap)."""
-        from llama_cpp import Llama
-
-        path = spec.path()
-        if path.suffix.lower() != ".gguf":
-            raise ValueError(f"expected a .gguf file, got {path}")
-        if not path.is_file():
-            raise FileNotFoundError(
-                f"GGUF not found: {path}. Put the file there or set VR_MODEL_PATH."
-            )
-        return Llama(
-            model_path=str(path),
-            n_ctx=n_ctx,
-            n_gpu_layers=int(_env("VR_N_GPU_LAYERS") or "0"),
-            n_threads=threads,
-            chat_format=_env("VR_CHAT_FORMAT") or "qwen",
-            verbose=False,
-        )
-
-    def _code_session(self, spec: ModelSpec) -> Any:
-        """A second session on the same model for writing plugins, so a question is not left waiting for it."""
-        with self._code_load_lock:
-            if self._code_model is None:
-                total = int(_env("VR_N_THREADS") or os.cpu_count() or 4)
-                self._code_model = self._llama(
-                    spec,
-                    threads=int(_env("VR_N_THREADS_CODE") or max(1, total // 3)),
-                    n_ctx=int(_env("VR_N_CTX_CODE") or max(8192, int(_env("VR_N_CTX") or "4096"))),
-                )
-            return self._code_model
-
-    def _load_unlocked(self, spec: ModelSpec) -> None:
-        gpu_layers = int(_env("VR_N_GPU_LAYERS") or "0")
-        model = self._llama(
-            spec,
-            threads=int(_env("VR_N_THREADS") or os.cpu_count() or 4),
-            n_ctx=int(_env("VR_N_CTX") or "4096"),
-        )
-        # The first call pays for loading the weights into cache and for reading the
-        # system prompt. Do it now so the first real question is not the slow one.
-        try:
-            model.create_chat_completion(
-                messages=_with_system([{"role": "user", "content": "Xin chào"}], "vi"), max_tokens=1
-            )
-        except Exception:  # noqa: BLE001 — warming up is an optimisation, not a requirement
-            pass
+        """Make the answering model ready (its server is started here when it is a server of this machine)."""
         with self._lock:
-            self._model = model
-            self.device = "gpu" if gpu_layers != 0 else "cpu"
+            warm = self._spec == spec and self.state == "ready"
+            if not warm:
+                self._spec = spec
+                self.state = "loading"
+                self.error = None
+        try:
+            ai.ready("chat")
+        except ai.AIError as error:
+            with self._lock:
+                self.state = "failed"
+                self.error = str(error)
+            raise RuntimeError(str(error)) from error
+        with self._lock:
             self.state = "ready"
-            self.error = None
-        self._ensure_speech()
 
     def generate(
         self,
@@ -171,44 +77,16 @@ class Engine:
         max_tokens: int,
         locale: str = "vi",
         ceiling: int = 512,
-        cloud_ok: bool = True,
-        session: str = "chat",
     ) -> Iterator[str]:
-        """`session="code"` runs on its own local session with its own lock, so it never holds up "chat"."""
         capped = max(8, min(int(max_tokens), ceiling))
-        if session == "code":
-            model = self._code_session(spec)
-            with self._code_generate_lock:
-                yield from _stream(model, messages, capped, locale)
-            return
         self.load(spec)
-        if cloud_ok and cloud.wants("chat"):
-            sent = False
-            try:
-                for piece in cloud.chat_stream(
-                    {
-                        "model": cloud.model("VR_LLM_MODEL"),
-                        "messages": _with_system(messages, locale),
-                        "max_tokens": capped,
-                        "temperature": 0.5,
-                    }
-                ):
-                    sent = True
-                    yield piece
-                return
-            except (cloud.CloudError, OSError) as error:
-                cloud.failed("chat")
-                print(f"  cloud    chat failed, using the local model: {error}", flush=True)
-                if sent:
-                    return  # half an answer was already spoken: do not start another
-        self._load_local(spec)
-        with self._lock:
-            model = self._model
-        if model is None:
-            raise RuntimeError(self.error or "model is not ready")
-
-        with self._generate_lock:
-            yield from _stream(model, messages, capped, locale)
+        try:
+            yield from ai.chat_stream("chat", _with_system(messages, locale), capped, 0.5)
+        except ai.AIError as error:
+            with self._lock:
+                self.state = "failed"
+                self.error = str(error)
+            raise RuntimeError(str(error)) from error
 
     def reply(
         self,
@@ -279,9 +157,10 @@ class Engine:
         controls: list[dict[str, Any]] | None = None,
     ) -> Iterator[dict[str, Any]]:
         from . import agent, modelswitch, notes, pluginsmith, tools
-        from .commands import plugin_command, say_for
+        from .commands import plugin_command
         from .controls import control_command
         from .person_speech import person_command
+        from .screen_speech import screen_command
         from .sight_speech import sight_command
         from .speech import speech
 
@@ -306,15 +185,13 @@ class Engine:
         if command is None:
             command = sight_command(heard, locale)
         if command is None:
+            command = screen_command(heard, locale)
+        if command is None:
             command = tools.command(heard, locale)
         if command is None:
             command = notes.command(heard, locale)
         if command:
             # Switching or writing a plugin is the headset's doing, not the model's: say so and stop.
-            if command["action"] == "source":
-                changed = pluginsmith.set_source(command["value"])
-                command["reply"] = say_for(locale, f"source_{command['value']}" if changed else "api_missing")
-                command["action"] = "none"
             yield {
                 "type": "command",
                 "action": command["action"],
@@ -332,8 +209,8 @@ class Engine:
                 if audio:
                     yield audio
             return
-        if pluginsmith.source() == "api" and (controls or plugins):
-            # Not a keyword command: a model on the API may still hear a request in it and call the settings.
+        if controls or plugins:
+            # Not a keyword command: the model may still hear a request in it and call the settings.
             calls = agent.plan(heard, controls or [], plugins or [], locale)
             if calls:
                 for call in calls:
@@ -392,22 +269,6 @@ def _tts(text: str, locale: str, tuning: VoiceTuning | None) -> dict[str, Any] |
     if not audio:
         return None
     return {"type": "audio", "mime": "audio/wav", "data": b64(audio)}
-
-
-def _stream(model: Any, messages: list[ChatMessage], max_tokens: int, locale: str) -> Iterator[str]:
-    stream = model.create_chat_completion(
-        messages=_with_system(messages, locale),
-        max_tokens=max_tokens,
-        temperature=0.5,
-        stream=True,
-    )
-    for chunk in stream:
-        choices = chunk.get("choices") or []
-        if not choices:
-            continue
-        delta = (choices[0].get("delta") or {}).get("content")
-        if delta:
-            yield delta
 
 
 def _with_system(messages: list[ChatMessage], locale: str) -> list[ChatMessage]:

@@ -118,6 +118,3 @@ export const toFaceDetectionsWithSource = (
 
   return found;
 };
-
-export const toFaceDetections = (raw: readonly RawFaceDetection[], options: FaceMappingOptions): Detection[] =>
-  toFaceDetectionsWithSource(raw, options).map((item) => item.detection);

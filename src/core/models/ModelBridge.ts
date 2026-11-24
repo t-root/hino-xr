@@ -5,6 +5,7 @@ import { encodeWav } from "../audio/wav";
 import { MIN_TALK_MS, MAX_TALK_MS, VoiceCapture } from "../audio/VoiceCapture";
 import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
+import { captureScreen } from "../screen/ScreenCapture";
 import { useRuntimeStore } from "../state/RuntimeStore";
 import { DEFAULT_SETTINGS, type Settings } from "../state/settings";
 import type { CommandReply } from "../modules/module-contract";
@@ -114,6 +115,23 @@ export class ModelBridge {
         const said = await host.command(name, payload);
         if (said === null) return { ok: false, say: missing };
         return typeof said === "string" ? { ok: true, say: said } : { ok: true, say: said.say, show: said.show };
+      }, false);
+      return;
+    }
+    if (command.action === "screen") {
+      const info = typeof command.value === "object" && command.value !== null ? (command.value as Record<string, unknown>) : {};
+      const question = typeof info.question === "string" ? info.question : "";
+      const failed = typeof info.failed === "string" ? info.failed : "";
+      // The server already said it is looking; the picture and the answer follow, and the whole text goes to the screen.
+      void this.followUp(async () => {
+        try {
+          const image = await captureScreen();
+          const answer = await this.client.askScreen(image, question, currentLocale());
+          return { ok: true, say: answer.say, show: answer.show };
+        } catch (error) {
+          this.logger.warn("screen question failed", { message: error instanceof Error ? error.message : String(error) });
+          return { ok: false, say: failed };
+        }
       }, false);
       return;
     }

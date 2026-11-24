@@ -45,8 +45,10 @@ if __name__ == "__main__":
     esbuild = prepare_frontend()
     cert, key = ensure_cert()
     _announce()
+    from ai import servers
     from models.speech import speech
 
+    servers.start_background()  # the AI servers of this machine, while the page opens
     Thread(target=speech.warm, daemon=True).start()
     Thread(target=watch_frontend, args=(esbuild,), daemon=True).start()
     Timer(1.2, _open_browser).start()

@@ -18,7 +18,7 @@ export type PluginEntry = ModuleRegistration;
  *
  * - `plugin.ts` — this declaration (manifest + a lazy `import()`, nothing else)
  * - `manifest.ts`, `text.json` — identity and copy
- * - `models.json` — optional; on-device files to fetch and GGUF slots
+ * - `models.json` — optional; on-device files to fetch
  * - worker, mapping, thresholds, `assets.ts` — whatever inference needs
  *
  * A model is not an exception. If a plugin needs weights, it names them in its
