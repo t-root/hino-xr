@@ -200,6 +200,54 @@ class AITest(unittest.TestCase):
 
     # the servers of this machine
 
+    def test_the_call_word_has_its_own_stage_that_follows_listening(self) -> None:
+        self.assertIn("stt_wake", ai.config.ASSISTANT_STAGES)
+        self.assertEqual(ai.stage("stt_wake").url, ai.stage("stt").url)
+        os.environ["VR_STT_WAKE_URL"] = "http://127.0.0.1:1/v1"
+        self.assertNotEqual(ai.stage("stt_wake").url, ai.stage("stt").url)  # a lighter model can be set for it alone
+
+    def test_listening_asks_the_stage_that_fits_the_line(self) -> None:
+        self.point("stt")
+        os.environ["VR_STT_WAKE_URL"] = self.url.replace("/v1", "/v1")
+        seen = []
+        keep = ai.client._request
+
+        def spy(stage, *args, **kwargs):
+            seen.append(stage.name)
+            return keep(stage, *args, **kwargs)
+
+        ai.client._request = spy
+        try:
+            os.environ["VR_STT_WAKE_KEY"] = "sk-test"
+            ai.config.reset()
+            ai.transcribe(b"RIFFaudio", "vi", None, careful=True)
+            ai.transcribe(b"RIFFaudio", "vi", None, careful=False)
+        finally:
+            ai.client._request = keep
+        self.assertEqual(seen, ["stt", "stt_wake"])
+
+    def test_a_server_can_be_told_its_threads_and_how_big_a_picture_may_be(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            exe, model, mmproj = Path(tmp) / "llama-server.exe", Path(tmp) / "m.gguf", Path(tmp) / "p.gguf"
+            for path in (exe, model, mmproj):
+                path.write_bytes(b"x")
+            keep = ai.servers.executable, dict(ai.config.servers()["llm"])
+            ai.servers.executable = lambda kind: exe
+            ai.config.servers()["llm"].update(model=str(model), mmproj=str(mmproj), threads=4, image_max_tokens=512, gpu_layers=0)
+            try:
+                command = ai.servers.command("llm")
+            finally:
+                ai.servers.executable = keep[0]
+                ai.config.servers()["llm"].clear()
+                ai.config.servers()["llm"].update(keep[1])
+        self.assertEqual(command[command.index("-t") + 1], "4")
+        self.assertEqual(command[command.index("--image-max-tokens") + 1], "512")
+        self.assertEqual(command[command.index("-ngl") + 1], "0")
+        self.assertEqual(command[command.index("--mmproj") + 1], str(mmproj))
+
     def test_a_server_that_is_not_downloaded_says_what_to_do(self) -> None:
         with self.assertRaises(ai.servers.ServerError) as caught:
             ai.servers.command("coder")

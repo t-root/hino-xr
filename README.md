@@ -162,7 +162,8 @@ Mọi lời gọi AI đi qua **một client** (`assistant/ai/client.py`) và **m
 | Trợ lý | `chat` (trả lời) | llama.cpp, Qwen3-VL 8B, cổng 8081 |
 | | `agent` (làm menu bằng gọi công cụ), `vision` (ảnh chụp màn hình) | theo `chat` |
 | | `code` (viết, sửa plugin) | llama.cpp, Qwen2.5-Coder 14B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
-| | `stt` (nghe) | whisper.cpp large-v3 q5, cổng 8083 |
+| | `stt` (nghe câu hỏi và lệnh) | whisper.cpp large-v3 q5, cổng 8083 |
+| | `stt_wake` (nghe từ gọi "hino" và "dừng", chạy trên mọi câu mic cắt ra) | theo `stt`; có thể đặt model nhẹ hơn riêng cho nó |
 | | `tts` (nói) | VieNeu (tiếng Việt) và SAPI (tiếng Anh), chạy trong tiến trình |
 | Plugin | `plugin_chat` (`POST /api/plugin-ai/chat`) | theo `chat`, nhưng là khâu riêng |
 
@@ -176,7 +177,7 @@ VR_CHAT_KEY=...
 VR_CHAT_MODEL=ten-model
 ```
 
-`<KHÂU>` là `CHAT`, `AGENT`, `VISION`, `CODE`, `STT`, `TTS`, `PLUGIN_CHAT`. Khâu nào có `use` thì theo khâu kia: đặt `VR_CHAT_URL` là chuyển cả `agent`, `vision`, `plugin_chat` đi theo; đặt `VR_AGENT_URL` riêng thì tách `agent` ra. Điểm cuối cần nói giao thức OpenAI (`/chat/completions`, `/audio/transcriptions`, `/audio/speech`, `/models`). Khâu `tts` không có `VR_TTS_URL` thì dùng giọng trong tiến trình.
+`<KHÂU>` là `CHAT`, `AGENT`, `VISION`, `CODE`, `STT`, `STT_WAKE`, `TTS`, `PLUGIN_CHAT`. Khâu nào có `use` thì theo khâu kia: đặt `VR_CHAT_URL` là chuyển cả `agent`, `vision`, `plugin_chat` đi theo; đặt `VR_AGENT_URL` riêng thì tách `agent` ra. Điểm cuối cần nói giao thức OpenAI (`/chat/completions`, `/audio/transcriptions`, `/audio/speech`, `/models`). Khâu `tts` không có `VR_TTS_URL` thì dùng giọng trong tiến trình.
 
 **Máy chủ AI trên máy** (`servers` trong `stages.json`): llama.cpp và whisper.cpp là chương trình thường, `run.py` tải về `assistant/bin/` cùng model vào `assistant/weights/` (`downloads.json`, khoảng 17 GB lần đầu), rồi server Python khởi chạy chúng và tắt cùng nó (`assistant/ai/servers.py`). Hai model llama (8B trả lời và 14B viết plugin) cùng `group: "gpu"` vì không vừa chung 16 GB VRAM: viết plugin thì máy chủ 8B được tắt nhường chỗ, và bật lại ở câu hỏi kế tiếp. Chương trình llama.cpp là bản CUDA 13.5 (cần cho RTX 50); whisper.cpp là bản CUDA 12.4 và tự chạy bằng CPU nếu card không nhận. **Chưa chạy thử trên máy có GPU.** Log của từng máy chủ nằm ở `assistant/data/logs/`.
 

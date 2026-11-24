@@ -32,6 +32,7 @@
     "vision": { "use": "chat" },
     "code": { "server": "coder", "model": "qwen2.5-coder-14b" },
     "stt": { "server": "whisper", "model": "whisper-large-v3" },
+    "stt_wake": { "use": "stt" },
     "tts": { "voice": "" },
     "plugin_chat": { "use": "chat" }
   }

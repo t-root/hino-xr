@@ -142,8 +142,12 @@ def _field(boundary: str, field: str, value: str) -> bytes:
 
 
 def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None = None, careful: bool = False) -> str:
-    """Speech to text (`/audio/transcriptions`). `prompt` is the words to expect; `careful` weighs more candidates."""
-    stage = _stage("stt")
+    """Speech to text (`/audio/transcriptions`). `prompt` is the words to expect; `careful` weighs more candidates.
+
+    What the wearer says to the assistant (`careful`) is the `stt` stage; the short checks for the call word ("hino", "stop"),
+    which run on every line the microphone cuts, are `stt_wake`: the same model unless a lighter one is set for it.
+    """
+    stage = _stage("stt" if careful else "stt_wake")
     boundary = uuid.uuid4().hex
     parts = [_field(boundary, "model", stage.model), _field(boundary, "response_format", "json"), _field(boundary, "temperature", "0")]
     if language:

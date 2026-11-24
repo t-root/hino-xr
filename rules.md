@@ -173,7 +173,7 @@ về `sleep`, **không** tắt hẳn: gọi "Hino" lại là mở phiên mới. 
 Nạp mô hình **không** phải bận: tên "Hino" vẫn phải được nghe và có phản hồi.
 Không dùng `busy()` để chặn micro.
 
-**E3.** Một mô hình nghe cho mọi việc (`assistant/models/speech.py`, khâu `stt`): whisper.cpp large-v3 q5 chạy trên GPU,
+**E3.** Hai khâu nghe (`assistant/models/speech.py`): `stt` cho câu hỏi và lệnh (`careful=True`), `stt_wake` cho từ gọi và "dừng" (chạy trên mọi câu mic cắt ra). Hồ sơ GPU cho `stt_wake` theo `stt`; hồ sơ CPU đặt một Whisper nhỏ riêng cho nó. Mặc định GPU: một mô hình, khâu `stt`: whisper.cpp large-v3 q5 chạy trên GPU,
 nghe cả từ gọi lẫn câu hỏi và lệnh. Trước đây có thêm Whisper nhỏ riêng cho từ gọi vì large-v3 trên CPU mất vài giây và người dùng
 tưởng Hino không nghe; trên GPU điều đó không còn, và hai mô hình là hai thứ phải giữ. `careful=True` (beam 5) chỉ cho câu hỏi và lệnh.
 Đã so sánh large-v3 với large-v3-turbo trên cùng các câu: độ chính xác gần nhau, nhưng turbo

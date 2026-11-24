@@ -2,7 +2,7 @@
 
 Two sides, kept apart on purpose:
 
-- the assistant (Hino): `chat`, `agent`, `vision` (a picture of the screen), `code` (writing plugins), `stt`, `tts`;
+- the assistant (Hino): `chat`, `agent`, `vision` (a picture of the screen), `code` (writing plugins), `stt`, `stt_wake`, `tts`;
 - the plugins: `plugin_chat`. A plugin never reaches an assistant stage; it asks the
   server for a plugin stage, which has its own url, key and model and may be pointed elsewhere without touching Hino.
 
@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 STAGES_FILE = HERE / "stages.json"
 
-ASSISTANT_STAGES = ("chat", "agent", "vision", "code", "stt", "tts")
+ASSISTANT_STAGES = ("chat", "agent", "vision", "code", "stt", "stt_wake", "tts")
 PLUGIN_STAGES = ("plugin_chat",)
 # What a stage asks of its endpoint: a chat completion, a transcription or speech.
 KIND = {
@@ -38,6 +38,7 @@ KIND = {
     "code": "chat",
     "plugin_chat": "chat",
     "stt": "stt",
+    "stt_wake": "stt",
     "tts": "tts",
 }
 

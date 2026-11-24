@@ -70,6 +70,10 @@ def command(server_id: str, no_gpu: bool = False) -> list[str]:
             "-c", str(spec.get("ctx", 8192)), "-ngl", "0" if no_gpu else str(spec.get("gpu_layers", 99)),
             "-np", "1", "--jinja", "-a", str(spec.get("alias", server_id)),
         ]
+        if spec.get("threads"):
+            args += ["-t", str(spec["threads"])]  # on a processor: the physical cores, not the hyper-threads
+        if spec.get("image_max_tokens"):
+            args += ["--image-max-tokens", str(spec["image_max_tokens"])]  # a picture costs tokens, and tokens cost seconds on a CPU
         if spec.get("mmproj"):
             mmproj = config.path_of(spec["mmproj"])
             if not mmproj.is_file():

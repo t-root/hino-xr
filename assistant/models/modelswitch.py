@@ -56,8 +56,8 @@ _STAGE_WORDS = {
 }
 
 _STAGE_NAME = {
-    "vi": {"chat": "trả lời", "code": "viết plugin", "agent": "điều khiển menu", "stt": "nghe", "tts": "đọc", "vision": "nhìn màn hình"},
-    "en": {"chat": "answering", "code": "writing plugins", "agent": "the menu", "stt": "listening", "tts": "speaking", "vision": "looking at the screen"},
+    "vi": {"chat": "trả lời", "code": "viết plugin", "agent": "điều khiển menu", "stt": "nghe", "stt_wake": "nghe từ gọi", "tts": "đọc", "vision": "nhìn màn hình"},
+    "en": {"chat": "answering", "code": "writing plugins", "agent": "the menu", "stt": "listening", "stt_wake": "listening for the call", "tts": "speaking", "vision": "looking at the screen"},
 }
 _PLUGIN_NAME = {"vi": {"plugin_chat": "plugin hỏi đáp"}, "en": {"plugin_chat": "plugin chat"}}
 _SAY = {
