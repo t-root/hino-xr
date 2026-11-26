@@ -399,10 +399,9 @@ def _ask_profile() -> None:
     """
     if os.environ.get("VR_PROFILE", "").strip() or not sys.stdin.isatty():
         return
-    _say("Chay ho so nao?  cpu = may khong co card NVIDIA (mac dinh)   gpu = may chu co GPU, mo dia chi cong khai")
     while True:
         try:
-            answer = input("Ho so [cpu/gpu] (Enter = cpu): ").strip().lower()
+            answer = input("[cpu/gpu] (Enter = cpu): ").strip().lower()
         except EOFError:
             answer = ""
         if answer in {"", "cpu", "gpu"}:
