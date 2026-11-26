@@ -1,0 +1,11 @@
+# One line ending in the repository and in every working copy, so Windows does not rewrite it on commit.
+* text=auto eol=lf
+*.png binary
+*.webp binary
+*.wav binary
+*.gguf binary
+*.bin binary
+*.onnx binary
+*.wasm binary
+*.pt binary
+*.npz binary

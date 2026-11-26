@@ -15,6 +15,7 @@ away from it.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -22,7 +23,7 @@ import ai
 from .commands import _heard, _overlap
 from .controls import _RELATIVE_SHARE, _SAY, _label, _names, _show, _snap
 
-TIMEOUT_S = 25
+TIMEOUT_S = float(os.environ.get("VR_AGENT_TIMEOUT_S", "25"))  # how long the settings agent may take before the line is just answered
 MAX_CALLS = 4
 MAX_CANDIDATES = 60
 
@@ -208,6 +209,8 @@ def plan(
 
     `post` is the HTTP call, replaceable so this can be tested without the network.
     """
+    if os.environ.get("VR_AGENT", "on").strip().lower() in {"off", "0", "false", "no"}:
+        return []  # keyword commands still work; a line that is not one is simply answered
     entries = [*controls, *plugin_entries(plugins)][:MAX_CANDIDATES]
     if not entries or not sounds_like_a_request(heard, entries, locale):
         return []

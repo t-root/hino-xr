@@ -170,7 +170,7 @@ def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None
         f"\r\n--{boundary}--\r\n".encode(),
     ]
     with _serve(stage):
-        with _request(stage, "/audio/transcriptions", b"".join(parts), f"multipart/form-data; boundary={boundary}", 60) as response:
+        with _request(stage, "/audio/transcriptions", b"".join(parts), f"multipart/form-data; boundary={boundary}", STT_TIMEOUT_S) as response:
             try:
                 answer = json.loads(response.read())
             except ValueError as error:
@@ -185,6 +185,7 @@ def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None
 # What a recogniser's own doubt is worth. whisper.cpp's average log-probability of clear speech is about -0.2 to -0.5;
 # a line made up out of noise or mumbling sits well below. Raise the floor (closer to 0) to drop more, lower it to drop less.
 MIN_LOGPROB = float(os.environ.get("VR_STT_MIN_LOGPROB", "-0.9"))
+STT_TIMEOUT_S = float(os.environ.get("VR_STT_TIMEOUT_S", "60"))  # how long one stretch of speech may take to be written down
 MAX_NO_SPEECH = float(os.environ.get("VR_STT_MAX_NO_SPEECH", "0.6"))
 
 
