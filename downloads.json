@@ -26,16 +26,8 @@
       "sha256": "724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7"
     },
     {
-      "id": "stt",
-      "what": "Whisper large-v3 q5 (nghe cau hoi va lenh)",
-      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
-      "to": "assistant/weights/ggml-large-v3-q5_0.bin",
-      "bytes": 1081140203,
-      "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
-    },
-    {
       "id": "stt-wake",
-      "what": "Whisper small (nghe tu goi Hino va 'dung', nhanh)",
+      "what": "Whisper small (nghe tu goi, cau hoi va lenh)",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
       "to": "assistant/weights/ggml-small.bin",
       "bytes": 487601967,
