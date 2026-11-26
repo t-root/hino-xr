@@ -1,8 +1,11 @@
 {
-  "_how_to_add": "Muon tai them mot thu gi: them mot muc vao 'items', khong can sua ma. 'to' tinh tu thu muc goc cua du an. Co 'unpack' thi 'to' la thu muc, giai nen tu goi tai ve (tar.bz2, tar.gz...), 'needs' la nhung muc phai co trong do. 'env' (tuy chon) la ten bien moi truong: dat no thi dung duong dan rieng va khong tai. 'when' (tuy chon): {\"env\": TEN, \"equals\": GIA_TRI}: chi tai khi bien moi truong do (hoac assistant/.env) bang gia tri do. 'flat' (tuy chon, voi 'unpack'): goi .zip duoc giai nen thang vao 'to'; 'needs' la ten file phai tim thay ben trong (o bat ky thu muc con nao).",
+  "_how_to_add": "Muon tai them mot thu gi: them mot muc vao 'items', khong can sua ma. 'profile' la danh sach ho so can muc do (\"cpu\", \"gpu\"; VR_PROFILE chon ho so, mac dinh cpu): run.py chi tai muc cua ho so dang chon. 'to' tinh tu thu muc goc cua du an. Co 'unpack' thi 'to' la thu muc, giai nen tu goi tai ve (tar.bz2, tar.gz...), 'needs' la nhung muc phai co trong do. 'env' (tuy chon) la ten bien moi truong: dat no thi dung duong dan rieng va khong tai. 'when' (tuy chon): {\"env\": TEN, \"equals\": GIA_TRI}: chi tai khi bien moi truong do (hoac assistant/.env) bang gia tri do. 'flat' (tuy chon, voi 'unpack'): goi .zip duoc giai nen thang vao 'to'; 'needs' la ten file phai tim thay ben trong (o bat ky thu muc con nao).",
   "items": [
     {
       "id": "llm",
+      "profile": [
+        "cpu"
+      ],
       "what": "Qwen3-VL 4B (tra loi, dieu khien menu, nhin man hinh va camera)",
       "url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
       "to": "assistant/weights/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
@@ -10,7 +13,21 @@
       "sha256": "66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a"
     },
     {
+      "id": "llm-gpu",
+      "profile": [
+        "gpu"
+      ],
+      "what": "Qwen3-VL 8B (tra loi, dieu khien menu, nhin man hinh)",
+      "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/Qwen3VL-8B-Instruct-Q4_K_M.gguf",
+      "to": "assistant/weights/Qwen3VL-8B-Instruct-Q4_K_M.gguf",
+      "bytes": 5027784800,
+      "sha256": "67d1659bfe71b89d50b45a4ad1a9e5b997e5bb16ce5da66a6a6167abd569e9e2"
+    },
+    {
       "id": "llm-mmproj",
+      "profile": [
+        "cpu"
+      ],
       "what": "Qwen3-VL 4B mmproj (bo doc anh)",
       "url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
       "to": "assistant/weights/mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
@@ -18,7 +35,21 @@
       "sha256": "30ba2c7dd3127a4561b6cba9d13d0f711c91bdb38742e2f56d73c8cb596bd06d"
     },
     {
+      "id": "llm-mmproj-gpu",
+      "profile": [
+        "gpu"
+      ],
+      "what": "Qwen3-VL 8B mmproj (bo doc anh)",
+      "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf",
+      "to": "assistant/weights/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf",
+      "bytes": 752289728,
+      "sha256": "c6ba85508d82f42590e6eb77d5340369ab6fecf107a7561d809523d8aa5f3bfd"
+    },
+    {
       "id": "coder",
+      "profile": [
+        "cpu"
+      ],
       "what": "Qwen2.5-Coder 3B (viet va sua plugin, chi nap khi can)",
       "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
       "to": "assistant/weights/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
@@ -26,7 +57,21 @@
       "sha256": "724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7"
     },
     {
+      "id": "coder-gpu",
+      "profile": [
+        "gpu"
+      ],
+      "what": "Qwen2.5-Coder 14B (viet va sua plugin, chi nap khi can)",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+      "to": "assistant/weights/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+      "bytes": 8988110272,
+      "sha256": "c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940"
+    },
+    {
       "id": "stt-wake",
+      "profile": [
+        "cpu"
+      ],
       "what": "Whisper small (nghe tu goi, cau hoi va lenh)",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
       "to": "assistant/weights/ggml-small.bin",
@@ -35,6 +80,10 @@
     },
     {
       "id": "voice-vi-turbo-denoiser-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): denoiser.onnx",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/denoiser.onnx",
       "to": "assistant/weights/vieneu/turbo/denoiser.onnx",
@@ -43,6 +92,10 @@
     },
     {
       "id": "voice-vi-turbo-speaker-encoder-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): speaker_encoder.onnx",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/speaker_encoder.onnx",
       "to": "assistant/weights/vieneu/turbo/speaker_encoder.onnx",
@@ -51,6 +104,10 @@
     },
     {
       "id": "voice-vi-backbone-config-json",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): config.json",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/config.json",
       "to": "assistant/weights/vieneu/turbo/onnx_update/config.json",
@@ -59,6 +116,10 @@
     },
     {
       "id": "voice-vi-backbone-tokenizer-json",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): tokenizer.json",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/tokenizer.json",
       "to": "assistant/weights/vieneu/turbo/onnx_update/tokenizer.json",
@@ -67,6 +128,10 @@
     },
     {
       "id": "voice-vi-backbone-vieneu-acoustic-cached-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): vieneu_acoustic_cached.onnx",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/vieneu_acoustic_cached.onnx",
       "to": "assistant/weights/vieneu/turbo/onnx_update/vieneu_acoustic_cached.onnx",
@@ -75,6 +140,10 @@
     },
     {
       "id": "voice-vi-backbone-vieneu-backbone-shared-data",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): vieneu_backbone_shared.data",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/vieneu_backbone_shared.data",
       "to": "assistant/weights/vieneu/turbo/onnx_update/vieneu_backbone_shared.data",
@@ -83,6 +152,10 @@
     },
     {
       "id": "voice-vi-backbone-vieneu-decode-step-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): vieneu_decode_step.onnx",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/vieneu_decode_step.onnx",
       "to": "assistant/weights/vieneu/turbo/onnx_update/vieneu_decode_step.onnx",
@@ -91,6 +164,10 @@
     },
     {
       "id": "voice-vi-backbone-vieneu-prefill-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): vieneu_prefill.onnx",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/vieneu_prefill.onnx",
       "to": "assistant/weights/vieneu/turbo/onnx_update/vieneu_prefill.onnx",
@@ -99,6 +176,10 @@
     },
     {
       "id": "voice-vi-backbone-vieneu-v3-heads-npz",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu Turbo (giong doc tieng Viet): vieneu_v3_heads.npz",
       "url": "https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo/resolve/61b85e3d937fbbacb387714180e8182823512523/onnx_update/vieneu_v3_heads.npz",
       "to": "assistant/weights/vieneu/turbo/onnx_update/vieneu_v3_heads.npz",
@@ -107,6 +188,10 @@
     },
     {
       "id": "voice-vi-codec-codec-browser-onnx-meta-json",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu bo ma hoa am thanh: codec_browser_onnx_meta.json",
       "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX/resolve/ceff0d0749bfb3fa2d61149794ec6feef0d1e1ae/codec_browser_onnx_meta.json",
       "to": "assistant/weights/vieneu/codec/codec_browser_onnx_meta.json",
@@ -115,6 +200,10 @@
     },
     {
       "id": "voice-vi-codec-moss-audio-tokenizer-decode-full-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu bo ma hoa am thanh: moss_audio_tokenizer_decode_full.onnx",
       "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX/resolve/ceff0d0749bfb3fa2d61149794ec6feef0d1e1ae/moss_audio_tokenizer_decode_full.onnx",
       "to": "assistant/weights/vieneu/codec/moss_audio_tokenizer_decode_full.onnx",
@@ -123,6 +212,10 @@
     },
     {
       "id": "voice-vi-codec-moss-audio-tokenizer-decode-shared-data",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu bo ma hoa am thanh: moss_audio_tokenizer_decode_shared.data",
       "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX/resolve/ceff0d0749bfb3fa2d61149794ec6feef0d1e1ae/moss_audio_tokenizer_decode_shared.data",
       "to": "assistant/weights/vieneu/codec/moss_audio_tokenizer_decode_shared.data",
@@ -131,6 +224,10 @@
     },
     {
       "id": "voice-vi-codec-moss-audio-tokenizer-decode-step-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu bo ma hoa am thanh: moss_audio_tokenizer_decode_step.onnx",
       "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX/resolve/ceff0d0749bfb3fa2d61149794ec6feef0d1e1ae/moss_audio_tokenizer_decode_step.onnx",
       "to": "assistant/weights/vieneu/codec/moss_audio_tokenizer_decode_step.onnx",
@@ -139,6 +236,10 @@
     },
     {
       "id": "voice-vi-codec-moss-audio-tokenizer-encode-data",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu bo ma hoa am thanh: moss_audio_tokenizer_encode.data",
       "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX/resolve/ceff0d0749bfb3fa2d61149794ec6feef0d1e1ae/moss_audio_tokenizer_encode.data",
       "to": "assistant/weights/vieneu/codec/moss_audio_tokenizer_encode.data",
@@ -147,6 +248,10 @@
     },
     {
       "id": "voice-vi-codec-moss-audio-tokenizer-encode-onnx",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "VieNeu bo ma hoa am thanh: moss_audio_tokenizer_encode.onnx",
       "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX/resolve/ceff0d0749bfb3fa2d61149794ec6feef0d1e1ae/moss_audio_tokenizer_encode.onnx",
       "to": "assistant/weights/vieneu/codec/moss_audio_tokenizer_encode.onnx",
@@ -155,6 +260,10 @@
     },
     {
       "id": "hand-landmarker",
+      "profile": [
+        "cpu",
+        "gpu"
+      ],
       "what": "MediaPipe hand landmarker (theo doi ban tay)",
       "url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
       "to": "public/models/hand_landmarker.task",
@@ -163,6 +272,9 @@
     },
     {
       "id": "bin-llama",
+      "profile": [
+        "cpu"
+      ],
       "what": "llama.cpp b12681 ban CPU (may chu AI cho tra loi, nhin hinh, viet plugin)",
       "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12681/llama-b12681-bin-win-cpu-x64.zip",
       "to": "assistant/bin/llama",
@@ -175,7 +287,27 @@
       "sha256": "443e41b8216b71e7a8e443fba4bd9502c0b64e9ba226112f47cb074c7a0f29cf"
     },
     {
+      "id": "bin-llama-gpu",
+      "profile": [
+        "gpu"
+      ],
+      "what": "llama.cpp b12681 CUDA 13.5 (may chu AI cho tra loi, nhin man hinh, viet plugin)",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12681/llama-b12681-bin-win-cuda-13.5-x64.zip",
+      "to": "assistant/bin/llama",
+      "unpack": true,
+      "flat": true,
+      "needs": [
+        "llama-server.exe",
+        "ggml-cuda.dll"
+      ],
+      "bytes": 225953336,
+      "sha256": "184f8512ff6e8d16d543033f76d529025bf87130fb43462328871c61fa8e5bdc"
+    },
+    {
       "id": "bin-whisper",
+      "profile": [
+        "cpu"
+      ],
       "what": "whisper.cpp ban CPU (may chu nghe)",
       "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5907/whisper-bin-x64.zip",
       "to": "assistant/bin/whisper",
@@ -186,6 +318,60 @@
       ],
       "bytes": 9168428,
       "sha256": "ecca07b277d943e9b9f4712856a144b857271a6b333104e511e1988e80db582b"
+    },
+    {
+      "id": "bin-whisper-gpu",
+      "profile": [
+        "gpu"
+      ],
+      "what": "whisper.cpp CUDA 12.4 (may chu nghe)",
+      "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5907/whisper-bin-win-cuda-12.4.0-x64.zip",
+      "to": "assistant/bin/whisper",
+      "unpack": true,
+      "flat": true,
+      "needs": [
+        "whisper-server.exe"
+      ],
+      "bytes": 735571214,
+      "sha256": "34f872ce724ca1ff0a4afca481853e5ee74250f8cb22153e499f953562846039"
+    },
+    {
+      "id": "stt",
+      "profile": [
+        "gpu"
+      ],
+      "what": "Whisper large-v3 q5 (nghe cau hoi, lenh va tu goi Hino)",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
+      "to": "assistant/weights/ggml-large-v3-q5_0.bin",
+      "bytes": 1081140203,
+      "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    },
+    {
+      "id": "bin-llama-cudart",
+      "profile": [
+        "gpu"
+      ],
+      "what": "Thu vien CUDA 13.5 di kem llama.cpp",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12681/cudart-llama-bin-win-cuda-13.5-x64.zip",
+      "to": "assistant/bin/llama",
+      "unpack": true,
+      "flat": true,
+      "needs": [
+        "cudart64_13.dll"
+      ],
+      "bytes": 426314199,
+      "sha256": "c2bf4cc202bfbaaa7a0b75f5082457c3811326947bb216059b72839d844e9cba"
+    },
+    {
+      "id": "bin-cloudflared",
+      "profile": [
+        "gpu"
+      ],
+      "what": "cloudflared 2026.11.2 (dia chi cong khai qua tunnel)",
+      "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.11.2/cloudflared-windows-amd64.exe",
+      "to": "assistant/bin/cloudflared/cloudflared.exe",
+      "bytes": 55470800,
+      "sha256": "555b46c85582461d189cac30d14ad05480d612613801be9f110b8ce08c5b2113"
     }
   ]
 }

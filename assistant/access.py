@@ -13,8 +13,14 @@ names of the people the headset knows. So:
   loopback included, so a page open in the computer's browser cannot drive the assistant.
 - `/api/health` and the page itself are open: the page has to load before it can show the key.
 
-The key check is OFF by default, so a phone on the same Wi-Fi just opens the address. `VR_ACCESS=on` turns it
-on (everything above then applies); the website check stays either way.
+The key check follows the profile (`profiles.py`). cpu: OFF by default, so a phone on the same Wi-Fi just opens the
+address. gpu: ON while there is a public address (the tunnel `run.py` opens), because anyone who finds the address could
+otherwise drive the assistant; OFF with `VR_TUNNEL=off`, and the page is this machine's alone.
+`VR_ACCESS=on` or `off` decides it by hand (everything above then applies); the website check stays either way.
+
+Everything that comes in through the tunnel is made by `cloudflared` on this machine, so it connects from 127.0.0.1.
+It is told apart by the headers Cloudflare adds (`Cf-Connecting-Ip`, `X-Forwarded-For`): a request that has one is
+not the computer's own browser, and needs the key like any other device.
 """
 
 from __future__ import annotations
@@ -26,8 +32,11 @@ import secrets
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import profiles
+
 KEY_FILE = Path(__file__).resolve().parent / "data" / "access.key"
 HEADER = b"x-access-key"
+FROM_TUNNEL = (b"cf-connecting-ip", b"x-forwarded-for")
 OPEN_PATHS = {"/api/health"}
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
@@ -65,7 +74,8 @@ def reset() -> None:
 
 
 def enabled() -> bool:
-    return os.environ.get("VR_ACCESS", "off").strip().lower() in {"on", "1", "true", "yes"}
+    default = "on" if profiles.tunnel() else "off"
+    return os.environ.get("VR_ACCESS", default).strip().lower() in {"on", "1", "true", "yes"}
 
 
 def _refuse(status: int, detail: str):
@@ -99,7 +109,8 @@ class AccessMiddleware:
             await _refuse(403, "request from another site")(scope, receive, send)
             return
         client = (scope.get("client") or ("", 0))[0]
-        if enabled() and client not in LOOPBACK:
+        through_tunnel = any(name in headers for name in FROM_TUNNEL)
+        if enabled() and (client not in LOOPBACK or through_tunnel):
             sent = headers.get(HEADER, b"").decode("latin-1")
             if not sent or not hmac.compare_digest(sent.encode(), token().encode()):
                 await _refuse(401, "access key needed: open the address with ?key= that the server printed")(scope, receive, send)

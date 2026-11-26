@@ -19,6 +19,11 @@ from pathlib import Path
 
 from helpers import ASSISTANT, ROOT, SRC
 
+sys.path.insert(0, str(ASSISTANT))
+import profiles  # noqa: E402
+
+sys.path.remove(str(ASSISTANT))
+
 
 def _load():
     spec = importlib.util.spec_from_file_location("run_under_test", ROOT / "run.py")
@@ -77,12 +82,14 @@ def _item(body: bytes, url: str, **extra) -> dict:
 
 class ListTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.items = json.loads((ROOT / "downloads.json").read_text(encoding="utf-8"))["items"]
+        self.all = json.loads((ROOT / "downloads.json").read_text(encoding="utf-8"))["items"]
+        self.items = [item for item in self.all if profiles.wanted(item)]  # what the profile in use fetches
 
     def test_every_entry_is_pinned_and_stays_inside_the_project(self) -> None:
         self.assertGreater(len(self.items), 0)
-        self.assertEqual(len({item["id"] for item in self.items}), len(self.items))
-        for item in self.items:
+        self.assertEqual(len({item["id"] for item in self.all}), len(self.all))
+        for item in self.all:
+            self.assertTrue(item["profile"] and set(item["profile"]) <= set(profiles.PROFILES), item["id"])
             self.assertTrue(item["url"].startswith("https://"), item["id"])
             self.assertRegex(item["sha256"], r"^[0-9a-f]{64}$")
             self.assertGreater(item["bytes"], 0)
@@ -97,7 +104,7 @@ class ListTest(unittest.TestCase):
     def test_the_servers_look_for_what_is_downloaded(self) -> None:
         # Whatever the profile (GPU or CPU), every file a server of `stages.json` loads is a file `downloads.json` fetches,
         # and every program it runs is fetched flat into the folder `servers.py` looks in.
-        servers = json.loads((ROOT / "assistant/ai/stages.json").read_text(encoding="utf-8"))["servers"]
+        servers = json.loads(profiles.stages_file().read_text(encoding="utf-8"))["servers"]
         fetched = {item["to"]: item for item in self.items}
         for name, server in servers.items():
             for key in ("model", "mmproj"):

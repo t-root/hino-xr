@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Start VR Core: install missing packages, free port 5173, run the HTTPS server."""
+"""Start VR Core: install missing packages, free port 5173, run the server (gpu profile: and open its public tunnel address)."""
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
+import re
 import runpy
 import shutil
+import socket
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 import traceback
 import zipfile
@@ -21,17 +25,22 @@ ROOT = Path(__file__).resolve().parent
 ASSISTANT = ROOT / "assistant"
 REQUIREMENTS = ROOT / "requirements.txt"
 DOWNLOADS = ROOT / "downloads.json"
+CLOUDFLARED = ROOT / "assistant" / "bin" / "cloudflared" / ("cloudflared.exe" if sys.platform == "win32" else "cloudflared")
+TUNNEL_ADDRESS = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com", re.I)
 PACKAGES = (
     "fastapi",
     "uvicorn",
-    "cryptography",
     "pyttsx3",
     "vieneu",
     "librosa",
     "soundfile",
 )
+CPU_PACKAGES = ("cryptography",)  # the self-signed certificate of the cpu profile; the gpu profile's HTTPS is the tunnel's
 VIENEU = "vieneu==3.8.3"
 MIN_PYTHON = (3, 11)
+
+sys.path.insert(0, str(ASSISTANT))
+import profiles  # noqa: E402 - standard library only, so it is read before anything is installed
 
 
 def _configure_stdio() -> None:
@@ -59,7 +68,7 @@ def _say(message: str = "") -> None:
 
 
 def _packages_ok() -> bool:
-    for name in PACKAGES:
+    for name in PACKAGES + (() if profiles.is_gpu() else CPU_PACKAGES):
         try:
             __import__(name)
         except ImportError:
@@ -156,6 +165,8 @@ def _ensure_downloads(items: list | None = None) -> None:
     except Exception:  # noqa: BLE001
         pass
     for item in json.loads(DOWNLOADS.read_text(encoding="utf-8"))["items"] if items is None else items:
+        if not profiles.wanted(item):
+            continue  # an entry of the other profile: nothing to say about it
         dest, name = ROOT / item["to"], item["what"]
         when = item.get("when")
         if when and os.environ.get(when["env"], "").strip().lower() != str(when["equals"]).lower():
@@ -260,27 +271,119 @@ def _free_port(port: int) -> bool:
 
 
 def _notes(killed: bool) -> None:
+    gpu = profiles.is_gpu()
     if killed:
-        os.environ["VR_OPEN_BROWSER"] = "0"
+        if not gpu:
+            os.environ["VR_OPEN_BROWSER"] = "0"
         _say(f"Da tat may chu cu dang giu cong {PORT}.")
-        _say("Tab cu van dung duoc - khong mo them cua so trinh duyet.")
+        if not gpu:
+            _say("Tab cu van dung duoc - khong mo them cua so trinh duyet.")
         _say()
-    else:
+    elif not gpu:
         _say(f"Dang mo https://127.0.0.1:{PORT}")
         _say()
+    _say(f"Ho so: {profiles.name()} (VR_PROFILE=cpu hoac gpu).")
     _say("Luu y:")
-    _say("  - Camera can HTTPS. Tren dien thoai mo https:// (chu s) roi")
-    _say(f"    dia chi may, vi du https://192.168.x.x:{PORT}")
-    _say("    Mo bang http:// thi trinh duyet chan camera.")
-    _say("  - Lan dau trinh duyet canh bao giay chung nhan: chon Advanced")
-    _say("    / Proceed / Tiep tuc, roi tai lai.")
+    if gpu:
+        _say("  - May chu nay khong mo cong ra ngoai. No tu mo mot tunnel Cloudflare va in ra dia chi https://...trycloudflare.com")
+        _say("    (kem ?key=...): mo dia chi do tren dien thoai, o dau cung duoc. Dia chi moi lan chay la mot dia chi moi.")
+        _say("    Giu kin dia chi co ?key=. VR_TUNNEL=off de khong mo tunnel (chi dung duoc tren chinh may nay).")
+    else:
+        _say("  - Camera can HTTPS. Tren dien thoai mo https:// (chu s) roi")
+        _say(f"    dia chi may, vi du https://192.168.x.x:{PORT}")
+        _say("    Mo bang http:// thi trinh duyet chan camera.")
+        _say("  - Lan dau trinh duyet canh bao giay chung nhan: chon Advanced")
+        _say("    / Proceed / Tiep tuc, roi tai lai.")
     _say("  - Lan dau can mang de tai Three.js, MediaPipe va mo hinh thi giac.")
     _say("    Tai xong roi thi nhung lan sau chay duoc ca khi khong co mang.")
-    _say("  - Lan dau se tu tai model va may chu AI (xem downloads.json), khoang 6 GB, co the mat nhieu phut.")
-    _say("  - May chu AI (llama.cpp, whisper.cpp) chay tren may nay, cau hinh o assistant/ai/stages.json.")
+    _say(f"  - Lan dau se tu tai model va may chu AI (xem downloads.json), khoang {'17' if gpu else '6'} GB, co the mat nhieu phut.")
+    _say("  - May chu AI (llama.cpp, whisper.cpp) chay tren may nay, cau hinh o assistant/ai/stages.<ho so>.json.")
     _say("    Muon dung API ben ngoai cho mot viec: dat VR_<VIEC>_URL va VR_<VIEC>_KEY trong assistant/.env.")
     _say("  - Bam Ctrl+C de dung may chu.")
     _say()
+
+
+# ---- the public address -------------------------------------------------------------------------------------------
+# A rented server opens no port, so `cloudflared` (downloads.json) dials out to Cloudflare and gets back an
+# https://....trycloudflare.com address that reaches this page from anywhere. It is HTTPS, which the phone's camera needs,
+# so the server itself is plain HTTP on 127.0.0.1. The address is new at every start. `VR_TUNNEL=off` opens none.
+_tunnel: subprocess.Popen[bytes] | None = None
+
+
+def _page_is_up() -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", PORT), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def _show_address(address: str) -> None:
+    sys.path.insert(0, str(ASSISTANT))
+    import ai.config  # noqa: F401 - reads assistant/.env, which may fix the key (VR_ACCESS_TOKEN)
+    import access  # the key is the one the server asks for; it is on while there is a public address
+
+    suffix = "/?key=%s" % access.token() if access.enabled() else ""
+    _say()
+    _say("VR Core  dia chi cong khai (HTTPS, mo duoc o dau cung duoc):")
+    _say(f"         {address}{suffix}")
+    if suffix:
+        _say("         Dien thoai can phan ?key= o lan dau, sau do tu nho. Giu kin dia chi nay.")
+    _say("         Moi lan chay la mot dia chi moi.")
+    _say()
+
+
+def _run_tunnel() -> None:
+    global _tunnel
+    if not CLOUDFLARED.is_file():
+        _say(f"  tunnel   khong co {CLOUDFLARED.name} trong {CLOUDFLARED.parent}: chay lai run.py de tai.")
+        return
+    deadline = time.monotonic() + 120
+    while not _page_is_up():  # the server starts after this thread does
+        if time.monotonic() > deadline:
+            _say(f"  tunnel   trang khong mo cong {PORT}, nen khong mo tunnel.")
+            return
+        time.sleep(0.4)
+    try:
+        # --no-autoupdate: the version is the one downloads.json pinned, not whatever is newest.
+        _tunnel = subprocess.Popen(
+            [str(CLOUDFLARED), "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError as error:
+        _say(f"  tunnel   khong chay duoc {CLOUDFLARED.name}: {error}")
+        return
+    shown = False
+    for raw in iter(_tunnel.stdout.readline, b""):  # type: ignore[union-attr]
+        match = TUNNEL_ADDRESS.search(raw.decode("utf-8", "replace"))
+        if match and not shown:
+            shown = True
+            _show_address(match.group(0))
+    if not shown:
+        _say("  tunnel   tunnel dung truoc khi co dia chi (mang co dang hoat dong khong?)")
+
+
+def _stop_tunnel() -> None:
+    global _tunnel
+    proc, _tunnel = _tunnel, None
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def _start_tunnel() -> None:
+    if not profiles.tunnel():
+        if profiles.is_gpu():
+            _say("VR_TUNNEL=off: khong mo dia chi cong khai. Trang chi mo duoc tren may nay, o http://127.0.0.1:%d" % PORT)
+            _say()
+        return
+    atexit.register(_stop_tunnel)
+    threading.Thread(target=_run_tunnel, daemon=True, name="tunnel").start()
 
 
 def _start_server() -> None:
@@ -323,15 +426,25 @@ def main() -> int:
         _say("Cai o https://www.python.org roi chay lai bang py -3.11 run.py.")
         _say()
         return 1
+    try:
+        profiles.load_env()  # assistant/.env may set VR_PROFILE
+        profiles.name()
+    except ValueError as error:
+        _say(f"[LOI] {error}")
+        _say()
+        return 1
     if not _ensure_packages():
         return 1
     _ensure_downloads()
     killed = _free_port(PORT)
     _notes(killed)
+    _start_tunnel()
     try:
         _start_server()
     except KeyboardInterrupt:
         _say()
+    finally:
+        _stop_tunnel()
     _say()
     _say("May chu da dung.")
     return 0

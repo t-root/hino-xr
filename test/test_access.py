@@ -52,7 +52,7 @@ def call(path: str, *, client: str = "192.168.1.20", headers: dict[str, str] | N
 
 class AccessTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.saved = {k: os.environ.get(k) for k in ("VR_ACCESS_TOKEN", "VR_ACCESS")}
+        self.saved = {k: os.environ.get(k) for k in ("VR_ACCESS_TOKEN", "VR_ACCESS", "VR_TUNNEL", "VR_PROFILE")}
         os.environ["VR_ACCESS_TOKEN"] = KEY
         os.environ["VR_ACCESS"] = "on"  # off is the default; these tests are about the key being required
         access.reset()
@@ -94,7 +94,35 @@ class AccessTest(unittest.TestCase):
         own = {"Origin": "https://192.168.1.5:5173", "X-Access-Key": KEY}
         self.assertEqual(call("/api/people", headers=own)[0], 200)
 
-    def test_the_key_check_is_off_by_default(self) -> None:
+    def test_the_key_check_follows_the_tunnel_of_the_gpu_profile(self) -> None:
+        os.environ["VR_PROFILE"] = "gpu"
+        os.environ.pop("VR_ACCESS")
+        os.environ.pop("VR_TUNNEL", None)
+        self.assertTrue(access.enabled())  # a public address: the key is on unless it is switched off by hand
+        os.environ["VR_TUNNEL"] = "off"
+        self.assertFalse(access.enabled())  # no public address: the page is this machine's alone
+        os.environ["VR_ACCESS"] = "on"
+        self.assertTrue(access.enabled())  # and either can be decided by hand
+
+    def test_the_cpu_profile_has_no_key_unless_asked(self) -> None:
+        os.environ["VR_PROFILE"] = "cpu"
+        os.environ.pop("VR_ACCESS")
+        os.environ.pop("VR_TUNNEL", None)
+        self.assertFalse(access.enabled())  # a phone on the same Wi-Fi just opens the address
+        self.assertEqual(call("/api/people")[0], 200)
+        os.environ["VR_ACCESS"] = "on"
+        self.assertTrue(access.enabled())
+
+    def test_a_request_through_the_tunnel_needs_the_key_even_from_loopback(self) -> None:
+        # cloudflared runs on this machine, so what it carries arrives from 127.0.0.1; Cloudflare's headers give it away.
+        for header in ("Cf-Connecting-Ip", "X-Forwarded-For"):
+            self.assertEqual(call("/api/people", client="127.0.0.1", headers={header: "203.0.113.9"})[0], 401, header)
+            sent = {header: "203.0.113.9", "X-Access-Key": KEY}
+            self.assertEqual(call("/api/people", client="127.0.0.1", headers=sent)[0], 200, header)
+
+    def test_the_key_check_can_be_off(self) -> None:
+        os.environ["VR_PROFILE"] = "gpu"
+        os.environ["VR_TUNNEL"] = "off"
         os.environ.pop("VR_ACCESS")
         self.assertFalse(access.enabled())
         self.assertEqual(call("/api/people")[0], 200)

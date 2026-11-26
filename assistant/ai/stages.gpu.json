@@ -1,0 +1,39 @@
+{
+  "_how_to_read": "Mot file cho moi AI cua du an. 'servers' la cac may chu AI chay tren may nay (llama.cpp, whisper.cpp). 'stages' la tung viec can AI: moi viec chi co url, key va model. Dung may chu noi bo thi chi can 'server'. Muon dung API ben ngoai: dat VR_<VIEC>_URL va VR_<VIEC>_KEY (va VR_<VIEC>_MODEL) trong assistant/.env, vi du VR_CHAT_URL=https://api.example.com/v1. 'use' = lay cau hinh cua viec khac, viec nay chi ghi de nhung gi no khai bao.",
+  "servers": {
+    "llm": {
+      "kind": "llama",
+      "port": 8081,
+      "model": "assistant/weights/Qwen3VL-8B-Instruct-Q4_K_M.gguf",
+      "mmproj": "assistant/weights/mmproj-Qwen3VL-8B-Instruct-Q8_0.gguf",
+      "alias": "qwen3-vl-8b",
+      "ctx": 16384,
+      "group": "gpu"
+    },
+    "coder": {
+      "kind": "llama",
+      "port": 8082,
+      "model": "assistant/weights/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+      "alias": "qwen2.5-coder-14b",
+      "ctx": 16384,
+      "group": "gpu",
+      "lazy": true,
+      "idle_s": 180
+    },
+    "whisper": {
+      "kind": "whisper",
+      "port": 8083,
+      "model": "assistant/weights/ggml-large-v3-q5_0.bin"
+    }
+  },
+  "stages": {
+    "chat": { "server": "llm", "model": "qwen3-vl-8b" },
+    "agent": { "use": "chat" },
+    "vision": { "use": "chat" },
+    "code": { "server": "coder", "model": "qwen2.5-coder-14b" },
+    "stt": { "server": "whisper", "model": "whisper-large-v3" },
+    "stt_wake": { "use": "stt" },
+    "tts": { "voice": "" },
+    "plugin_chat": { "use": "chat" }
+  }
+}

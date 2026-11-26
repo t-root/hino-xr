@@ -1,5 +1,5 @@
 {
-  "_how_to_read": "Hoso CPU (nhanh cpu): chay tren may khong co card NVIDIA, vd laptop 4 nhan va 16 GB RAM. Mot file cho moi AI cua du an. 'servers' la cac may chu AI chay tren may nay (llama.cpp, whisper.cpp, ban CPU). 'stages' la tung viec can AI: moi viec chi co url, key va model. Dung may chu noi bo thi chi can 'server'. Muon dung API ben ngoai: dat VR_<VIEC>_URL va VR_<VIEC>_KEY (va VR_<VIEC>_MODEL) trong assistant/.env, vi du VR_CHAT_URL=https://api.example.com/v1. 'use' = lay cau hinh cua viec khac, viec nay chi ghi de nhung gi no khai bao. Ban GPU o nhanh 'gpu'.",
+  "_how_to_read": "Hoso CPU (VR_PROFILE=cpu, mac dinh): chay tren may khong co card NVIDIA, vd laptop 4 nhan va 16 GB RAM. Mot file cho moi AI cua du an. 'servers' la cac may chu AI chay tren may nay (llama.cpp, whisper.cpp, ban CPU). 'stages' la tung viec can AI: moi viec chi co url, key va model. Dung may chu noi bo thi chi can 'server'. Muon dung API ben ngoai: dat VR_<VIEC>_URL va VR_<VIEC>_KEY (va VR_<VIEC>_MODEL) trong assistant/.env, vi du VR_CHAT_URL=https://api.example.com/v1. 'use' = lay cau hinh cua viec khac, viec nay chi ghi de nhung gi no khai bao. Hoso GPU la stages.gpu.json (VR_PROFILE=gpu).",
   "servers": {
     "llm": {
       "kind": "llama",

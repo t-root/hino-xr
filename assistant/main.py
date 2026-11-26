@@ -13,10 +13,11 @@ import asyncio
 import uvicorn
 
 import access
+import profiles
 from frontend import ensure_cert, lan_ips, prepare_frontend, watch_frontend
 
 PORT = 5173
-HOST = "0.0.0.0"
+HOST = profiles.host()  # cpu: the whole network, for the phone; gpu: this machine only, the tunnel of run.py is the way in
 
 
 def _open_browser() -> None:
@@ -28,6 +29,11 @@ def _open_browser() -> None:
 
 def _announce() -> None:
     print()
+    if profiles.is_gpu():
+        print("VR Core  http://127.0.0.1:%s  (this machine only; run.py opens the public address)" % PORT)
+        print("Ctrl+C stops the server.")
+        print()
+        return
     print("VR Core  https://127.0.0.1:%s" % PORT)
     suffix = "/?key=%s" % access.token() if access.enabled() else ""
     # lan_ips() lists the address the computer reaches the network by first, then every virtual adapter
@@ -45,7 +51,7 @@ def _announce() -> None:
 
 if __name__ == "__main__":
     esbuild = prepare_frontend()
-    cert, key = ensure_cert()
+    cert, key = ensure_cert() if profiles.https() else (None, None)
     _announce()
     from ai import servers
     from models.speech import speech
@@ -53,17 +59,10 @@ if __name__ == "__main__":
     servers.start_background()  # the AI servers of this machine, while the page opens
     Thread(target=speech.warm, daemon=True).start()
     Thread(target=watch_frontend, args=(esbuild,), daemon=True).start()
-    Timer(1.2, _open_browser).start()
-    server = uvicorn.Server(
-        uvicorn.Config(
-            "app:app",
-            host=HOST,
-            port=PORT,
-            ssl_certfile=str(cert),
-            ssl_keyfile=str(key),
-            reload=False,
-        )
-    )
+    tls = {"ssl_certfile": str(cert), "ssl_keyfile": str(key)} if cert else {}  # the gpu profile's HTTPS is the tunnel's
+    if cert:
+        Timer(1.2, _open_browser).start()
+    server = uvicorn.Server(uvicorn.Config("app:app", host=HOST, port=PORT, reload=False, **tls))
     if sys.platform == "win32":
         # uvicorn picks Windows' proactor loop on its own, whatever the event loop policy says, and that loop
         # prints a traceback ("WinError 10054") every time a browser drops a connection, as it does on every

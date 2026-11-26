@@ -9,24 +9,42 @@ Mọi giao diện bán trong suốt, một màu, góc vuông, vẽ chồng lên 
 Cần **Python 3.11 trở lên** (chạy bằng `py -3.11 run.py`). Không dùng Node.js, không `npm`, không `node_modules`.
 
 ```bash
-python run.py        # https://127.0.0.1:5173
+python run.py        # hồ sơ cpu (mặc định): https://127.0.0.1:5173; hồ sơ gpu: http://127.0.0.1:5173 và một địa chỉ công khai
+VR_PROFILE=gpu python run.py   # (PowerShell: $env:VR_PROFILE="gpu"; python run.py)
 python run.py test   # chạy toàn bộ unittest
 ```
 
-Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, tắt tiến trình cũ đang giữ cổng **5173**, đóng gói giao diện, rồi mở **một** tiến trình HTTPS trên 5173: trang web, camera và `/api` của trợ lý nằm chung một chỗ.
+### Hai hồ sơ: `cpu` và `gpu`
 
-- **Điện thoại:** cùng Wi-Fi, mở địa chỉ mà server in ra lúc khởi động, dạng `https://<địa-chỉ-máy>:5173` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Mặc định **không cần khoá**. Nếu bật `VR_ACCESS=on` thì địa chỉ in ra có thêm `?key=...`, điện thoại nhớ khoá sau lần đầu; hiện lỗi `access key needed` nghĩa là điện thoại chưa có khoá. Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
+Một mã nguồn, chọn bằng `VR_PROFILE=cpu|gpu` (đặt ở môi trường hoặc `assistant/.env`; mặc định `cpu`). Chỉ những chỗ trong bảng này khác nhau; mọi thứ còn lại dùng chung.
+
+| | `cpu` (mặc định) | `gpu` |
+|---|---|---|
+| Máy | không có card NVIDIA, ví dụ laptop 4 nhân, 16 GB RAM | máy chủ thuê có GPU (thiết kế cho RTX 16 GB), chỉ Windows (bản CUDA) |
+| Model (`assistant/ai/stages.<hồ sơ>.json`) | Qwen3-VL 4B, Qwen2.5-Coder 3B, Whisper small (một máy chủ cho `stt` và `stt_wake`); llama.cpp và whisper.cpp bản CPU | Qwen3-VL 8B, Qwen2.5-Coder 14B (cùng `group: "gpu"`), Whisper large-v3 q5; llama.cpp CUDA 13.5, whisper.cpp CUDA 12.4 |
+| Tải về (`downloads.json`, trường `profile`) | khoảng 7 GB | khoảng 17 GB, thêm `cloudflared` |
+| Mạng | HTTPS tự ký trên `0.0.0.0:5173`, mở trình duyệt, in địa chỉ LAN cho điện thoại cùng Wi-Fi | HTTP trên `127.0.0.1:5173`; `run.py` mở tunnel Cloudflare và in địa chỉ `https://....trycloudflare.com` (mới mỗi lần chạy) |
+| Khoá truy cập | tắt mặc định | bật khi có tunnel |
+| `VR_TUNNEL` | không có tác dụng | `off` = không mở tunnel, trang chỉ mở được trên chính máy này |
+
+Đổi hồ sơ trên cùng một thư mục thì `run.py` tải thêm phần của hồ sơ mới; file của hồ sơ cũ vẫn nằm đó. Hai hồ sơ dùng chung thư mục `assistant/bin/llama` và `assistant/bin/whisper`: nếu gặp chương trình sai bản sau khi đổi hồ sơ, xoá hai thư mục đó rồi chạy lại để tải đúng bản. Hồ sơ `gpu` chưa được chạy thử trên máy có GPU.
+
+Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, tắt tiến trình cũ đang giữ cổng **5173**, đóng gói giao diện, rồi mở **một** tiến trình trên 5173: trang web, camera và `/api` của trợ lý nằm chung một chỗ. Hồ sơ `cpu` là tiến trình HTTPS; hồ sơ `gpu` là HTTP trên `127.0.0.1` cùng một **tunnel Cloudflare** (`cloudflared`, tải qua `downloads.json`) cho địa chỉ công khai.
+
+- **Điện thoại, hồ sơ `cpu`:** cùng Wi-Fi, mở địa chỉ mà server in ra lúc khởi động, dạng `https://<địa-chỉ-máy>:5173` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Mặc định **không cần khoá**. Nếu bật `VR_ACCESS=on` thì địa chỉ in ra có thêm `?key=...`, điện thoại nhớ khoá sau lần đầu; hiện lỗi `access key needed` nghĩa là điện thoại chưa có khoá. Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
+- **Điện thoại, hồ sơ `gpu`:** máy chủ thuê không mở cổng ra ngoài, nên `run.py` in một địa chỉ dạng `https://<tên-ngẫu-nhiên>.trycloudflare.com/?key=...`. Mở địa chỉ đó trên điện thoại ở đâu cũng được; nó là HTTPS thật (camera chạy, không có cảnh báo chứng nhận). Điện thoại nhớ khoá sau lần đầu. **Địa chỉ mới ở mỗi lần chạy** và ai có địa chỉ kèm `?key=` điều khiển được trợ lý: giữ kín. `VR_TUNNEL=off` thì không mở tunnel và trang chỉ mở được ở `http://127.0.0.1:5173` trên chính máy chạy server.
 - **Lần chạy đầu cần mạng** để tải thư viện (Three.js, MediaPipe, esbuild dạng file thực thi), mô hình thị giác và mô hình trợ lý. Mọi thứ cần tải khai báo trong `downloads.json` và `vendor.json`; file có sẵn thì bỏ qua, bị ngắt thì tải tiếp, sai sha256 thì tải lại. Lần sau chạy offline.
-- Mô hình trợ lý (khoảng 15 GB) nằm trong `assistant/weights/`, các chương trình chạy chúng (llama.cpp, whisper.cpp) trong `assistant/bin/`; cả hai đều không đưa vào git. Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
+- Mô hình trợ lý (khoảng 6 GB hồ sơ `cpu`, 16 GB hồ sơ `gpu`) nằm trong `assistant/weights/`, các chương trình chạy chúng (llama.cpp, whisper.cpp) trong `assistant/bin/`; cả hai đều không đưa vào git. Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
 
 ### Bảo mật
 
-Server nghe trên cả mạng để điện thoại vào được, mà `/api` cài và chạy plugin do AI viết, dùng khoá API (nếu bạn đặt) và giữ khuôn mặt, tên của những người trợ lý biết. Vì vậy (`assistant/access.py`):
+Hồ sơ `cpu` nghe trên cả mạng để điện thoại vào được; hồ sơ `gpu` chỉ nghe trên `127.0.0.1` và tunnel là đường vào duy nhất. Mà `/api` cài và chạy plugin do AI viết, dùng khoá API (nếu bạn đặt) và giữ khuôn mặt, tên của những người trợ lý biết. Vì vậy (`assistant/access.py`):
 
-- Khoá truy cập **tắt mặc định** (ai cùng Wi-Fi cũng dùng được trợ lý, nên chỉ dùng ở mạng tin cậy); trang web lạ vẫn bị chặn. Bật bằng `VR_ACCESS=on`: khi đó trình duyệt trên **chính máy tính chạy server** không cần khoá, thiết bị khác phải gửi khoá trong header `X-Access-Key`. Khoá là `VR_ACCESS_TOKEN`, hoặc khoá ngẫu nhiên tự sinh lần chạy đầu và giữ trong `assistant/data/access.key` (không đưa vào git). **Giữ kín địa chỉ có `?key=`**: ai có nó, cùng Wi-Fi, điều khiển được trợ lý. Muốn đổi khoá thì xoá file đó rồi chạy lại.
+- Khoá truy cập **tắt mặc định ở hồ sơ `cpu`** (ai cùng Wi-Fi cũng dùng được trợ lý, nên chỉ dùng ở mạng tin cậy) và **bật mặc định ở hồ sơ `gpu` khi có tunnel** (tắt khi `VR_TUNNEL=off`); `VR_ACCESS=on|off` quyết định bằng tay; trang web lạ vẫn bị chặn. Khi khoá bật, trình duyệt trên **chính máy tính chạy server** không cần khoá, thiết bị khác phải gửi khoá trong header `X-Access-Key`. Khoá là `VR_ACCESS_TOKEN`, hoặc khoá ngẫu nhiên tự sinh lần chạy đầu và giữ trong `assistant/data/access.key` (không đưa vào git). **Giữ kín địa chỉ có `?key=`**: ai có nó điều khiển được trợ lý. Muốn đổi khoá thì xoá file đó rồi chạy lại.
+- Yêu cầu đi qua tunnel **vẫn phải có khoá**: `cloudflared` chạy trên chính máy chủ nên yêu cầu của nó đến từ `127.0.0.1`, và chỉ nhờ header `Cf-Connecting-Ip` / `X-Forwarded-For` của Cloudflare mà nó không bị nhầm với trình duyệt trên máy chủ.
 - Yêu cầu tự nhận đến từ **trang web khác** (header `Origin` không phải chính server) bị từ chối, kể cả trên máy tính, để một trang độc hại mở trong trình duyệt không điều khiển được trợ lý.
 - Trang web và `/api/health` luôn mở (trang phải tải được thì mới nhận được khoá). `VR_ACCESS=off` tắt kiểm tra khoá khi mạng đáng tin; kiểm tra trang web vẫn giữ.
-- Chạy sau reverse proxy trên cùng máy thì mọi yêu cầu trông như từ chính máy tính, nên không được bảo vệ: đừng làm vậy mà không tự thêm lớp xác thực.
+- Chạy sau một reverse proxy khác (không phải tunnel của `run.py`) trên cùng máy thì mọi yêu cầu trông như từ chính máy tính, trừ khi proxy đó cũng thêm `X-Forwarded-For`: đừng làm vậy mà không tự thêm lớp xác thực.
 
 ## Cách dùng
 
@@ -95,8 +113,8 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 
 | Việc | Cách làm |
 |---|---|
-| Trả lời | Qwen3-VL 4B (llama.cpp, bản CPU). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. Cũng là model làm menu bằng gọi công cụ và đọc ảnh chụp màn hình. |
-| Nghe | whisper.cpp (bản CPU) chép chữ: một model `small` nghe cả từ gọi lẫn câu hỏi và lệnh (large-v3 q5 quá chậm trên laptop 4 nhân, xem `rules.md` E3). |
+| Trả lời | Qwen3-VL 4B (cpu) hoặc 8B (gpu), llama.cpp. Câu trả lời được đọc từng câu ngay khi viết xong câu đó. Cũng là model làm menu bằng gọi công cụ và đọc ảnh chụp màn hình. |
+| Nghe | whisper.cpp chép chữ: hồ sơ `cpu` một model `small` nghe cả từ gọi lẫn câu hỏi và lệnh (large-v3 q5 quá chậm trên laptop 4 nhân, xem `rules.md` E3); hồ sơ `gpu` là large-v3 q5. |
 | Nói tiếng Việt | VieNeu-TTS v3 Turbo (ONNX, CPU), clone từ giọng mẫu `assistant/voices/hino.wav`. Tải về `assistant/weights/vieneu/` qua `downloads.json`, chạy cục bộ, không cần mạng. |
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
@@ -155,15 +173,15 @@ Chất lượng phụ thuộc vào người viết: khâu `code` mặc định l
 
 ### Một cấu hình cho mọi AI (`assistant/ai/`)
 
-Mọi lời gọi AI đi qua **một client** (`assistant/ai/client.py`) và **một file cấu hình** (`assistant/ai/stages.json`). Mỗi việc cần AI là một **khâu**, và khâu chỉ là `url`, `key`, `model`:
+Mọi lời gọi AI đi qua **một client** (`assistant/ai/client.py`) và **một file cấu hình** (`assistant/ai/stages.cpu.json` hoặc `stages.gpu.json`, theo `VR_PROFILE`). Mỗi việc cần AI là một **khâu**, và khâu chỉ là `url`, `key`, `model`:
 
-| Phía | Khâu | Mặc định |
+| Phía | Khâu | Mặc định (`cpu` / `gpu`) |
 |---|---|---|
-| Trợ lý | `chat` (trả lời) | llama.cpp (CPU), Qwen3-VL 4B, cổng 8081, ngữ cảnh 4096, ảnh tối đa 400 token |
+| Trợ lý | `chat` (trả lời) | llama.cpp: Qwen3-VL 4B, cổng 8081, ngữ cảnh 4096, ảnh tối đa 400 token / Qwen3-VL 8B, cổng 8081, ngữ cảnh 16384 |
 | | `agent` (làm menu bằng gọi công cụ), `vision` (ảnh chụp màn hình) | theo `chat` |
-| | `code` (viết, sửa plugin) | llama.cpp (CPU), Qwen2.5-Coder 3B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
-| | `stt` (nghe câu hỏi và lệnh) | whisper.cpp small, cổng 8084, chung máy chủ với `stt_wake` |
-| | `stt_wake` (nghe từ gọi "hino" và "dừng", chạy trên mọi câu mic cắt ra) | whisper.cpp small, cổng 8084 (hồ sơ GPU: theo `stt`) |
+| | `code` (viết, sửa plugin) | llama.cpp: Qwen2.5-Coder 3B / 14B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
+| | `stt` (nghe câu hỏi và lệnh) | whisper.cpp small, cổng 8084, chung máy chủ với `stt_wake` / large-v3 q5, cổng 8083 |
+| | `stt_wake` (nghe từ gọi "hino" và "dừng", chạy trên mọi câu mic cắt ra) | `cpu`: cùng whisper small, cổng 8084; `gpu`: theo `stt` (có thể đặt model nhẹ hơn riêng cho nó) |
 | | `tts` (nói) | VieNeu (tiếng Việt) và SAPI (tiếng Anh), chạy trong tiến trình |
 | Plugin | `plugin_chat` (`POST /api/plugin-ai/chat`) | theo `chat`, nhưng là khâu riêng |
 
@@ -179,7 +197,7 @@ VR_CHAT_MODEL=ten-model
 
 `<KHÂU>` là `CHAT`, `AGENT`, `VISION`, `CODE`, `STT`, `STT_WAKE`, `TTS`, `PLUGIN_CHAT`. Khâu nào có `use` thì theo khâu kia: đặt `VR_CHAT_URL` là chuyển cả `agent`, `vision`, `plugin_chat` đi theo; đặt `VR_AGENT_URL` riêng thì tách `agent` ra. Điểm cuối cần nói giao thức OpenAI (`/chat/completions`, `/audio/transcriptions`, `/audio/speech`, `/models`). Khâu `tts` không có `VR_TTS_URL` thì dùng giọng trong tiến trình.
 
-**Máy chủ AI trên máy** (`servers` trong `stages.json`): llama.cpp và whisper.cpp là chương trình thường, `run.py` tải về `assistant/bin/` cùng model vào `assistant/weights/` (`downloads.json`, khoảng 6 GB lần đầu), rồi server Python khởi chạy chúng và tắt cùng nó (`assistant/ai/servers.py`). **Nhánh `main` này** dành cho máy không có card NVIDIA (thử trên laptop i7-8665U 4 nhân, 16 GB RAM): bản CPU của llama.cpp và whisper.cpp, model nhỏ (Qwen3-VL 4B, Qwen2.5-Coder 3B, Whisper large-v3 q5 và small). Máy chủ viết mã chỉ chạy khi cần. Nhánh `gpu` là bản thay thế cho card RTX 16 GB (Qwen3-VL 8B, Coder 14B, bản CUDA). Log của từng máy chủ nằm ở `assistant/data/logs/`.
+**Máy chủ AI trên máy** (`servers` trong `stages.<hồ sơ>.json`): llama.cpp và whisper.cpp là chương trình thường, `run.py` tải về `assistant/bin/` cùng model vào `assistant/weights/` (`downloads.json`, khoảng 6 GB lần đầu), rồi server Python khởi chạy chúng và tắt cùng nó (`assistant/ai/servers.py`). Hồ sơ `cpu` (thử trên laptop i7-8665U 4 nhân, 16 GB RAM) dùng bản CPU của llama.cpp và whisper.cpp và model nhỏ; máy chủ viết mã chỉ chạy khi cần. Hồ sơ `gpu` dùng bản CUDA (llama.cpp 13.5, whisper.cpp 12.4; whisper tự chạy bằng CPU nếu card không nhận) và hai model llama cùng `group: "gpu"` vì không vừa chung 16 GB VRAM: viết plugin thì máy chủ 8B được tắt nhường chỗ, và bật lại ở câu hỏi kế tiếp. Log của từng máy chủ nằm ở `assistant/data/logs/`.
 
 **Không còn "nguồn local/api" để đổi bằng giọng nói, và không còn dự phòng.** Một khâu lỗi thì báo lỗi rõ (tên khâu, địa chỉ), không tự chuyển sang nơi khác. Nói "hiện thông tin model" để xem từng khâu đang dùng gì; "đổi model trả lời sang …" chỉ áp dụng cho khâu đang trỏ tới API bên ngoài (khâu chạy trên máy chỉ có đúng model đã nạp).
 
@@ -266,7 +284,7 @@ camera → FrameHub ─┬→ HandTracking → làm mượt → GestureStateMach
                    └→ ModuleManager → plugin (worker, MediaPipe) → DetectionBatch → OverlayRenderer
                                          StereoRenderer vẽ scene hai lần (mắt trái, mắt phải)
 
-micro / giao diện ──HTTPS /api──► Python :5173 (trang + VieNeu) ──HTTP──► llama.cpp, whisper.cpp
+micro / giao diện ──HTTPS (tự ký hoặc tunnel) /api──► Python :5173 (trang + VieNeu) ──HTTP──► llama.cpp, whisper.cpp
 ```
 
 | Đường dẫn | Nội dung |

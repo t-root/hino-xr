@@ -1,4 +1,4 @@
-"""Where every AI of the project runs, read from one file: `stages.json`.
+"""Where every AI of the project runs, read from one file per profile: `stages.cpu.json` or `stages.gpu.json` (`VR_PROFILE`).
 
 Two sides, kept apart on purpose:
 
@@ -24,9 +24,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import profiles
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-STAGES_FILE = HERE / "stages.json"
 
 ASSISTANT_STAGES = ("chat", "agent", "vision", "code", "stt", "stt_wake", "tts")
 PLUGIN_STAGES = ("plugin_chat",)
@@ -52,23 +53,7 @@ def env(name: str) -> str | None:
     return value or None
 
 
-def load_env() -> None:
-    """Read VR_* from assistant/.env or the repo .env. Ignore leftover VITE_ keys."""
-    root = HERE.parent
-    for path in (root / ".env", root.parent / ".env"):
-        if not path.is_file():
-            continue
-        for line in path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            key, _, value = stripped.partition("=")
-            key = key.strip()
-            if not key or key.startswith("VITE_"):
-                continue
-            os.environ.setdefault(key, value.strip().strip('"').strip("'"))
-
-
+load_env = profiles.load_env  # reads VR_* from assistant/.env; profiles.py has it so run.py can do the same
 load_env()
 
 _spec: dict[str, Any] | None = None
@@ -78,7 +63,7 @@ _models: dict[str, str] = {}  # what the wearer chose by voice while running; go
 def spec() -> dict[str, Any]:
     global _spec
     if _spec is None:
-        _spec = json.loads(STAGES_FILE.read_text(encoding="utf-8"))
+        _spec = json.loads(profiles.stages_file().read_text(encoding="utf-8"))
     return _spec
 
 

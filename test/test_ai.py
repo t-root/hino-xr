@@ -273,7 +273,7 @@ class AITest(unittest.TestCase):
         for name in ("CHAT", "AGENT", "VISION", "PLUGIN_CHAT"):
             os.environ[f"VR_{name}_URL"] = "https://api.example.com/v1"
         self.assertFalse(ai.servers._wanted("llm"))
-        self.assertTrue(ai.servers._wanted("whisper_wake"))  # listening is on this machine: only the answering moved
+        self.assertTrue(ai.servers._wanted(ai.stage("stt").server))  # listening is on this machine: only the answering moved
 
     def test_the_servers_of_the_profile_are_consistent(self) -> None:
         servers = ai.config.servers()
