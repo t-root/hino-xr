@@ -72,8 +72,7 @@ class WeatherAndLookupTest(unittest.TestCase):
     def setUp(self) -> None:
         self.asked: list[str] = []
         self.keep = tools._get_json
-        self.saved = {k: os.environ.get(k) for k in ("VR_HOME_CITY", "VR_TOOLS")}
-        os.environ.pop("VR_HOME_CITY", None)
+        self.saved = {k: os.environ.get(k) for k in ("VR_TOOLS",)}
         os.environ.pop("VR_TOOLS", None)
 
         def fake(url: str):
@@ -112,10 +111,17 @@ class WeatherAndLookupTest(unittest.TestCase):
         self.assertIn("31 degrees now", out["reply"])
         self.assertIn("Today, 26 to 33 degrees", out["reply"])
 
-    def test_no_city_uses_the_home_city_or_asks(self) -> None:
-        self.assertIn("ở đâu", tools.command("thời tiết hôm nay thế nào", "vi")["reply"])
-        os.environ["VR_HOME_CITY"] = "Đà Nẵng"
-        self.assertIn("Đà Nẵng:", tools.command("thời tiết hôm nay", "vi")["reply"])
+    def test_no_city_uses_where_the_device_is_or_asks(self) -> None:
+        self.assertIn("ở đâu", tools.command("thời tiết hôm nay thế nào", "vi")["reply"])  # no city and no position
+        out = tools.command("thời tiết hôm nay", "vi", (16.05, 108.2))
+        self.assertIn("Chỗ bạn: hiện 31 độ", out["reply"])
+        self.assertTrue(any("latitude=16.05" in url and "longitude=108.2" in url for url in self.asked))
+        self.assertFalse(any("geocoding" in url for url in self.asked))  # nothing to look up: only the two numbers go out
+        self.assertIn("Where you are: 31 degrees", tools.command("weather today", "en", (16.05, 108.2))["reply"])
+
+    def test_a_city_that_is_said_wins_over_where_the_device_is(self) -> None:
+        tools.command("thời tiết ở Hà Nội", "vi", (16.05, 108.2))
+        self.assertIn("name=H", self.asked[0])
 
     def test_a_place_that_does_not_exist(self) -> None:
         tools._get_json = lambda url: {}

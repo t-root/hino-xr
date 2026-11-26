@@ -119,7 +119,7 @@ Hai nhóm lệnh được xử lý trước khi hỏi mô hình (`assistant/mode
 Ba việc mà mô hình ngôn ngữ không biết hay không làm được, đều là lệnh theo từ khoá (`assistant/models/tools.py`), không để mô hình quyết định:
 
 - **Hẹn giờ và nhắc việc:** "hẹn giờ năm phút", "hẹn giờ một tiếng rưỡi", "nhắc tôi tắt bếp sau mười phút", "set a timer for 5 minutes". Đồng hồ chạy ngay trong trang, nên đếm ngược không cần mạng; hết giờ trợ lý tự nói (chờ câu đang nói xong). Tối đa 24 giờ; tải lại trang thì hẹn giờ mất.
-- **Thời tiết:** "thời tiết ở Đà Nẵng ngày mai", "weather in Paris". Dùng Open-Meteo (không cần khoá); không nói thành phố thì dùng `VR_HOME_CITY`.
+- **Thời tiết:** "thời tiết ở Đà Nẵng ngày mai", "weather in Paris". Dùng Open-Meteo (không cần khoá); không nói thành phố thì dùng **vị trí hiện tại của thiết bị** (trang đã có quyền vị trí; tọa độ làm tròn hai số lẻ, khoảng một cây số, và chỉ hai số đó được gửi đi).
 - **Tra cứu:** "tra cứu Alan Turing", "look up Alan Turing". Đọc phần tóm tắt trang Wikipedia, kèm toàn văn hiện lên màn hình.
 
 Thời tiết và tra cứu gửi tên nơi hoặc chủ đề bạn nói tới Open-Meteo và Wikipedia, và không gì khác. `VR_TOOLS=off` tắt cả hai.
@@ -185,7 +185,7 @@ VR_CHAT_MODEL=ten-model
 
 ### Cấu hình trợ lý
 
-Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_<KHÂU>_URL`, `VR_<KHÂU>_KEY`, `VR_<KHÂU>_MODEL` (xem trên), `VR_TTS_VOICE`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_TOOLS`, `VR_HOME_CITY`, `VR_ACCESS_TOKEN`, `VR_ACCESS`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
+Biến môi trường (đặt trong `assistant/.env`, mẫu ở `assistant/.env.example`): `VR_<KHÂU>_URL`, `VR_<KHÂU>_KEY`, `VR_<KHÂU>_MODEL` (xem trên), `VR_TTS_VOICE`, `VR_VOICE_VI_PATH` (thư mục giọng đọc, có `turbo/` và `codec/`), `VR_TOOLS`, `VR_ACCESS_TOKEN`, `VR_ACCESS`. Tên gọi sửa ở `src/shared/assistant.json`; khoảng giá trị và mặc định của giọng đọc ở `src/shared/voice.json`.
 
 API của trợ lý: `/api/health`, `/api/models`, `/api/models/{id}` (+ `load`, `complete`, `wake`, `talk`), `/api/plugins/pending`, `/api/plugins/draft`, `/api/plugins/{id}/approve|reject`, `/api/plugin-ai/chat` (cho plugin), `/api/assistant/screen` (ảnh chụp màn hình), `/api/voice/preview`, `/api/voice/listen`, `/api/voice/dictate` (giọng thành chữ cho phím Đọc chữ), `/api/people` (người đã lưu, xem mục Nhận diện khuôn mặt).
 

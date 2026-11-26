@@ -6,7 +6,7 @@ All three are keyword commands, like the plugin and menu ones: nothing here is l
   the server only works out the time and what to say when it is up; the page runs the clock
   (`action: "timer"`), so no connection is needed while it counts down.
 - The weather ("thời tiết ở Đà Nẵng ngày mai", "weather in Paris"): Open-Meteo, which needs no key.
-  A city said by name; none said, `VR_HOME_CITY`.
+  A city said by name; none said, the place the device is at (the page sends its coordinates when it may read them).
 - A look-up ("tra cứu Nguyễn Huệ", "look up Alan Turing"): the summary of the Wikipedia page.
 
 The weather and the look-up go to those websites with the place or the subject the wearer named, and nothing else.
@@ -65,6 +65,7 @@ _SAY = {
         "offline": "Mình chưa kết nối được để tra. Kiểm tra mạng giúp mình nhé.",
         "weather_where": "Bạn muốn xem thời tiết ở đâu? Nói: thời tiết ở, rồi tên thành phố.",
         "weather_none": "Mình không tìm thấy nơi nào tên {place}.",
+        "here": "Chỗ bạn",
         "weather_now": "{place}: hiện {temp} độ, {sky}.",
         "weather_feels": " Cảm giác như {feels} độ.",
         "weather_day": " {day} từ {low} đến {high} độ{rain}.",
@@ -91,6 +92,7 @@ _SAY = {
         "offline": "I could not connect to look that up. Please check the network.",
         "weather_where": "Where do you want the weather? Say: weather in, then a city.",
         "weather_none": "I could not find a place called {place}.",
+        "here": "Where you are",
         "weather_now": "{place}: {temp} degrees now, {sky}.",
         "weather_feels": " It feels like {feels}.",
         "weather_day": " {day}, {low} to {high} degrees{rain}.",
@@ -239,21 +241,26 @@ def _after(words: list[str], markers: set[str], stop: set[str]) -> str:
     return ""
 
 
-def _weather(words: list[str], locale: str) -> dict[str, Any]:
+def _weather(words: list[str], locale: str, here: tuple[float, float] | None = None) -> dict[str, Any]:
     say = _say(locale)
     if not enabled():
         return _out(say["off"])
-    place = _after(words, _AT, _WHEN) or (os.environ.get("VR_HOME_CITY") or "").strip()
-    if not place:
+    place = _after(words, _AT, _WHEN)
+    if not place and here is None:
         return _out(say["weather_where"])
     plain = {letters(word) for word in words} | _heard(words)
     day = 1 if plain & _TOMORROW else 0
     try:
-        query = urllib.parse.urlencode({"name": place, "count": 1, "language": "vi" if locale == "vi" else "en"})
-        found = (_get_json(f"https://geocoding-api.open-meteo.com/v1/search?{query}").get("results") or [])
-        if not found:
-            return _out(say["weather_none"].format(place=place))
-        spot = found[0]
+        if place:
+            query = urllib.parse.urlencode({"name": place, "count": 1, "language": "vi" if locale == "vi" else "en"})
+            found = (_get_json(f"https://geocoding-api.open-meteo.com/v1/search?{query}").get("results") or [])
+            if not found:
+                return _out(say["weather_none"].format(place=place))
+            spot = found[0]
+        else:
+            # No city said: where the device is. Only these two numbers (already rounded by the page) are sent.
+            assert here is not None
+            spot = {"latitude": here[0], "longitude": here[1], "name": say["here"]}
         forecast = urllib.parse.urlencode(
             {
                 "latitude": spot["latitude"],
@@ -325,8 +332,8 @@ def _sentences(text: str, limit: int) -> str:
     return out[:limit]
 
 
-def command(heard: str, locale: str) -> dict[str, Any] | None:
-    """The tool the line asks for, or None when it is an ordinary line."""
+def command(heard: str, locale: str, here: tuple[float, float] | None = None) -> dict[str, Any] | None:
+    """The tool the line asks for, or None when it is an ordinary line. `here` is where the device is, for the weather."""
     words = heard.replace("-", " ").replace(",", " ").split()
     if not words:
         return None
@@ -335,7 +342,7 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
     if seen & _TIMER or (seen & _REMIND and has_time):
         return _timer(words, locale)
     if seen & _WEATHER:
-        return _weather(words, locale)
+        return _weather(words, locale, here)
     if seen & _LOOKUP:
         return _lookup(words, locale)
     return None

@@ -167,6 +167,8 @@ async def talk(
     locale: str = "vi",
     stripWake: bool = False,
     looking: Optional[str] = Query(None, max_length=200),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lon: Optional[float] = Query(None, ge=-180, le=180),
     tuning: VoiceTuning = Depends(_tuning),
 ) -> StreamingResponse:
     try:
@@ -206,7 +208,10 @@ async def talk(
         raise HTTPException(status_code=400, detail="empty audio")
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
-    return _sse(engine.talk(spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls, looking))
+    return _sse(engine.talk(
+        spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls, looking,
+        (round(lat, 2), round(lon, 2)) if lat is not None and lon is not None else None,
+    ))
 
 
 def _decode_image(raw: str) -> bytes:

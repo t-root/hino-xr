@@ -156,6 +156,7 @@ class Engine:
         plugins: list[dict[str, Any]] | None = None,
         controls: list[dict[str, Any]] | None = None,
         looking: str | None = None,
+        place: tuple[float, float] | None = None,
     ) -> Iterator[dict[str, Any]]:
         from . import agent, modelswitch, notes, pluginsmith, tools
         from .commands import plugin_command
@@ -188,7 +189,7 @@ class Engine:
         if command is None:
             command = screen_command(heard, locale, looking)
         if command is None:
-            command = tools.command(heard, locale)
+            command = tools.command(heard, locale, place)
         if command is None:
             command = notes.command(heard, locale)
         if command:

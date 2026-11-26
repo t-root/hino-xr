@@ -4,6 +4,7 @@ import { SpeechPlayer } from "../audio/SpeechPlayer";
 import { MIN_TALK_MS, MAX_TALK_MS, VoiceCapture } from "../audio/VoiceCapture";
 import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
+import { rememberedPlace, refreshPlace } from "../device/Place";
 import { captureScreen } from "../screen/ScreenCapture";
 import { useRuntimeStore } from "../state/RuntimeStore";
 import { DEFAULT_SETTINGS, type Settings } from "../state/settings";
@@ -542,6 +543,7 @@ export class ModelBridge {
     this.askAbort?.abort();
     const abort = new AbortController();
     this.askAbort = abort;
+    refreshPlace(); // for the next question; this one uses the last place known
     useRuntimeStore.getState().patchAssistant({
       state: "generating",
       reply: "",
@@ -577,6 +579,7 @@ export class ModelBridge {
         },
         (line) => this.logger.info("turn timing", { line }),
         useRuntimeStore.getState().settings.assistant.looking[locale],
+        rememberedPlace(),
       );
       if (abort.signal.aborted) {
         this.phase = "idle";

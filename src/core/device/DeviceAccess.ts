@@ -2,6 +2,7 @@ import type { EventBus } from "../events/EventBus";
 import type { RuntimeEvents } from "../events/events";
 import { createLogger, type Logger } from "../observability/diagnostics";
 import { INITIAL_DEVICE_GRANTS, type DeviceFeatureId, type DeviceGrant, type DeviceGrants } from "./features";
+import { rememberPlace } from "./Place";
 
 type PermissionResult = "granted" | "denied";
 
@@ -268,7 +269,10 @@ const requestGeolocation = (logger: Logger): Promise<DeviceGrant> =>
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      () => resolve("granted"),
+      (position) => {
+        rememberPlace(position);
+        resolve("granted");
+      },
       (error) => {
         const denied = error.code === error.PERMISSION_DENIED;
         if (!denied) logger.debug("geolocation granted but no fix", { code: error.code });

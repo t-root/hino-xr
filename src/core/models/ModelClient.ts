@@ -118,6 +118,7 @@ export class ModelClient {
     onCommand?: (command: SpokenCommand) => void,
     onTiming?: (text: string) => void,
     looking?: string,
+    place?: { lat: number; lon: number } | null,
   ): Promise<TalkResult> {
     const headers: Record<string, string> = { Accept: "text/event-stream" };
     let body: BodyInit = wav;
@@ -134,7 +135,8 @@ export class ModelClient {
     }
     const response = await this.send(
       `${this.base}/${encodeURIComponent(id)}/talk?locale=${encodeURIComponent(locale)}&stripWake=${stripWake}` +
-        `${looking === undefined ? "" : `&looking=${encodeURIComponent(looking)}`}&${voiceQuery(voice)}`,
+        `${looking === undefined ? "" : `&looking=${encodeURIComponent(looking)}`}` +
+        `${place ? `&lat=${place.lat}&lon=${place.lon}` : ""}&${voiceQuery(voice)}`,
       {
         method: "POST",
         headers,

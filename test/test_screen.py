@@ -78,7 +78,7 @@ class PageTest(unittest.TestCase):
         self.assertIn("screen_command(heard, locale, looking)", engine)
         # after the camera looks and the menu, before the tools: "đọc lỗi" is not a setting and not a weather question
         self.assertLess(engine.index("sight_command(heard, locale)"), engine.index("screen_command(heard, locale, looking)"))
-        self.assertLess(engine.index("screen_command(heard, locale, looking)"), engine.index("tools.command(heard, locale)"))
+        self.assertLess(engine.index("screen_command(heard, locale, looking)"), engine.index("tools.command(heard, locale, place)"))
 
 
 if __name__ == "__main__":
