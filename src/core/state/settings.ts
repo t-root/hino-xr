@@ -3,7 +3,14 @@ import { DEFAULT_THEME, isHexColor, type ThemeSettings } from "@/ui/theme";
 import { clamp, clamp01 } from "@/shared/math/num";
 import { DEFAULT_VOICE, parseVoice, type VoiceSettings } from "@/shared/contracts/voice";
 import { DEFAULT_LISTEN_SECONDS, parseListenSeconds } from "@/shared/contracts/wake";
-import { ACK, DEFAULT_GREETING, DEFAULT_LOOKING } from "../models/identity";
+import {
+  ACK,
+  DEFAULT_FAILED,
+  DEFAULT_GREETING,
+  DEFAULT_LOOKING,
+  DEFAULT_NO_CODE,
+  DEFAULT_NO_SCENE,
+} from "../models/identity";
 import { LOCALES, type Locale } from "@/shared/contracts/locale";
 
 export type GestureSettings = Readonly<{
@@ -112,6 +119,12 @@ type AssistantSettings = Readonly<{
   ack: Readonly<Record<Locale, string>>;
   /** What it says when asked to look at the screen or at something held up, in each language. Empty says nothing. */
   looking: Readonly<Record<Locale, string>>;
+  /** What it says when the picture could not be taken. Empty says nothing. */
+  failed: Readonly<Record<Locale, string>>;
+  /** What it says when asked what it sees and the Scene description plugin is off. Empty says nothing. */
+  noScene: Readonly<Record<Locale, string>>;
+  /** What it says when asked to read a code and the Code reader plugin is off. Empty says nothing. */
+  noCode: Readonly<Record<Locale, string>>;
 }>;
 
 /** The longest greeting that can be written. */
@@ -265,6 +278,9 @@ export const DEFAULT_SETTINGS: Settings = {
     greeting: DEFAULT_GREETING,
     ack: ACK,
     looking: DEFAULT_LOOKING,
+    failed: DEFAULT_FAILED,
+    noScene: DEFAULT_NO_SCENE,
+    noCode: DEFAULT_NO_CODE,
   },
 };
 
@@ -396,6 +412,9 @@ const parseAssistant = (raw: unknown): AssistantSettings => {
     greeting: parseLines(value.greeting, DEFAULT_GREETING),
     ack: parseLines(value.ack, ACK),
     looking: parseLines(value.looking, DEFAULT_LOOKING),
+    failed: parseLines(value.failed, DEFAULT_FAILED),
+    noScene: parseLines(value.noScene, DEFAULT_NO_SCENE),
+    noCode: parseLines(value.noCode, DEFAULT_NO_CODE),
   };
 };
 

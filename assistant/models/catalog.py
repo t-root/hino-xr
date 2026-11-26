@@ -51,6 +51,13 @@ def assistant_line(key: str, locale: str) -> str:
     return text.strip() if isinstance(text, str) else ""
 
 
+def line_of(lines: dict[str, str] | None, key: str, locale: str) -> str:
+    """The wearer's own line for `key` when the page sent one (empty means say nothing), else the default."""
+    if lines is not None and key in lines:
+        return lines[key].strip()
+    return assistant_line(key, locale)
+
+
 def assistant_greeting(locale: str) -> str:
     """The first line spoken when the system comes up. Default: src/shared/assistant.json."""
     return assistant_line("greeting", locale)

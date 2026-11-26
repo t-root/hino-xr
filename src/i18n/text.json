@@ -128,10 +128,25 @@
     "vi": "Trợ lý nói câu này ngay khi nghe thấy tên của mình mà chưa có câu hỏi. Để trống thì im lặng.",
     "en": "The assistant says this as soon as it hears its name with no question yet. Leave it empty for silence."
   },
-  "assistant.looking": { "vi": "Câu đáp khi nhờ xem", "en": "Reply when asked to look" },
-  "assistant.lookingHint": {
+  "assistant.line.looking": { "vi": "Câu đáp khi nhờ xem", "en": "Reply when asked to look" },
+  "assistant.line.lookingHint": {
     "vi": "Trợ lý nói câu này khi bạn nhờ xem màn hình hoặc xem thứ trước camera (\"đọc lỗi trên màn hình\", \"cái này là gì\"), trước khi trả lời. Để trống thì im lặng.",
     "en": "The assistant says this when you ask it to look at the screen or at something in front of the camera, before it answers. Leave it empty for silence."
+  },
+  "assistant.line.failed": { "vi": "Câu khi chụp hình lỗi", "en": "Reply when the picture fails" },
+  "assistant.line.failedHint": {
+    "vi": "Trợ lý nói câu này khi nhờ xem mà không chụp được màn hình. Để trống thì im lặng.",
+    "en": "The assistant says this when it was asked to look but could not take the picture. Leave it empty for silence."
+  },
+  "assistant.line.noScene": { "vi": "Câu khi chưa bật Mô tả cảnh", "en": "Reply when Scene description is off" },
+  "assistant.line.noSceneHint": {
+    "vi": "Trợ lý nói câu này khi bạn hỏi nó thấy gì mà tiện ích Mô tả cảnh đang tắt. Để trống thì im lặng.",
+    "en": "The assistant says this when you ask what it sees and the Scene description plugin is off. Leave it empty for silence."
+  },
+  "assistant.line.noCode": { "vi": "Câu khi chưa bật Đọc mã", "en": "Reply when Code reader is off" },
+  "assistant.line.noCodeHint": {
+    "vi": "Trợ lý nói câu này khi bạn nhờ đọc mã mà tiện ích Đọc mã đang tắt. Để trống thì im lặng.",
+    "en": "The assistant says this when you ask it to read a code and the Code reader plugin is off. Leave it empty for silence."
   },
   "assistant.greeting": { "vi": "Lời chào đầu tiên", "en": "First greeting" },
   "assistant.greetingHint": {

@@ -5,6 +5,8 @@ import { MIN_TALK_MS, MAX_TALK_MS, VoiceCapture } from "../audio/VoiceCapture";
 import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
 import { rememberedPlace, refreshPlace } from "../device/Place";
+import type { Locale } from "@/shared/contracts/locale";
+import { LINE_KEYS } from "./identity";
 import { captureScreen } from "../screen/ScreenCapture";
 import { useRuntimeStore } from "../state/RuntimeStore";
 import { DEFAULT_SETTINGS, type Settings } from "../state/settings";
@@ -18,6 +20,11 @@ const QUIET_WAIT_MS = 120_000;
 const DEFAULT_ID = DEFAULT_SETTINGS.assistant.modelId;
 const HISTORY = 24;
 
+/** The lines the wearer wrote in the assistant menu, for the language in use: the server says them instead of its own. */
+const ownLines = (locale: Locale): Record<string, string> => {
+  const { assistant } = useRuntimeStore.getState().settings;
+  return Object.fromEntries(LINE_KEYS.map((key) => [key, assistant[key][locale]]));
+};
 /** Skip poll during a live turn. Load and wake already talk to the server. */
 const HOLD_POLL = new Set(["generating", "listening", "speaking"]);
 
@@ -578,7 +585,7 @@ export class ModelBridge {
           this.runCommand(command);
         },
         (line) => this.logger.info("turn timing", { line }),
-        useRuntimeStore.getState().settings.assistant.looking[locale],
+        ownLines(locale),
         rememberedPlace(),
       );
       if (abort.signal.aborted) {

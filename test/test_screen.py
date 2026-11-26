@@ -47,8 +47,10 @@ class ScreenWordsTest(unittest.TestCase):
         self.assertIn("chụp được", out["value"]["failed"])  # what the page says when it cannot take the picture
         self.assertEqual(screen.screen_command("what is this error", "en")["reply"], "Yes boss")
         # The wearer's own line, written in the assistant menu, replaces the default; empty says nothing.
-        self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", "Để em xem")["reply"], "Để em xem")
-        self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", "")["reply"], "")
+        self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", {"looking": "Để em xem"})["reply"], "Để em xem")
+        self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", {"looking": ""})["reply"], "")
+        failed = screen.screen_command("đọc lỗi trên màn hình", "vi", {"failed": "Chụp hỏng rồi"})["value"]["failed"]
+        self.assertEqual(failed, "Chụp hỏng rồi")
 
     def test_the_camera_looks_are_not_taken_for_the_screen(self) -> None:
         self.assertFalse(self.asked("tôi đang thấy gì"))
@@ -75,10 +77,38 @@ class PageTest(unittest.TestCase):
 
     def test_the_server_says_the_command_to_the_page(self) -> None:
         engine = (ASSISTANT / "models/engine.py").read_text(encoding="utf-8")
-        self.assertIn("screen_command(heard, locale, looking)", engine)
+        self.assertIn("screen_command(heard, locale, lines)", engine)
         # after the camera looks and the menu, before the tools: "đọc lỗi" is not a setting and not a weather question
-        self.assertLess(engine.index("sight_command(heard, locale)"), engine.index("screen_command(heard, locale, looking)"))
-        self.assertLess(engine.index("screen_command(heard, locale, looking)"), engine.index("tools.command(heard, locale, place)"))
+        self.assertLess(engine.index("sight_command(heard, locale, lines)"), engine.index("screen_command(heard, locale, lines)"))
+        self.assertLess(engine.index("screen_command(heard, locale, lines)"), engine.index("tools.command(heard, locale, place)"))
+
+
+class OwnLinesTest(unittest.TestCase):
+    """The lines the wearer writes in the assistant menu: one list of names, the same on the page, the server and in assistant.json."""
+
+    def test_the_page_the_server_and_the_defaults_name_the_same_lines(self) -> None:
+        import json
+        import re
+
+        identity = (SRC / "core/models/identity.ts").read_text(encoding="utf-8")
+        page = re.search(r"LINE_KEYS = \[(.*?)\] as const", identity, re.S).group(1)
+        page_keys = re.findall(r'"(\w+)"', page)
+        app = (ASSISTANT / "app.py").read_text(encoding="utf-8")
+        server_keys = re.findall(r'"(\w+)"', re.search(r"OWN_LINES = \((.*?)\)", app, re.S).group(1))
+        defaults = json.loads((SRC / "shared/assistant.json").read_text(encoding="utf-8"))
+        self.assertEqual(page_keys, server_keys)
+        for key in page_keys:
+            self.assertEqual(sorted(defaults[key]), ["en", "vi"], key)  # a default for each language
+        texts = json.loads((SRC / "i18n/text.json").read_text(encoding="utf-8"))
+        for key in page_keys:
+            self.assertIn(f"assistant.line.{key}", texts)
+            self.assertIn(f"assistant.line.{key}Hint", texts)
+
+    def test_the_page_sends_them_with_every_question(self) -> None:
+        bridge = (SRC / "core/models/ModelBridge.ts").read_text(encoding="utf-8")
+        client = (SRC / "core/models/ModelClient.ts").read_text(encoding="utf-8")
+        self.assertIn("ownLines(locale)", bridge)
+        self.assertIn("&lines=${encodeURIComponent(JSON.stringify(lines))}", client)
 
 
 if __name__ == "__main__":

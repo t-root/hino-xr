@@ -15,6 +15,8 @@ import re
 import unicodedata
 from typing import Any
 
+from .catalog import line_of
+
 # Said about the scene: what do I see / what is in front of me / what is around me.
 _SCENE = (
     re.compile(r"\b(?:toi|minh|tui|ban|hino)(?: dang)? (?:thay|nhin thay|nhin)(?: duoc)?(?: nhung)? (?:gi|cai gi)\b"),
@@ -33,16 +35,8 @@ _CODE = (
     re.compile(r"\bma (?:nay|qr|vach)\b.*\b(?:noi|viet|chua)\b.*\bgi\b"),
 )
 
-_MISSING = {
-    "scene": {
-        "vi": "Hãy bật tiện ích Mô tả cảnh trước, rồi hỏi lại.",
-        "en": "Turn on the Scene description plugin first, then ask again.",
-    },
-    "code": {
-        "vi": "Hãy bật tiện ích Đọc mã trước, rồi đưa mã vào khung hình.",
-        "en": "Turn on the Code reader plugin first, then hold the code in view.",
-    },
-}
+# What is said when the plugin a look needs is off: the wearer's own line (assistant menu) or the default (`assistant.json`).
+_MISSING_KEY = {"scene": "noScene", "code": "noCode"}
 
 
 def _fold(text: str) -> str:
@@ -54,7 +48,7 @@ def _fold(text: str) -> str:
     return re.sub(r"[^a-z0-9']+", " ", "".join(out)).strip()
 
 
-def sight_command(heard: str, locale: str) -> dict[str, Any] | None:
+def sight_command(heard: str, locale: str, lines: dict[str, str] | None = None) -> dict[str, Any] | None:
     """Which look was asked for, or None when the line was not about looking."""
     folded = _fold(heard)
     if not folded:
@@ -67,4 +61,4 @@ def sight_command(heard: str, locale: str) -> dict[str, Any] | None:
     else:
         return None
     language = "en" if locale == "en" else "vi"
-    return {"action": "sight", "id": None, "description": "", "value": {"what": what, "missing": _MISSING[what][language]}, "reply": ""}
+    return {"action": "sight", "id": None, "description": "", "value": {"what": what, "missing": line_of(lines, _MISSING_KEY[what], language)}, "reply": ""}

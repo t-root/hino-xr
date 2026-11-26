@@ -155,7 +155,7 @@ class Engine:
         strip_wake: bool = False,
         plugins: list[dict[str, Any]] | None = None,
         controls: list[dict[str, Any]] | None = None,
-        looking: str | None = None,
+        lines: dict[str, str] | None = None,
         place: tuple[float, float] | None = None,
     ) -> Iterator[dict[str, Any]]:
         from . import agent, modelswitch, notes, pluginsmith, tools
@@ -185,9 +185,9 @@ class Engine:
         if command is None:
             command = person_command(heard, locale)
         if command is None:
-            command = sight_command(heard, locale)
+            command = sight_command(heard, locale, lines)
         if command is None:
-            command = screen_command(heard, locale, looking)
+            command = screen_command(heard, locale, lines)
         if command is None:
             command = tools.command(heard, locale, place)
         if command is None:

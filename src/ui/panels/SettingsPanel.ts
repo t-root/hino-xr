@@ -1,5 +1,5 @@
 import { hasOrientationGrant } from "@/core/device/features";
-import { ASSISTANT_NAME } from "@/core/models/identity";
+import { ASSISTANT_NAME, LINE_KEYS } from "@/core/models/identity";
 import { useLocaleStore } from "@/core/state/LocaleStore";
 import { useLogStore } from "@/core/observability/ConsoleLog";
 import { useRuntimeStore } from "@/core/state/RuntimeStore";
@@ -513,22 +513,25 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
       patchers.push(() => {
         ack.sync({ value: settingsOf().assistant.ack[useLocaleStore.getState().locale] });
       });
-      const looking = mountTextField(content, {
-        label: t("assistant.looking"),
-        value: settings.assistant.looking[locale],
-        maxLength: GREETING_MAX,
-        onChange: (text) =>
-          patch({
-            assistant: {
-              ...settingsOf().assistant,
-              looking: { ...settingsOf().assistant.looking, [useLocaleStore.getState().locale]: text },
-            },
-          }),
-      });
-      content.append(el("p", { className: "note", text: t("assistant.lookingHint") }));
-      patchers.push(() => {
-        looking.sync({ value: settingsOf().assistant.looking[useLocaleStore.getState().locale] });
-      });
+      // The other lines it says by itself: each is the wearer's to write, and an empty one is silence.
+      for (const key of LINE_KEYS) {
+        const field = mountTextField(content, {
+          label: t(`assistant.line.${key}`),
+          value: settings.assistant[key][locale],
+          maxLength: GREETING_MAX,
+          onChange: (text) =>
+            patch({
+              assistant: {
+                ...settingsOf().assistant,
+                [key]: { ...settingsOf().assistant[key], [useLocaleStore.getState().locale]: text },
+              },
+            }),
+        });
+        content.append(el("p", { className: "note", text: t(`assistant.line.${key}Hint`) }));
+        patchers.push(() => {
+          field.sync({ value: settingsOf().assistant[key][useLocaleStore.getState().locale] });
+        });
+      }
       const statusChip = el("span", {
         className: "chip",
         dataset: { tone: stateTone(assistant.state) },

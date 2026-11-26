@@ -51,7 +51,7 @@ class SightWordsTest(unittest.TestCase):
 
     def test_the_server_and_the_page_know_the_command(self) -> None:
         engine = (ASSISTANT / "models" / "engine.py").read_text(encoding="utf-8")
-        self.assertIn("sight_command(heard, locale)", engine)
+        self.assertIn("sight_command(heard, locale, lines)", engine)
         client = (SRC / "core/models/ModelClient.ts").read_text(encoding="utf-8")
         self.assertIn('"sight"', client)
         bridge = (SRC / "core/models/ModelBridge.ts").read_text(encoding="utf-8")

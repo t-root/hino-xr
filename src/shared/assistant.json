@@ -11,5 +11,17 @@
   "looking": {
     "vi": "Dạ sếp",
     "en": "Yes boss"
+  },
+  "failed": {
+    "vi": "Mình chưa chụp được hình, bạn thử lại nhé.",
+    "en": "I could not take the picture. Please try again."
+  },
+  "noScene": {
+    "vi": "Hãy bật tiện ích Mô tả cảnh trước, rồi hỏi lại.",
+    "en": "Turn on the Scene description plugin first, then ask again."
+  },
+  "noCode": {
+    "vi": "Hãy bật tiện ích Đọc mã trước, rồi đưa mã vào khung hình.",
+    "en": "Turn on the Code reader plugin first, then hold the code in view."
   }
 }

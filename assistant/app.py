@@ -160,13 +160,29 @@ def wake(
     return _sse(engine.wake(spec, _locale(locale), tuning, greeting))
 
 
+# The lines the wearer wrote in the assistant menu, sent with each question: only these names, each a short string.
+OWN_LINES = ("looking", "failed", "noScene", "noCode")
+
+
+def _own_lines(raw: Optional[str]) -> dict[str, str] | None:
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {key: data[key][:200] for key in OWN_LINES if isinstance(data.get(key), str)}
+
+
 @app.post("/api/models/{model_id}/talk")
 async def talk(
     model_id: str,
     request: Request,
     locale: str = "vi",
     stripWake: bool = False,
-    looking: Optional[str] = Query(None, max_length=200),
+    lines: Optional[str] = Query(None, max_length=2000),
     lat: Optional[float] = Query(None, ge=-90, le=90),
     lon: Optional[float] = Query(None, ge=-180, le=180),
     tuning: VoiceTuning = Depends(_tuning),
@@ -209,7 +225,7 @@ async def talk(
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
     return _sse(engine.talk(
-        spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls, looking,
+        spec, wav, _locale(locale), history, tuning, stripWake, plugins, controls, _own_lines(lines),
         (round(lat, 2), round(lon, 2)) if lat is not None and lon is not None else None,
     ))
 
