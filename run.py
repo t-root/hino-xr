@@ -391,6 +391,27 @@ def _start_server() -> None:
     runpy.run_path(str(ASSISTANT / "main.py"), run_name="__main__")
 
 
+def _ask_profile() -> None:
+    """Asks which profile to run when none was chosen: Enter is cpu, typing gpu is gpu. Nothing to edit.
+
+    Not asked when `VR_PROFILE` is already set (in the environment or in assistant/.env), nor when nobody can answer
+    (a service, a pipe): those keep the value, or cpu.
+    """
+    if os.environ.get("VR_PROFILE", "").strip() or not sys.stdin.isatty():
+        return
+    _say("Chay ho so nao?  cpu = may khong co card NVIDIA (mac dinh)   gpu = may chu co GPU, mo dia chi cong khai")
+    while True:
+        try:
+            answer = input("Ho so [cpu/gpu] (Enter = cpu): ").strip().lower()
+        except EOFError:
+            answer = ""
+        if answer in {"", "cpu", "gpu"}:
+            os.environ["VR_PROFILE"] = answer or "cpu"
+            _say()
+            return
+        _say(f"  '{answer}' khong dung: go cpu hoac gpu, hoac Enter de chon cpu.")
+
+
 def _wait_before_close() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in {"test", "--test"}:
         return
@@ -428,6 +449,7 @@ def main() -> int:
         return 1
     try:
         profiles.load_env()  # assistant/.env may set VR_PROFILE
+        _ask_profile()
         profiles.name()
     except ValueError as error:
         _say(f"[LOI] {error}")

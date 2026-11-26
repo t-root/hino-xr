@@ -106,5 +106,54 @@ class ProfileTest(unittest.TestCase):
             self.assertEqual(len(targets), len(set(targets)), name)
 
 
+class AskProfileTest(unittest.TestCase):
+    """`run.py` asks which profile to run when none is chosen: Enter is cpu, typing gpu is gpu, nothing to edit."""
+
+    def setUp(self) -> None:
+        self.saved = os.environ.pop("VR_PROFILE", None)
+
+    def tearDown(self) -> None:
+        os.environ.pop("VR_PROFILE", None)
+        if self.saved is not None:
+            os.environ["VR_PROFILE"] = self.saved
+
+    def ask(self, *answers: str, tty: bool = True) -> list[str]:
+        from unittest import mock
+
+        asked: list[str] = []
+        replies = iter(answers)
+
+        def fake_input(prompt: str = "") -> str:
+            asked.append(prompt)
+            return next(replies)
+
+        with mock.patch("builtins.input", fake_input), mock.patch.object(run.sys.stdin, "isatty", lambda: tty):
+            run._ask_profile()
+        return asked
+
+    def test_enter_is_cpu(self) -> None:
+        self.ask("")
+        self.assertEqual(os.environ["VR_PROFILE"], "cpu")
+
+    def test_typing_gpu_is_gpu_in_any_case(self) -> None:
+        self.ask("  GPU ")
+        self.assertEqual(os.environ["VR_PROFILE"], "gpu")
+
+    def test_a_wrong_answer_asks_again(self) -> None:
+        asked = self.ask("cuda", "gpu")
+        self.assertEqual(len(asked), 2)
+        self.assertEqual(os.environ["VR_PROFILE"], "gpu")
+
+    def test_a_profile_already_chosen_is_not_asked_about(self) -> None:
+        os.environ["VR_PROFILE"] = "gpu"
+        self.assertEqual(self.ask(), [])
+        self.assertEqual(os.environ["VR_PROFILE"], "gpu")
+
+    def test_nobody_to_ask_keeps_the_default(self) -> None:
+        self.assertEqual(self.ask(tty=False), [])  # a service or a pipe: no question, and cpu as before
+        self.assertNotIn("VR_PROFILE", os.environ)
+        self.assertEqual(profiles.name(), "cpu")
+
+
 if __name__ == "__main__":
     unittest.main()

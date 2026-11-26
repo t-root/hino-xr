@@ -16,7 +16,7 @@ python run.py test   # chạy toàn bộ unittest
 
 ### Hai hồ sơ: `cpu` và `gpu`
 
-Một mã nguồn, chọn bằng `VR_PROFILE=cpu|gpu` (đặt ở môi trường hoặc `assistant/.env`; mặc định `cpu`). Chỉ những chỗ trong bảng này khác nhau; mọi thứ còn lại dùng chung.
+Một mã nguồn. Khi bạn chạy `run.py`, nó **hỏi** `Ho so [cpu/gpu] (Enter = cpu)`: Enter là `cpu`, gõ `gpu` là `gpu`, không phải sửa file nào. Không hỏi nếu đã đặt sẵn `VR_PROFILE=cpu|gpu` (ở môi trường hoặc `assistant/.env`, để chạy không cần ai trả lời), hoặc nếu không có ai để trả lời (chạy nền, qua pipe): khi đó là `cpu`. Chỉ những chỗ trong bảng này khác nhau; mọi thứ còn lại dùng chung.
 
 | | `cpu` (mặc định) | `gpu` |
 |---|---|---|
