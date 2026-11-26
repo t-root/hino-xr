@@ -1,4 +1,5 @@
 import type { CoordinateMapper } from "@/core/rendering/CoordinateMapper";
+import { lensWarp } from "@/core/rendering/LensWarp";
 import type { StereoLayout, StereoState } from "@/core/rendering/StereoLayout";
 import { useRuntimeStore } from "@/core/state/RuntimeStore";
 import { useSharedUiStore } from "@/core/state/SharedUiStore";
@@ -59,6 +60,7 @@ const placeFrame = (
     return;
   }
   const box = mapper.framePx(eye);
+  lensWarp.setFrameSize(Number.parseFloat(box.width), Number.parseFloat(box.height));
   Object.assign(node.style, {
     left: `${Number.parseInt(box.left, 10) + EYE_BLEED}px`,
     top: `${Number.parseInt(box.top, 10) + EYE_BLEED}px`,

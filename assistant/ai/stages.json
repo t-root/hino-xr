@@ -23,12 +23,6 @@
       "lazy": true,
       "idle_s": 180
     },
-    "whisper": {
-      "kind": "whisper",
-      "port": 8083,
-      "model": "assistant/weights/ggml-large-v3-q5_0.bin",
-      "threads": 4
-    },
     "whisper_wake": {
       "kind": "whisper",
       "port": 8084,
@@ -52,8 +46,8 @@
       "model": "qwen2.5-coder-3b"
     },
     "stt": {
-      "server": "whisper",
-      "model": "whisper-large-v3"
+      "server": "whisper_wake",
+      "model": "whisper-small"
     },
     "stt_wake": {
       "server": "whisper_wake",

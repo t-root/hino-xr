@@ -43,12 +43,17 @@ def voice_reference() -> Path:
     return _REPO / _VOICE_REFERENCE
 
 
+def assistant_line(key: str, locale: str) -> str:
+    """A line the assistant says by default, from src/shared/assistant.json (`greeting`, `ack`, `looking`)."""
+    path = _REPO / "src" / "shared" / "assistant.json"
+    lines = json.loads(path.read_text(encoding="utf-8")).get(key) or {}
+    text = lines.get("vi" if locale == "vi" else "en")
+    return text.strip() if isinstance(text, str) else ""
+
+
 def assistant_greeting(locale: str) -> str:
     """The first line spoken when the system comes up. Default: src/shared/assistant.json."""
-    path = _REPO / "src" / "shared" / "assistant.json"
-    greeting = json.loads(path.read_text(encoding="utf-8")).get("greeting") or {}
-    text = greeting.get("vi" if locale == "vi" else "en")
-    return text.strip() if isinstance(text, str) else ""
+    return assistant_line("greeting", locale)
 
 
 def assistant_name() -> str:

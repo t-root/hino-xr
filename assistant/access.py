@@ -13,7 +13,8 @@ names of the people the headset knows. So:
   loopback included, so a page open in the computer's browser cannot drive the assistant.
 - `/api/health` and the page itself are open: the page has to load before it can show the key.
 
-`VR_ACCESS=off` turns the key check off for a network that is trusted; the website check stays.
+The key check is OFF by default, so a phone on the same Wi-Fi just opens the address. `VR_ACCESS=on` turns it
+on (everything above then applies); the website check stays either way.
 """
 
 from __future__ import annotations
@@ -64,7 +65,7 @@ def reset() -> None:
 
 
 def enabled() -> bool:
-    return os.environ.get("VR_ACCESS", "on").strip().lower() not in {"off", "0", "false", "no"}
+    return os.environ.get("VR_ACCESS", "off").strip().lower() in {"on", "1", "true", "yes"}
 
 
 def _refuse(status: int, detail: str):

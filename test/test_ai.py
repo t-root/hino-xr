@@ -259,11 +259,21 @@ class AITest(unittest.TestCase):
             ai.config.servers()["coder"].update(keep)
         self.assertIn("run.py", str(caught.exception))
 
+    def test_a_line_the_recogniser_doubted_is_dropped(self) -> None:
+        unsure = ai.client._unsure
+        clear = {"segments": [{"avg_logprob": -0.25, "no_speech_prob": 0.0}, {"avg_logprob": -0.3, "no_speech_prob": 0.01}]}
+        mumbled = {"segments": [{"avg_logprob": -1.4, "no_speech_prob": 0.05}]}
+        noise = {"segments": [{"avg_logprob": -0.4, "no_speech_prob": 0.9}]}
+        self.assertFalse(unsure(clear))
+        self.assertTrue(unsure(mumbled))  # made up from mumbling: low confidence
+        self.assertTrue(unsure(noise))  # a stretch it thinks is not speech at all
+        self.assertFalse(unsure({}))  # an answer that carries no scores is taken as written (someone else's API)
+
     def test_a_stage_pointed_elsewhere_starts_no_server(self) -> None:
         for name in ("CHAT", "AGENT", "VISION", "PLUGIN_CHAT"):
             os.environ[f"VR_{name}_URL"] = "https://api.example.com/v1"
         self.assertFalse(ai.servers._wanted("llm"))
-        self.assertTrue(ai.servers._wanted("whisper"))
+        self.assertTrue(ai.servers._wanted("whisper_wake"))  # listening is on this machine: only the answering moved
 
     def test_the_servers_of_the_profile_are_consistent(self) -> None:
         servers = ai.config.servers()

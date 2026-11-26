@@ -513,6 +513,22 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
       patchers.push(() => {
         ack.sync({ value: settingsOf().assistant.ack[useLocaleStore.getState().locale] });
       });
+      const looking = mountTextField(content, {
+        label: t("assistant.looking"),
+        value: settings.assistant.looking[locale],
+        maxLength: GREETING_MAX,
+        onChange: (text) =>
+          patch({
+            assistant: {
+              ...settingsOf().assistant,
+              looking: { ...settingsOf().assistant.looking, [useLocaleStore.getState().locale]: text },
+            },
+          }),
+      });
+      content.append(el("p", { className: "note", text: t("assistant.lookingHint") }));
+      patchers.push(() => {
+        looking.sync({ value: settingsOf().assistant.looking[useLocaleStore.getState().locale] });
+      });
       const statusChip = el("span", {
         className: "chip",
         dataset: { tone: stateTone(assistant.state) },

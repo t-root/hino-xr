@@ -19,6 +19,7 @@ import { PluginPaletteController } from "../plugin-palette/PluginPaletteControll
 import { CursorLayer } from "../rendering/CursorLayer";
 import { OverlayRenderer } from "../rendering/OverlayRenderer";
 import { StereoRenderer } from "../rendering/StereoRenderer";
+import { lensWarp } from "../rendering/LensWarp";
 import { VideoLayer } from "../rendering/VideoLayer";
 import { currentLocale, useLocaleStore } from "../state/LocaleStore";
 import { useRuntimeStore } from "../state/RuntimeStore";
@@ -88,6 +89,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   const registry = new InteractiveRegistry();
   const videoLayer = new VideoLayer(renderer.mapper);
   videoLayer.setBarrel(settings.lens.k1, settings.lens.k2);
+  lensWarp.setLens(settings.lens.k1, settings.lens.k2);
   videoLayer.mesh.visible = false;
   renderer.renderScene.videoRoot.add(videoLayer.mesh);
   renderer.renderScene.overlayRoot.visible = false;
@@ -346,6 +348,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     settings = next;
     renderer.setSettings(next.render, next.lens);
     videoLayer.setBarrel(next.lens.k1, next.lens.k2);
+    lensWarp.setLens(next.lens.k1, next.lens.k2);
     interaction.setSettings(next.gesture, next.snap, next.flags.snapGesture);
     frameHub.setAnalysisMaxSize(next.pipeline.analysisMaxSize);
     useRuntimeStore.getState().updateSettings(next);

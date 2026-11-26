@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import urllib.error
 import urllib.request
 import uuid
@@ -149,7 +150,14 @@ def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None
     """
     stage = _stage("stt" if careful else "stt_wake")
     boundary = uuid.uuid4().hex
-    parts = [_field(boundary, "model", stage.model), _field(boundary, "response_format", "json"), _field(boundary, "temperature", "0")]
+    # A question to the assistant comes back with how sure the recogniser was of each stretch, so a line it made up out of
+    # noise ("Lịt cao gấp các blog...") can be dropped instead of being answered. Only whisper.cpp of this machine says so.
+    scored = careful and bool(stage.server)
+    parts = [
+        _field(boundary, "model", stage.model),
+        _field(boundary, "response_format", "verbose_json" if scored else "json"),
+        _field(boundary, "temperature", "0"),
+    ]
     if language:
         parts.append(_field(boundary, "language", language))
     if prompt:
@@ -164,10 +172,30 @@ def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None
     with _serve(stage):
         with _request(stage, "/audio/transcriptions", b"".join(parts), f"multipart/form-data; boundary={boundary}", 60) as response:
             try:
-                heard = json.loads(response.read()).get("text", "")
+                answer = json.loads(response.read())
             except ValueError as error:
                 raise AIError(f"stt: the answer is not JSON: {error}") from error
-    return str(heard).strip()
+    heard = str(answer.get("text", "")).strip()
+    if scored and heard and _unsure(answer):
+        print(f"  stt      dropped a line the recogniser was not sure of: {heard!r}", flush=True)
+        return ""
+    return heard
+
+
+# What a recogniser's own doubt is worth. whisper.cpp's average log-probability of clear speech is about -0.2 to -0.5;
+# a line made up out of noise or mumbling sits well below. Raise the floor (closer to 0) to drop more, lower it to drop less.
+MIN_LOGPROB = float(os.environ.get("VR_STT_MIN_LOGPROB", "-0.9"))
+MAX_NO_SPEECH = float(os.environ.get("VR_STT_MAX_NO_SPEECH", "0.6"))
+
+
+def _unsure(answer: dict[str, Any]) -> bool:
+    """True when the recogniser itself doubted what it wrote: low average confidence, or a stretch it thinks is not speech."""
+    segments = [item for item in answer.get("segments") or [] if isinstance(item, dict)]
+    scores = [float(item["avg_logprob"]) for item in segments if isinstance(item.get("avg_logprob"), (int, float))]
+    silence = [float(item["no_speech_prob"]) for item in segments if isinstance(item.get("no_speech_prob"), (int, float))]
+    if scores and sum(scores) / len(scores) < MIN_LOGPROB:
+        return True
+    return bool(silence) and max(silence) > MAX_NO_SPEECH
 
 
 def speak(text_to_say: str, speed: float = 1.0) -> bytes:

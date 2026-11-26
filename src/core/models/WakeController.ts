@@ -245,8 +245,6 @@ export class WakeController {
       const verdict = await this.client.listen(heard.blob, "wake", currentLocale());
       this.logger.info("name check", { heard: verdict.heard, matched: verdict.matched, wordsAfter: verdict.after });
       if (this.mode !== "sleep" || !verdict.matched || this.bridge.talking()) return;
-      // Heard: a tone at once, before anything slower, so the wearer knows.
-      this.bridge.cue();
       if (verdict.after >= QUESTION_WORDS) {
         // "hino, what time is it": the question is already in this line.
         await this.answer(heard);

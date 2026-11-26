@@ -15,7 +15,7 @@ python run.py test   # chạy toàn bộ unittest
 
 Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, tắt tiến trình cũ đang giữ cổng **5173**, đóng gói giao diện, rồi mở **một** tiến trình HTTPS trên 5173: trang web, camera và `/api` của trợ lý nằm chung một chỗ.
 
-- **Điện thoại:** cùng Wi-Fi, mở địa chỉ **có `?key=...`** mà server in ra lúc khởi động, dạng `https://<địa-chỉ-máy>:5173/?key=...` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Điện thoại nhớ khoá sau lần đầu và tự xoá nó khỏi địa chỉ; lần sau mở không cần `?key=`. Máy tính chạy server không cần khoá. Hiện lỗi `access key needed` nghĩa là điện thoại chưa có khoá: mở lại địa chỉ có `?key=`. Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
+- **Điện thoại:** cùng Wi-Fi, mở địa chỉ mà server in ra lúc khởi động, dạng `https://<địa-chỉ-máy>:5173` (có chữ **s**; không có HTTPS thì trình duyệt chặn camera). Mặc định **không cần khoá**. Nếu bật `VR_ACCESS=on` thì địa chỉ in ra có thêm `?key=...`, điện thoại nhớ khoá sau lần đầu; hiện lỗi `access key needed` nghĩa là điện thoại chưa có khoá. Lần đầu trình duyệt cảnh báo giấy chứng nhận tự ký: chọn tiếp tục rồi tải lại.
 - **Lần chạy đầu cần mạng** để tải thư viện (Three.js, MediaPipe, esbuild dạng file thực thi), mô hình thị giác và mô hình trợ lý. Mọi thứ cần tải khai báo trong `downloads.json` và `vendor.json`; file có sẵn thì bỏ qua, bị ngắt thì tải tiếp, sai sha256 thì tải lại. Lần sau chạy offline.
 - Mô hình trợ lý (khoảng 15 GB) nằm trong `assistant/weights/`, các chương trình chạy chúng (llama.cpp, whisper.cpp) trong `assistant/bin/`; cả hai đều không đưa vào git. Riêng giọng mẫu `assistant/voices/hino.wav` (vài giây) nằm trong git; muốn đổi giọng thì thay file này bằng một đoạn ghi âm khác, một người nói, khoảng 5 đến 8 giây, sạch tiếng ồn.
 
@@ -23,7 +23,7 @@ Trên Windows chạy `py -3.11 run.py`. `run.py` cài gói Python còn thiếu, 
 
 Server nghe trên cả mạng để điện thoại vào được, mà `/api` cài và chạy plugin do AI viết, dùng khoá API (nếu bạn đặt) và giữ khuôn mặt, tên của những người trợ lý biết. Vì vậy (`assistant/access.py`):
 
-- Trình duyệt trên **chính máy tính chạy server** không cần khoá. Thiết bị khác phải gửi khoá trong header `X-Access-Key`. Khoá là `VR_ACCESS_TOKEN`, hoặc khoá ngẫu nhiên tự sinh lần chạy đầu và giữ trong `assistant/data/access.key` (không đưa vào git). **Giữ kín địa chỉ có `?key=`**: ai có nó, cùng Wi-Fi, điều khiển được trợ lý. Muốn đổi khoá thì xoá file đó rồi chạy lại.
+- Khoá truy cập **tắt mặc định** (ai cùng Wi-Fi cũng dùng được trợ lý, nên chỉ dùng ở mạng tin cậy); trang web lạ vẫn bị chặn. Bật bằng `VR_ACCESS=on`: khi đó trình duyệt trên **chính máy tính chạy server** không cần khoá, thiết bị khác phải gửi khoá trong header `X-Access-Key`. Khoá là `VR_ACCESS_TOKEN`, hoặc khoá ngẫu nhiên tự sinh lần chạy đầu và giữ trong `assistant/data/access.key` (không đưa vào git). **Giữ kín địa chỉ có `?key=`**: ai có nó, cùng Wi-Fi, điều khiển được trợ lý. Muốn đổi khoá thì xoá file đó rồi chạy lại.
 - Yêu cầu tự nhận đến từ **trang web khác** (header `Origin` không phải chính server) bị từ chối, kể cả trên máy tính, để một trang độc hại mở trong trình duyệt không điều khiển được trợ lý.
 - Trang web và `/api/health` luôn mở (trang phải tải được thì mới nhận được khoá). `VR_ACCESS=off` tắt kiểm tra khoá khi mạng đáng tin; kiểm tra trang web vẫn giữ.
 - Chạy sau reverse proxy trên cùng máy thì mọi yêu cầu trông như từ chính máy tính, nên không được bảo vệ: đừng làm vậy mà không tự thêm lớp xác thực.
@@ -73,8 +73,8 @@ Menu nằm giữa khung camera của mỗi mắt. Phần đầu là **thanh danh
 
 | Mục | Dùng để |
 |---|---|
-| hai mắt | Chuyển giữa hai mắt và một khung |
-| xoay | Xoay giao diện 90° (ảnh camera đứng yên); có chế độ tự xoay theo hướng cầm máy |
+| chế độ xem | Chuyển giữa hai mắt (stereo) và một khung |
+| hướng xem | Xoay giao diện 90° (ảnh camera đứng yên); có chế độ tự xoay theo hướng cầm máy |
 | thấu kính | Khoảng cách hai mắt, khe giữa, trường nhìn, cỡ khung camera, lệch tâm, độ méo `k1`/`k2`, khoảng cách giao diện, nút đặt lại |
 | cử chỉ | Độ nhạy chụm ngón, ngưỡng và thời gian giữ để thành kéo, bật tắt búng tay |
 | con trỏ | Độ rõ và cỡ con trỏ |
@@ -96,7 +96,7 @@ Trợ lý là tiến trình Python trong `assistant/`, chạy trên máy tính v
 | Việc | Cách làm |
 |---|---|
 | Trả lời | Qwen3-VL 4B (llama.cpp, bản CPU). Câu trả lời được đọc từng câu ngay khi viết xong câu đó. Cũng là model làm menu bằng gọi công cụ và đọc ảnh chụp màn hình. |
-| Nghe | whisper.cpp (bản CPU) chép chữ: `large-v3 q5` nghe câu hỏi và lệnh, `small` nghe từ gọi cho nhanh. |
+| Nghe | whisper.cpp (bản CPU) chép chữ: một model `small` nghe cả từ gọi lẫn câu hỏi và lệnh (large-v3 q5 quá chậm trên laptop 4 nhân, xem `rules.md` E3). |
 | Nói tiếng Việt | VieNeu-TTS v3 Turbo (ONNX, CPU), clone từ giọng mẫu `assistant/voices/hino.wav`. Tải về `assistant/weights/vieneu/` qua `downloads.json`, chạy cục bộ, không cần mạng. |
 | Nói tiếng Anh | SAPI của Windows. |
 | Từ gọi | "system call" (khởi động, `src/shared/wake.json`) và "hino" (đánh thức trợ lý, `src/shared/assistant.json`). So khớp gần đúng theo âm, bỏ dấu. |
@@ -131,7 +131,7 @@ Trợ lý đọc **một ảnh chụp đúng cái bạn đang thấy**: giao di�
 - về giao diện: "đọc lỗi trên màn hình", "màn hình này bị gì", "lỗi này là gì", "what is this error", "read the screen";
 - về thứ trước camera: "cái này là gì", "đây là con gì", "đọc chữ trên biển", "đọc thực đơn", "dịch cái này", "what is this", "translate this menu".
 
-Trợ lý nói ngay "Để mình xem", trang chụp ảnh và gửi tới `POST /api/assistant/screen` (khâu `vision`, chính model trả lời Qwen3-VL), rồi đọc một đoạn ngắn và hiện **toàn bộ** câu trả lời lên trang Trợ lý. "Tôi đang thấy gì" và "đọc mã QR" vẫn là của plugin **Mô tả cảnh** và **Đọc mã** (chạy trên trình duyệt, không gọi model).
+Trợ lý nói ngay một câu đáp ngắn (mặc định "Dạ sếp", sửa ở menu trợ lý, ô "Câu đáp khi nhờ xem"), trang chụp ảnh và gửi tới `POST /api/assistant/screen` (khâu `vision`, chính model trả lời Qwen3-VL), rồi đọc một đoạn ngắn và hiện **toàn bộ** câu trả lời lên trang Trợ lý. "Tôi đang thấy gì" và "đọc mã QR" vẫn là của plugin **Mô tả cảnh** và **Đọc mã** (chạy trên trình duyệt, không gọi model).
 
 Ảnh do `src/core/screen/ScreenCapture.ts` chụp: lấy khung hình camera hiện tại đặt vào ô vuông mà mắt đầu tiên hiển thị (lật gương nếu trang đang lật), rồi chép tài liệu, cho trình duyệt vẽ giao diện vào ảnh SVG và phủ lên trên, cắt lấy **một mắt**. Không xin quyền, chạy được trên điện thoại (`getDisplayMedia` thì không). Ảnh chỉ được chụp khi bạn hỏi, gửi qua đường có khoá truy cập, không được lưu. Chưa xử lý việc trang tự xoay hình (`viewTurn`): khi trang đang xoay thì hình camera trong ảnh có thể lệch hướng so với thứ bạn thấy.
 
@@ -162,7 +162,7 @@ Mọi lời gọi AI đi qua **một client** (`assistant/ai/client.py`) và **m
 | Trợ lý | `chat` (trả lời) | llama.cpp (CPU), Qwen3-VL 4B, cổng 8081, ngữ cảnh 4096, ảnh tối đa 400 token |
 | | `agent` (làm menu bằng gọi công cụ), `vision` (ảnh chụp màn hình) | theo `chat` |
 | | `code` (viết, sửa plugin) | llama.cpp (CPU), Qwen2.5-Coder 3B, cổng 8082, **nạp khi cần** và tắt sau 3 phút không dùng |
-| | `stt` (nghe câu hỏi và lệnh) | whisper.cpp large-v3 q5, cổng 8083 |
+| | `stt` (nghe câu hỏi và lệnh) | whisper.cpp small, cổng 8084, chung máy chủ với `stt_wake` |
 | | `stt_wake` (nghe từ gọi "hino" và "dừng", chạy trên mọi câu mic cắt ra) | whisper.cpp small, cổng 8084 (hồ sơ GPU: theo `stt`) |
 | | `tts` (nói) | VieNeu (tiếng Việt) và SAPI (tiếng Anh), chạy trong tiến trình |
 | Plugin | `plugin_chat` (`POST /api/plugin-ai/chat`) | theo `chat`, nhưng là khâu riêng |

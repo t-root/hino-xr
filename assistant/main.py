@@ -30,9 +30,11 @@ def _announce() -> None:
     print()
     print("VR Core  https://127.0.0.1:%s" % PORT)
     suffix = "/?key=%s" % access.token() if access.enabled() else ""
-    for ip in lan_ips():
-        if ip != "127.0.0.1":
-            print("          https://%s:%s%s  (phone, same Wi-Fi)" % (ip, PORT, suffix))
+    # lan_ips() lists the address the computer reaches the network by first, then every virtual adapter
+    # (VMware, WSL, Hyper-V) that a phone cannot reach. Print only the first; the certificate still covers all.
+    phone = [ip for ip in lan_ips() if ip != "127.0.0.1"][:1]
+    for ip in phone:
+        print("          https://%s:%s%s  (phone, same Wi-Fi)" % (ip, PORT, suffix))
     if suffix:
         print("          The phone needs the ?key= part the first time; it remembers it. Keep it private.")
     print()

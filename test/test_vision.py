@@ -57,6 +57,7 @@ class ScreenTest(unittest.TestCase):
             os.environ.pop(key, None)
         os.environ["VR_VISION_URL"] = self.url
         os.environ["VR_PLUGIN_CHAT_URL"] = self.url
+        os.environ["VR_ACCESS"] = "on"  # the key check is off by default; this test is about it refusing the network
         ai.config.reset()
         SEEN.clear()
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .catalog import assistant_line
 from .sight_speech import _fold
 
 # Said about the screen itself.
@@ -59,18 +60,21 @@ _ASK = (
 )
 
 
-_ACK = {"vi": "Để mình xem.", "en": "Let me look."}
 _FAILED = {
     "vi": "Mình chưa chụp được hình, bạn thử lại nhé.",
     "en": "I could not take the picture. Please try again.",
 }
 
 
-def screen_command(heard: str, locale: str) -> dict[str, Any] | None:
-    """The command for a question about the screen, or None when the line was about something else."""
+def screen_command(heard: str, locale: str, looking: str | None = None) -> dict[str, Any] | None:
+    """The command for a question about the screen, or None when the line was about something else.
+
+    `looking` is the line the wearer wrote in the assistant menu: None means the default (`assistant.json`), empty means say nothing.
+    """
     folded = _fold(heard)
     if not folded or not any(pattern.search(folded) for pattern in (*_SCREEN, *_ERROR, *_READ, *_TRANSLATE, *_ASK)):
         return None
     language = "en" if locale == "en" else "vi"
     value = {"question": heard.strip()[:400], "locale": language, "failed": _FAILED[language]}
-    return {"action": "screen", "id": None, "description": "", "value": value, "reply": _ACK[language]}
+    line = assistant_line("looking", language) if looking is None else looking.strip()
+    return {"action": "screen", "id": None, "description": "", "value": value, "reply": line}

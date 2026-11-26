@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import ai
+from ai.config import env as _env
 from .catalog import voice_reference, voice_vi_dir
 from .tuning import VoiceTuning, default_tuning, voice_spec
 from .wake import is_made_up

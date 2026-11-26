@@ -28,13 +28,14 @@ MAX_CANDIDATES = 60
 
 ACTIONS = ("set", "increase", "decrease", "max", "min", "default", "on", "off", "toggle", "open", "close", "choose")
 
-# A line without any of these and without a setting's name in it is a plain question.
+# A line without any of these and without a setting's name in it is a plain question. Only words that mean "change it":
+# short everyday words ("cho", "làm", "to", "cao", "gấp", "tôi", "sáng") are left out, because the recogniser's
+# garbled lines are full of them, and each false match costs a ~2000-token prompt and the whole timeout on a CPU.
 _ASKS = {
-    "tang", "giam", "dat", "chinh", "doi", "bat", "tat", "mo", "dong", "chay", "dung", "cho", "lam",
-    "nhanh", "cham", "to", "nho", "cao", "thap", "sang", "toi", "hon", "chut", "xiu", "gap",
-    "set", "increase", "decrease", "raise", "lower", "turn", "open", "close", "change", "make",
+    "tang", "giam", "dat", "chinh", "doi", "bat", "tat", "mo", "dong", "chay", "nhanh", "cham",
+    "set", "increase", "decrease", "raise", "lower", "turn", "open", "close", "change",
     "faster", "slower", "louder", "quieter", "bigger", "smaller", "higher", "brighter",
-    "enable", "disable", "run", "start", "stop",
+    "enable", "disable",
 }
 
 Post = Callable[[dict[str, Any]], dict[str, Any]]

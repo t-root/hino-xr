@@ -54,7 +54,7 @@ class AccessTest(unittest.TestCase):
     def setUp(self) -> None:
         self.saved = {k: os.environ.get(k) for k in ("VR_ACCESS_TOKEN", "VR_ACCESS")}
         os.environ["VR_ACCESS_TOKEN"] = KEY
-        os.environ.pop("VR_ACCESS", None)
+        os.environ["VR_ACCESS"] = "on"  # off is the default; these tests are about the key being required
         access.reset()
 
     def tearDown(self) -> None:
@@ -94,8 +94,9 @@ class AccessTest(unittest.TestCase):
         own = {"Origin": "https://192.168.1.5:5173", "X-Access-Key": KEY}
         self.assertEqual(call("/api/people", headers=own)[0], 200)
 
-    def test_the_key_check_can_be_switched_off_for_a_trusted_network(self) -> None:
-        os.environ["VR_ACCESS"] = "off"
+    def test_the_key_check_is_off_by_default(self) -> None:
+        os.environ.pop("VR_ACCESS")
+        self.assertFalse(access.enabled())
         self.assertEqual(call("/api/people")[0], 200)
         self.assertEqual(call("/api/people", headers={"Origin": "https://evil.example"})[0], 403)  # the site check stays
 

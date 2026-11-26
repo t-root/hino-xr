@@ -161,6 +161,11 @@ button {
   pointer-events: auto;
 }
 
+/* Lens on: the interface bends with the camera picture (`LensWarp`). A full-screen plugin view is not the square. */
+html[data-lens-warp="on"] .camera-frame:not([data-fill="true"]) {
+  filter: url("#hino-lens-warp");
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -445,16 +450,22 @@ input[type="checkbox"]:checked {
  * and `:active` would — this is what you are on, this is what you are holding —
  * and they say it in alpha of the one colour, like everything else.
  */
-[data-hand-hover] {
+[data-hand-hover]:not([data-hand-plain]) {
   background: var(--surface-strong);
   outline: 1px solid var(--hairline);
   outline-offset: -1px;
 }
 
-[data-hand-press] {
+[data-hand-press]:not([data-hand-plain]) {
   background: color-mix(in srgb, var(--ui-color) calc(22% * var(--ui-color-alpha)), transparent);
   outline-color: var(--ui-ink);
 }
+
+/*
+ * A surface that fills the whole frame (the 3D map, the map picker) takes the hand as a target but is not a
+ * button: tinting it would lay a veil over the camera every time the hand is over it. A mouse never did,
+ * because only the hand writes these marks. `data-hand-plain` opts such a surface out of the two rules above.
+ */
 
 /*
  * Settings menu: centred on `.camera-frame`, one group at a time, so it stays

@@ -307,6 +307,9 @@ class BuildingView {
 /** A house a hand worked this recently, ms, is still the one a second hand joining means. */
 const RECENT_HOUSE_MS = 1500;
 
+/** Which hand drags a held house: the one that is not on it, or the midpoint when neither can be told apart. */
+type HeldMover = "left" | "right" | "middle";
+
 /** A pinch that ends this close, px, to where it began is a tap, not a drag. */
 const HAND_TAP_PX = 12;
 
@@ -639,7 +642,7 @@ export class SpaceCore implements BuildingHost {
   }
 
   /** The house two hands are holding, and where it stands against where their midpoint lands on the ground. */
-  private held: { building: BuildingView; offset: THREE.Vector3 } | null = null;
+  private held: { building: BuildingView; offset: THREE.Vector3; mover: HeldMover } | null = null;
 
   /**
    * Two hands pinching, and what they mean depends on what is between them. Over a house they carry that house
@@ -654,10 +657,26 @@ export class SpaceCore implements BuildingHost {
       // The house between the hands; failing that, the one a hand was working an instant ago. Closing the second
       // hand while the first holds a house is how a house is carried, and must never turn the city.
       const recent = this.lastWorked && performance.now() - this.lastWorked.at < RECENT_HOUSE_MS ? this.lastWorked.building : null;
-      const house = this.pick({ clientX: step.client.x, clientY: step.client.y }, view) ?? recent;
+      const at = (point: { x: number; y: number }) => ({ clientX: point.x, clientY: point.y });
+      // One hand holds a house and the other is free: the free hand is the one that drags it, one to one. A house
+      // is carried by the midpoint only when that is all there is to go by (both hands on it, or neither).
+      const underLeft = this.pick(at(step.hands.left), view);
+      const underRight = this.pick(at(step.hands.right), view);
+      let mover: HeldMover = "middle";
+      let house: BuildingView | null = null;
+      if (underLeft && !underRight) {
+        house = underLeft;
+        mover = "right";
+      } else if (underRight && !underLeft) {
+        house = underRight;
+        mover = "left";
+      } else {
+        house = this.pick(at(step.client), view) ?? recent;
+      }
       if (house && house.id !== this.selectedBuilding) this.select(house.id);
-      const ground = house ? this.groundPoint({ clientX: step.client.x, clientY: step.client.y }) : null;
-      this.held = house && ground ? { building: house, offset: house.position.clone().sub(ground) } : null;
+      const where = mover === "middle" ? step.client : step.hands[mover];
+      const ground = house ? this.groundPoint(at(where)) : null;
+      this.held = house && ground ? { building: house, offset: house.position.clone().sub(ground), mover } : null;
       return;
     }
     if (step.phase === "end") {
@@ -666,7 +685,8 @@ export class SpaceCore implements BuildingHost {
     }
     if (this.held) {
       this.eventView = view;
-      const ground = this.groundPoint({ clientX: step.client.x, clientY: step.client.y });
+      const where = this.held.mover === "middle" ? step.client : step.hands[this.held.mover];
+      const ground = this.groundPoint({ clientX: where.x, clientY: where.y });
       if (ground) this.held.building.placeAt(ground.x + this.held.offset.x, ground.z + this.held.offset.z);
       return;
     }
@@ -998,6 +1018,7 @@ export class SpaceView {
     // The hand is a pointer the orbit controls cannot hold (it cannot be captured), so the
     // hand's events are worked here, first, and kept from reaching them.
     this.wrap.setAttribute("data-hand-target", "");
+    this.wrap.setAttribute("data-hand-plain", "");
   }
 
   size(): { width: number; height: number } {

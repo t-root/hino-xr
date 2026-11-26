@@ -43,9 +43,12 @@ class ScreenWordsTest(unittest.TestCase):
         out = screen.screen_command("đọc lỗi trên màn hình", "vi")
         self.assertEqual(out["action"], "screen")
         self.assertEqual(out["value"]["question"], "đọc lỗi trên màn hình")
-        self.assertEqual(out["reply"], "Để mình xem.")
+        self.assertEqual(out["reply"], "Dạ sếp")
         self.assertIn("chụp được", out["value"]["failed"])  # what the page says when it cannot take the picture
-        self.assertEqual(screen.screen_command("what is this error", "en")["reply"], "Let me look.")
+        self.assertEqual(screen.screen_command("what is this error", "en")["reply"], "Yes boss")
+        # The wearer's own line, written in the assistant menu, replaces the default; empty says nothing.
+        self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", "Để em xem")["reply"], "Để em xem")
+        self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", "")["reply"], "")
 
     def test_the_camera_looks_are_not_taken_for_the_screen(self) -> None:
         self.assertFalse(self.asked("tôi đang thấy gì"))
@@ -72,10 +75,10 @@ class PageTest(unittest.TestCase):
 
     def test_the_server_says_the_command_to_the_page(self) -> None:
         engine = (ASSISTANT / "models/engine.py").read_text(encoding="utf-8")
-        self.assertIn("screen_command(heard, locale)", engine)
+        self.assertIn("screen_command(heard, locale, looking)", engine)
         # after the camera looks and the menu, before the tools: "đọc lỗi" is not a setting and not a weather question
-        self.assertLess(engine.index("sight_command(heard, locale)"), engine.index("screen_command(heard, locale)"))
-        self.assertLess(engine.index("screen_command(heard, locale)"), engine.index("tools.command(heard, locale)"))
+        self.assertLess(engine.index("sight_command(heard, locale)"), engine.index("screen_command(heard, locale, looking)"))
+        self.assertLess(engine.index("screen_command(heard, locale, looking)"), engine.index("tools.command(heard, locale)"))
 
 
 if __name__ == "__main__":

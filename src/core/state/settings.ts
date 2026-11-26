@@ -3,7 +3,7 @@ import { DEFAULT_THEME, isHexColor, type ThemeSettings } from "@/ui/theme";
 import { clamp, clamp01 } from "@/shared/math/num";
 import { DEFAULT_VOICE, parseVoice, type VoiceSettings } from "@/shared/contracts/voice";
 import { DEFAULT_LISTEN_SECONDS, parseListenSeconds } from "@/shared/contracts/wake";
-import { ACK, DEFAULT_GREETING } from "../models/identity";
+import { ACK, DEFAULT_GREETING, DEFAULT_LOOKING } from "../models/identity";
 import { LOCALES, type Locale } from "@/shared/contracts/locale";
 
 export type GestureSettings = Readonly<{
@@ -110,6 +110,8 @@ type AssistantSettings = Readonly<{
   greeting: Readonly<Record<Locale, string>>;
   /** What it says the moment it hears its name and nothing else, in each language. Empty says nothing. */
   ack: Readonly<Record<Locale, string>>;
+  /** What it says when asked to look at the screen or at something held up, in each language. Empty says nothing. */
+  looking: Readonly<Record<Locale, string>>;
 }>;
 
 /** The longest greeting that can be written. */
@@ -169,17 +171,19 @@ export type Settings = Readonly<{
 }>;
 
 /**
- * Neutral optics: a flat side-by-side view with no warping, which is what a
- * screen viewed without a headset needs. Dialling these in is the user's job
- * because it depends on their headset, not on the app.
+ * Starting optics for a common phone headset (Cardboard-style, one biconvex
+ * lens per eye): a wider view, a mild barrel bend to cancel the lens's
+ * pincushion, and a camera frame a little inside the eye so the blurry lens
+ * edge is not where the picture ends. Headsets differ, so the lens menu still
+ * fine-tunes every value; "reset" returns here.
  */
 export const DEFAULT_LENS: LensSettings = {
-  fovYDeg: 62,
+  fovYDeg: 70,
   eyeGapPx: 0,
   lensCenterOffset: 0,
-  k1: 0,
-  k2: 0,
-  frameScale: 1,
+  k1: 0.2,
+  k2: 0.05,
+  frameScale: 0.9,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -260,6 +264,7 @@ export const DEFAULT_SETTINGS: Settings = {
     bargeIn: false,
     greeting: DEFAULT_GREETING,
     ack: ACK,
+    looking: DEFAULT_LOOKING,
   },
 };
 
@@ -390,6 +395,7 @@ const parseAssistant = (raw: unknown): AssistantSettings => {
     bargeIn: typeof value.bargeIn === "boolean" ? value.bargeIn : DEFAULT_SETTINGS.assistant.bargeIn,
     greeting: parseLines(value.greeting, DEFAULT_GREETING),
     ack: parseLines(value.ack, ACK),
+    looking: parseLines(value.looking, DEFAULT_LOOKING),
   };
 };
 

@@ -1,7 +1,6 @@
 import type { AssistantSnapshot, ChatMessage, ModelInfo } from "@/shared/contracts/model";
 import { EMPTY_ASSISTANT } from "@/shared/contracts/model";
 import { SpeechPlayer } from "../audio/SpeechPlayer";
-import { encodeWav } from "../audio/wav";
 import { MIN_TALK_MS, MAX_TALK_MS, VoiceCapture } from "../audio/VoiceCapture";
 import { currentLocale } from "../state/LocaleStore";
 import { createLogger } from "../observability/diagnostics";
@@ -18,25 +17,6 @@ const QUIET_WAIT_MS = 120_000;
 const DEFAULT_ID = DEFAULT_SETTINGS.assistant.modelId;
 const HISTORY = 24;
 
-/** Two quick rising notes, soft enough not to startle in a headset. */
-const listeningCue = (): Blob => {
-  const rate = 22_050;
-  const note = (hz: number, seconds: number): Float32Array => {
-    const count = Math.floor(rate * seconds);
-    const out = new Float32Array(count);
-    for (let i = 0; i < count; i += 1) {
-      const fade = Math.min(1, i / 200, (count - i) / 400);
-      out[i] = 0.4 * fade * Math.sin((2 * Math.PI * hz * i) / rate);
-    }
-    return out;
-  };
-  const low = note(660, 0.08);
-  const high = note(990, 0.1);
-  const joined = new Float32Array(low.length + high.length);
-  joined.set(low, 0);
-  joined.set(high, low.length);
-  return encodeWav(joined, rate);
-};
 /** Skip poll during a live turn. Load and wake already talk to the server. */
 const HOLD_POLL = new Set(["generating", "listening", "speaking"]);
 
@@ -536,12 +516,7 @@ export class ModelBridge {
     }
   }
 
-  /** A short rising tone: the assistant heard its name and is listening. */
-  cue(): void {
-    this.player.enqueue(listeningCue());
-  }
-
-  /** Says the wearer's own "I am listening" line after the cue: the proof that the name was heard. Never throws. */
+  /** Says the wearer's own "I am listening" line: the proof that the name was heard. No tone first. Never throws. */
   async acknowledge(): Promise<void> {
     const line = useRuntimeStore.getState().settings.assistant.ack[currentLocale()].trim();
     if (!line) return;
@@ -601,6 +576,7 @@ export class ModelBridge {
           this.runCommand(command);
         },
         (line) => this.logger.info("turn timing", { line }),
+        useRuntimeStore.getState().settings.assistant.looking[locale],
       );
       if (abort.signal.aborted) {
         this.phase = "idle";

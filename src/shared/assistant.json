@@ -7,5 +7,9 @@
   "greeting": {
     "vi": "Chào sếp",
     "en": "Hello boss"
+  },
+  "looking": {
+    "vi": "Dạ sếp",
+    "en": "Yes boss"
   }
 }

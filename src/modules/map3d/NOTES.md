@@ -22,7 +22,7 @@ thiết bị (không bay, vì bản đồ mở ở bên kia trái đất). Nút 
 **L3.** Trong thành phố 3D, **một tay chỉ chỉnh tòa nhà, không dời gì**: chụm vào một tòa thì tòa đó được chọn và kéo đổi chiều
 cao (lên xuống) và bề rộng (trái phải) (`Space.handDown`, `handMove`). Chụm vào chỗ không có nhà rồi buông mà không kéo (dưới
 `HAND_TAP_PX`, 12 px) thì **bỏ chọn** tòa đang chọn, như bấm ra ngoài bằng chuột (`handUp`); kéo ở chỗ trống không làm gì. Chuột và một ngón chạm cũng vậy: một con trỏ chỉ đổi cao và rộng (`BuildingView.beginSize`), Shift cộng chuột là "tay thứ hai" của chuột và dời tòa.
-Dời tòa bằng tay phải dùng **hai tay**: nếu giữa hai tay (lúc vừa chụm) là một tòa thì dời tòa đó trên mặt đất, nếu không thì giang ra hoặc khép
+Dời tòa bằng tay phải dùng **hai tay**: nếu lúc vừa chụm một tay đang đè lên một tòa còn tay kia thì không, tay đó **giữ** tòa và tay còn lại **kéo** tòa theo, một đổi một (không chia đôi theo trung điểm). Nếu cả hai tay cùng đè lên tòa, hoặc không tay nào, thì dời tòa nằm giữa hai tay theo trung điểm; nếu giữa hai tay không có tòa thì giang ra hoặc khép
 vào là thu phóng, vặn là xoay, nâng hoặc hạ cả hai tay là nghiêng (`twoHand`). Thứ nằm giữa hai tay được quyết khi hai tay chụm và
 giữ cho đến khi mở. Một cú chụm trống của tay thứ nhất mà tay thứ hai nhập vào giữa chừng không tính là bấm, nên không bỏ chọn tòa
 đang được mang.

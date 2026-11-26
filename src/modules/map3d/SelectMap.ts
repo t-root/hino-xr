@@ -299,6 +299,7 @@ export class MapView {
     // mouse events: it neither pans nor reports a drawn box. So the hand's
     // pointers are worked here, the same way for drawing and for panning.
     this.container.setAttribute("data-hand-target", "");
+    this.container.setAttribute("data-hand-plain", "");
     // In the capture phase, and kept from Leaflet: it turns pointer events into the touch events its
     // own pan and pinch-zoom run on, so a hand drawing a box would also drag the map under it.
     this.container.addEventListener("pointerdown", this.handleHandDown, true);

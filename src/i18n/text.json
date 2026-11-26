@@ -11,8 +11,8 @@
 
   "menu.back": { "vi": "quay lại", "en": "back" },
 
-  "category.stereo": { "vi": "hai mắt", "en": "two eyes" },
-  "category.orientation": { "vi": "xoay", "en": "turn" },
+  "category.stereo": { "vi": "chế độ xem", "en": "view mode" },
+  "category.orientation": { "vi": "hướng xem", "en": "orientation" },
   "category.lens": { "vi": "thấu kính", "en": "lens" },
   "category.gesture": { "vi": "cử chỉ", "en": "gestures" },
   "category.cursor": { "vi": "con trỏ", "en": "cursor" },
@@ -125,8 +125,13 @@
 
   "assistant.ack": { "vi": "Câu đáp khi được gọi", "en": "Reply when called" },
   "assistant.ackHint": {
-    "vi": "Trợ lý nói câu này ngay khi nghe thấy tên của mình mà chưa có câu hỏi. Để trống thì chỉ phát tiếng báo.",
-    "en": "The assistant says this as soon as it hears its name with no question yet. Leave it empty for the tone alone."
+    "vi": "Trợ lý nói câu này ngay khi nghe thấy tên của mình mà chưa có câu hỏi. Để trống thì im lặng.",
+    "en": "The assistant says this as soon as it hears its name with no question yet. Leave it empty for silence."
+  },
+  "assistant.looking": { "vi": "Câu đáp khi nhờ xem", "en": "Reply when asked to look" },
+  "assistant.lookingHint": {
+    "vi": "Trợ lý nói câu này khi bạn nhờ xem màn hình hoặc xem thứ trước camera (\"đọc lỗi trên màn hình\", \"cái này là gì\"), trước khi trả lời. Để trống thì im lặng.",
+    "en": "The assistant says this when you ask it to look at the screen or at something in front of the camera, before it answers. Leave it empty for silence."
   },
   "assistant.greeting": { "vi": "Lời chào đầu tiên", "en": "First greeting" },
   "assistant.greetingHint": {
