@@ -284,7 +284,11 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     videoLayer.attach(source.video, mirrored, 0);
     videoLayer.mesh.visible = true;
     frameHub.attach(source);
-    setCameraView(() => ({ video: source.video, mirrored }));
+    setCameraView(() => ({
+      video: source.video,
+      mirrored: source.mirrored && settings.render.mirrorFrontCamera,
+      turn: useRuntimeStore.getState().viewTurn,
+    }));
     syncCameraOrientation();
     frameHub.start();
 

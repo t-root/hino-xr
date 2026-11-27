@@ -27,6 +27,61 @@ const DEFAULT_CENTER: readonly LatLng[] = [
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+const polygonAreaM2 = (points: readonly THREE.Vector2[]): number => {
+  let sum = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) * 0.5 * 4.5;
+};
+
+const estimateBuildingHeight = (
+  tags: Record<string, string | undefined>,
+  points: readonly THREE.Vector2[],
+  id: number,
+): { height: number; minHeight: number } => {
+  const minRaw = Number.parseFloat(tags.min_height || "");
+  const minLevels = Number.parseFloat(tags["building:min_level"] || "");
+  const minHeight = !Number.isNaN(minRaw) ? minRaw : !Number.isNaN(minLevels) ? minLevels * 3.1 : 0;
+
+  let height = Number.parseFloat(tags.height || "");
+  const levels = Number.parseFloat(tags["building:levels"] || "");
+  if (Number.isNaN(height) && !Number.isNaN(levels)) {
+    height = levels * 3.2;
+  }
+  if (!Number.isNaN(height) && height > minHeight) {
+    return { height, minHeight };
+  }
+
+  const kind = (tags.building || tags["building:part"] || "yes").toLowerCase();
+  const area = polygonAreaM2(points);
+  const hash = ((Math.abs(id) * 2654435761) >>> 0) % 100;
+
+  if (kind === "apartments" || kind === "residential" || kind === "dormitory") {
+    height = area > 450 ? 28 + (hash % 32) : 14 + (hash % 14);
+  } else if (kind === "commercial" || kind === "office" || kind === "hotel" || kind === "retail") {
+    height = area > 500 ? 34 + (hash % 42) : 16 + (hash % 18);
+  } else if (kind === "hospital" || kind === "university" || kind === "school" || kind === "public" || kind === "civic") {
+    height = 15 + (hash % 12);
+  } else if (kind === "industrial" || kind === "warehouse" || kind === "manufacture") {
+    height = 9 + (hash % 6);
+  } else if (kind === "house" || kind === "detached" || kind === "terrace" || kind === "semidetached_house") {
+    // Typical Vietnamese urban tube houses (nha ong 2-5 tang)
+    height = 7.5 + (hash % 4) * 3.2;
+  } else if (kind === "hut" || kind === "shed" || kind === "garage" || kind === "roof") {
+    height = 3.8 + (hash % 2);
+  } else if (area > 900) {
+    height = 24 + (hash % 28);
+  } else if (area > 320) {
+    height = 14 + (hash % 15);
+  } else {
+    height = 7.2 + (hash % 5) * 2.8;
+  }
+  return { height: Math.max(height, minHeight + 3), minHeight };
+};
+
 const disposeTree = (root: THREE.Object3D): void => {
   root.traverse((object) => {
     const mesh = object as Partial<THREE.Mesh>;
@@ -69,6 +124,7 @@ class BuildingView {
     readonly id: number,
     shape: THREE.Shape,
     depth: number,
+    minHeight: number,
     private readonly tags: Record<string, string | undefined>,
     private buildingScale: Vec3,
     position: Vec3,
@@ -77,12 +133,14 @@ class BuildingView {
     this.depth = depth;
     const box = new THREE.Box2().setFromPoints(shape.getPoints());
     const middle = box.getCenter(new THREE.Vector2());
+    const span = box.getSize(new THREE.Vector2());
     this.center = new THREE.Vector3(middle.x, 0, -middle.y);
     this.group.position.set(position.x + this.center.x, position.y, position.z + this.center.z);
     this.group.scale.set(buildingScale.x, buildingScale.y, buildingScale.z);
 
-    const geometry = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, bevelEnabled: false });
-    geometry.translate(-middle.x, -middle.y, 0);
+    const extrudeDepth = Math.max(1.5, depth - minHeight);
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: extrudeDepth, steps: 1, bevelEnabled: false });
+    geometry.translate(-middle.x, -middle.y, minHeight);
     this.mesh = new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.12, metalness: 0.35, side: THREE.DoubleSide }),
@@ -91,6 +149,20 @@ class BuildingView {
     this.edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 12), new THREE.LineBasicMaterial());
     this.edges.raycast = () => {};
     this.mesh.add(this.edges);
+
+    // Add architectural crown / rooftop tier for taller buildings so skyscrapers don't look like flat blocks
+    if (minHeight === 0 && depth >= 22 && Math.min(span.x, span.y) >= 3.5) {
+      const crownH = Math.min(5.5, depth * 0.14);
+      const crownGeo = new THREE.ExtrudeGeometry(shape, { depth: crownH, steps: 1, bevelEnabled: false });
+      crownGeo.translate(-middle.x, -middle.y, 0);
+      crownGeo.scale(0.76, 0.76, 1);
+      crownGeo.translate(0, 0, depth);
+      const crownEdges = new THREE.LineSegments(new THREE.EdgesGeometry(crownGeo, 12), this.edges.material);
+      crownEdges.raycast = () => {};
+      this.mesh.add(crownEdges);
+      crownGeo.dispose();
+    }
+
     this.group.add(this.mesh);
     this.applyLook();
   }
@@ -717,17 +789,15 @@ export class SpaceCore implements BuildingHost {
       const first = points[0];
       const last = points[points.length - 1];
       if (first && last && !first.equals(last)) points.push(first);
-      let height = Number.parseFloat(building.tags?.height || "");
-      const levels = Number.parseFloat(building.tags?.["building:levels"] || "");
-      if (!Number.isNaN(levels)) height = levels * 2.8;
-      if (Number.isNaN(height)) height = 10;
       const id = building.id ?? index;
+      const { height, minHeight } = estimateBuildingHeight(building.tags || {}, points, id);
       let view: BuildingView;
       try {
         view = new BuildingView(
           id,
           new THREE.Shape(points),
           height,
+          minHeight,
           building.tags || {},
           this.buildingScales.get(id) || { x: 1, y: 1, z: 1 },
           this.buildingPositions.get(id) || { x: 0, y: 0, z: 0 },

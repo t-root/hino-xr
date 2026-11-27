@@ -29,7 +29,8 @@ plugin you may change any `.ts`, `.json` (not `models.json`, `vendor.json`) or `
 - From Core (`@/...`) import names, never a default export: the page gives the plugin the app's own copy of that module, and a
   plugin's file is built apart from the app and swapped in while the server runs.
 - No `eval`, `Function`, dynamic `import()` of a URL or a computed path, `require`, `Proxy`, `Reflect`, `prototype`,
-  `__proto__`, `.constructor`, `import.meta`, `<script>`, `ServiceWorker`, `SharedWorker`.
+  `__proto__`, `.constructor`, `import.meta`, `<script>`, `ServiceWorker`, `SharedWorker`, `sessionStorage`,
+  `indexedDB`, `document.cookie`.
 - No Node.js and no npm. A package the plugin needs goes in its `vendor.json`; you do not add one.
 - Do not open the camera (`getUserMedia`): the camera is Core's. The plugin receives `FramePacket`s.
 - Do not touch the page outside what Core hands over: the only element a plugin may fill is its own screen (section 7).

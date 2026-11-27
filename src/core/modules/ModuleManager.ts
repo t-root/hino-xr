@@ -114,6 +114,8 @@ export class ModuleManager {
         runtime.screen?.setVisible(true);
         await module.initialize(this.createContext(id, runtime.screen));
         runtime.module = module;
+      } else {
+        runtime.screen?.setVisible(true);
       }
       await module.setEnabled(true);
 
@@ -153,6 +155,14 @@ export class ModuleManager {
     } catch (error) {
       this.logger.warn(`module "${id}" threw while disabling`, { message: (error as Error).message });
     }
+    try {
+      await runtime.module?.dispose();
+    } catch (error) {
+      this.logger.warn(`module "${id}" threw while disposing`, { message: (error as Error).message });
+    }
+    runtime.module = null;
+    runtime.screen?.dispose();
+    runtime.screen = null;
     this.setState(runtime, "paused");
   }
 
@@ -161,6 +171,14 @@ export class ModuleManager {
     if (!runtime || runtime.state === "failed") return;
     runtime.unregisterConsumer?.();
     runtime.unregisterConsumer = null;
+    try {
+      void runtime.module?.setEnabled(false);
+      void runtime.module?.dispose();
+    } catch {
+    }
+    runtime.module = null;
+    runtime.screen?.dispose();
+    runtime.screen = null;
     runtime.lastError = localizedTextOf(error);
     this.setState(runtime, "failed", error instanceof Error ? error : new Error(runtime.lastError.en));
     this.logger.error(`module "${id}" failed`, { message: runtime.lastError.en });

@@ -143,7 +143,7 @@ export class Map3dApp {
     const west = selectedArea[1].lng;
     const north = selectedArea[0].lat;
     const east = selectedArea[0].lng;
-    const query = `[out:json][timeout:25];(way["building"]( ${south},${west},${north},${east} );relation["building"]( ${south},${west},${north},${east} ););out body geom;`;
+    const query = `[out:json][timeout:25];(way["building"]( ${south},${west},${north},${east} );way["building:part"]( ${south},${west},${north},${east} );relation["building"]( ${south},${west},${north},${east} ););out body geom;`;
     try {
       const data = await queryOverpass(query);
       if (this.disposed) return false;

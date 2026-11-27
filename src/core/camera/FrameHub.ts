@@ -121,18 +121,30 @@ export class FrameHub {
         height: video.videoHeight,
       });
 
+      const due: Registration[] = [];
       for (const entry of this.registrations.values()) {
         if (!this.scheduler.shouldDispatch(entry.timing, now)) continue;
         entry.timing.busy = true;
         entry.timing.lastDispatchMs = now;
-        void this.dispatch(entry, frameId, now);
+        due.push(entry);
+      }
+      if (due.length > 0) {
+        const shared = new Map<number, Promise<ImageBitmap>>();
+        for (const entry of due) {
+          void this.dispatch(entry, frameId, now, shared);
+        }
       }
     }
 
     this.scheduleNextTick();
   }
 
-  private async dispatch(entry: Registration, frameId: number, timestampMs: number): Promise<void> {
+  private async dispatch(
+    entry: Registration,
+    frameId: number,
+    timestampMs: number,
+    shared: Map<number, Promise<ImageBitmap>>,
+  ): Promise<void> {
     const source = this.source;
     if (!source) {
       entry.timing.busy = false;
@@ -142,11 +154,18 @@ export class FrameHub {
     try {
       const maxSize = entry.consumer.maxSize ?? this.analysisMaxSize;
       const { width, height } = fitWithin(source.video.videoWidth, source.video.videoHeight, maxSize);
-      const image = await createImageBitmap(source.video, {
-        resizeWidth: width,
-        resizeHeight: height,
-        resizeQuality: "medium",
-      });
+      let basePromise = shared.get(maxSize);
+      const isFirst = !basePromise;
+      if (!basePromise) {
+        basePromise = createImageBitmap(source.video, {
+          resizeWidth: width,
+          resizeHeight: height,
+          resizeQuality: "medium",
+        });
+        shared.set(maxSize, basePromise);
+      }
+      const base = await basePromise;
+      const image = isFirst ? base : await createImageBitmap(base);
 
       const packet: FramePacket = {
         id: frameId,

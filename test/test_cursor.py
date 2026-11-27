@@ -30,7 +30,8 @@ class CursorOnTopTest(unittest.TestCase):
     def test_the_cursor_is_dom_beside_the_frame_in_every_eye_not_a_mesh_in_the_scene(self) -> None:
         view = (SRC / "ui/components/StereoView.ts").read_text(encoding="utf-8")
         self.assertIn("CursorOverlay()", view)
-        self.assertLess(view.index("turnBox.append(frame)"), view.index("turnBox.append(cursor.root)"))
+        self.assertIn("turnBox.append(frame)", view)
+        self.assertIn("box.append(turnBox, cursor.root)", view)
         layer = (SRC / "core/rendering/CursorLayer.ts").read_text(encoding="utf-8")
         self.assertNotIn("three", layer)
         self.assertNotIn("Mesh", layer)

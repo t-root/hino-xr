@@ -1,4 +1,8 @@
-export type CameraView = Readonly<{ video: HTMLVideoElement; mirrored: boolean }>;
+export type CameraView = Readonly<{
+  video: HTMLVideoElement;
+  mirrored: boolean;
+  turn?: 0 | 90 | 180 | 270;
+}>;
 
 let cameraView: (() => CameraView | null) | null = null;
 
@@ -67,14 +71,16 @@ const drawCamera = (
   if (side <= 0 || video.readyState < 2) return;
   const sx = (video.videoWidth - side) / 2;
   const sy = (video.videoHeight - side) / 2;
+  const turn = view.turn ?? 0;
   context.save();
-  if (view.mirrored) {
-    context.translate(where.x + where.width, where.y);
-    context.scale(-1, 1);
-    context.drawImage(video, sx, sy, side, side, 0, 0, where.width, where.height);
-  } else {
-    context.drawImage(video, sx, sy, side, side, where.x, where.y, where.width, where.height);
+  context.translate(where.x + where.width / 2, where.y + where.height / 2);
+  if (turn !== 0) {
+    context.rotate((turn * Math.PI) / 180);
   }
+  if (view.mirrored) {
+    context.scale(-1, 1);
+  }
+  context.drawImage(video, sx, sy, side, side, -where.width / 2, -where.height / 2, where.width, where.height);
   context.restore();
 };
 

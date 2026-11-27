@@ -46,7 +46,7 @@ async function queryOsmMap(query: string, signal?: AbortSignal): Promise<OsmResu
     });
   });
 
-  const desiredTag = query.includes('["building"]') ? "building" : "highway";
+  const wantsBuilding = query.includes('["building"]');
   const elements = Array.from(document.querySelectorAll("way")).flatMap((way): OsmElement[] => {
     const tags = Object.fromEntries(
       Array.from(way.querySelectorAll(":scope > tag")).map((tag) => [
@@ -54,7 +54,7 @@ async function queryOsmMap(query: string, signal?: AbortSignal): Promise<OsmResu
         tag.getAttribute("v") || "",
       ]),
     );
-    if (!tags[desiredTag]) return [];
+    if (wantsBuilding ? !tags.building && !tags["building:part"] : !tags.highway) return [];
     const geometry = Array.from(way.querySelectorAll(":scope > nd"))
       .map((nd) => nodes.get(nd.getAttribute("ref") || ""))
       .filter((point): point is { lat: number; lon: number } => Boolean(point));

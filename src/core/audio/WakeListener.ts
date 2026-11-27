@@ -123,7 +123,7 @@ export class WakeListener {
     const spoken = this.lengthMs - this.quietMs;
     const samples = downsample(concat(this.segment), rate, TARGET_RATE);
     this.reset();
-    if (spoken < MIN_SPEECH_MS) return;
+    if (spoken < MIN_SPEECH_MS || !hasVoice(samples)) return;
     this.onHeard({ blob: encodeWav(samples, TARGET_RATE), durationMs: spoken });
   }
 
@@ -171,4 +171,72 @@ const downsample = (samples: Float32Array, from: number, to: number): Float32Arr
     out[i] = (samples[low] ?? 0) * (1 - mix) + (samples[high] ?? 0) * mix;
   }
   return out;
+};
+
+const VOICE_FRAME = 512;
+const VOICE_HOP = 256;
+const MIN_VOICED_FRAMES = 5;
+const PITCH_LOW = Math.floor(TARGET_RATE / 400);
+const PITCH_HIGH = Math.floor(TARGET_RATE / 70);
+
+const HANNING = (() => {
+  const win = new Float32Array(VOICE_FRAME);
+  for (let i = 0; i < VOICE_FRAME; i += 1) {
+    win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (VOICE_FRAME - 1));
+  }
+  return win;
+})();
+
+export const hasVoice = (samples: Float32Array): boolean => {
+  if (samples.length < VOICE_FRAME) return false;
+  const count = 1 + Math.floor((samples.length - VOICE_FRAME) / VOICE_HOP);
+  const levels = new Float32Array(count);
+  const pitched = new Uint8Array(count);
+  const frame = new Float32Array(VOICE_FRAME);
+
+  for (let f = 0; f < count; f += 1) {
+    const base = f * VOICE_HOP;
+    let mean = 0;
+    for (let i = 0; i < VOICE_FRAME; i += 1) {
+      const val = (samples[base + i] ?? 0) * (HANNING[i] ?? 0);
+      frame[i] = val;
+      mean += val;
+    }
+    mean /= VOICE_FRAME;
+    let energy = 0;
+    for (let i = 0; i < VOICE_FRAME; i += 1) {
+      const centered = (frame[i] ?? 0) - mean;
+      frame[i] = centered;
+      energy += centered * centered;
+    }
+    levels[f] = Math.sqrt(energy / VOICE_FRAME);
+    const r0 = Math.max(energy, 1e-12);
+    let dip = 1;
+    let best = 0;
+    for (let lag = 1; lag < PITCH_HIGH; lag += 1) {
+      let sum = 0;
+      const limit = VOICE_FRAME - lag;
+      for (let i = 0; i < limit; i += 1) {
+        sum += (frame[i] ?? 0) * (frame[i + lag] ?? 0);
+      }
+      const norm = sum / r0;
+      if (norm < dip) dip = norm;
+      if (lag >= PITCH_LOW && norm - dip > best) {
+        best = norm - dip;
+      }
+    }
+    if (best > 0.5) pitched[f] = 1;
+  }
+
+  const sorted = Float32Array.from(levels).sort();
+  const p20 = sorted[Math.floor((count - 1) * 0.2)] ?? 0;
+  const threshold = Math.max(p20 * 2, 0.002);
+  let voiced = 0;
+  for (let f = 0; f < count; f += 1) {
+    if (pitched[f] === 1 && (levels[f] ?? 0) > threshold) {
+      voiced += 1;
+      if (voiced >= MIN_VOICED_FRAMES) return true;
+    }
+  }
+  return false;
 };

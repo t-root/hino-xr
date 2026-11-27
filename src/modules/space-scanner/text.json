@@ -1,0 +1,30 @@
+{
+  "displayName": {
+    "vi": "Quét vật thể 3D",
+    "en": "3D Object Scanner"
+  },
+  "description": {
+    "vi": "Bấm Tạo rồi dùng hai tay khoanh vùng vật thể; AI sẽ phân tích hình dáng, độ cong, độ sâu lòng vật và dựng thành 3D.",
+    "en": "Press Create and select an object with two hands; AI analyzes its shape, curvature, and hollow depth to build a 3D model."
+  },
+  "createModel": {
+    "vi": "Tạo",
+    "en": "Create"
+  },
+  "createNew": {
+    "vi": "Tạo mới",
+    "en": "Create New"
+  },
+  "analyzing": {
+    "vi": "AI đang phân tích...",
+    "en": "AI analyzing..."
+  },
+  "autoSpin": {
+    "vi": "Tự xoay",
+    "en": "Auto Spin"
+  },
+  "close": {
+    "vi": "Đóng",
+    "en": "Close"
+  }
+}

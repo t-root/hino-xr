@@ -25,8 +25,8 @@ ATTEMPTS = 3
 
 PERMISSIONS = ("camera-frame", "network", "screen", "snapshot")
 FORBIDDEN = re.compile(
-    r"\b(eval|Function|ServiceWorker|SharedWorker|Reflect|Proxy|prototype|__proto__|require)\b"
-    r"|\.constructor\b|\bprocess\s*\.|import\.meta|import\s*\(|<script",
+    r"\b(eval|Function|ServiceWorker|SharedWorker|Reflect|Proxy|prototype|__proto__|require|sessionStorage|indexedDB)\b"
+    r"|\.constructor\b|document\.cookie\b|\bprocess\s*\.|import\.meta|import\s*\(|<script",
 )
 IMPORT_OK = re.compile(r"^(@/[\w./-]+|\./[\w.-]+)$")
 ID_OK = re.compile(r"^[a-z][a-z0-9-]{2,60}$")

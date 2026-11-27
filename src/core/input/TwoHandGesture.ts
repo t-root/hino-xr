@@ -2,6 +2,7 @@ import type { HandPointer, TwoHandEvent } from "@/shared/contracts/input";
 import type { GestureSettings } from "../state/settings";
 
 const HOLD_MS = 90;
+const RELEASE_GRACE_MS = 240;
 const MIN_DISTANCE = 0.04;
 const MAX_STEP = 1.5;
 
@@ -30,6 +31,7 @@ const poseOf = (left: HandPointer, right: HandPointer): Pose => {
 export class TwoHandGesture {
   private active = false;
   private since: number | null = null;
+  private releaseSince: number | null = null;
   private last: Pose | null = null;
 
   constructor(private settings: GestureSettings) {}
@@ -44,17 +46,30 @@ export class TwoHandGesture {
 
   update(nowMs: number, left: HandPointer | null, right: HandPointer | null): TwoHandEvent | null {
     const sensitivity = Math.max(this.settings.sensitivity, 0.1);
-    const line = (this.active ? this.settings.pinchExitRatio : this.settings.pinchEnterRatio) * sensitivity;
+    const exitRatio = Math.max(this.settings.pinchExitRatio * 1.15, this.settings.pinchEnterRatio + 0.2);
+    const line = (this.active ? exitRatio : this.settings.pinchEnterRatio) * sensitivity;
     const held = left !== null && right !== null && left.pinchStrength < line && right.pinchStrength < line;
     if (!held || !left || !right) {
-      const wasActive = this.active;
+      if (!this.active) {
+        this.since = null;
+        this.releaseSince = null;
+        this.last = null;
+        return null;
+      }
+      this.releaseSince ??= nowMs;
+      const graceMs = Math.max(RELEASE_GRACE_MS, this.settings.pinchExitHoldMs * 3);
+      if (nowMs - this.releaseSince < graceMs) {
+        return null;
+      }
       const pose = this.last;
       this.active = false;
       this.since = null;
+      this.releaseSince = null;
       this.last = null;
-      return wasActive && pose ? this.event("end", pose, 1, 0, { x: 0, y: 0 }) : null;
+      return pose ? this.event("end", pose, 1, 0, { x: 0, y: 0 }) : null;
     }
 
+    this.releaseSince = null;
     const pose = poseOf(left, right);
     if (!this.active) {
       this.since ??= nowMs;

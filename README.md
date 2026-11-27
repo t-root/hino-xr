@@ -151,7 +151,7 @@ Trợ lý đọc **một ảnh chụp đúng cái bạn đang thấy**: giao di�
 
 Trợ lý nói ngay một câu đáp ngắn (mặc định "Dạ sếp", sửa ở menu trợ lý, ô "Câu đáp khi nhờ xem"), trang chụp ảnh và gửi tới `POST /api/assistant/screen` (khâu `vision`, chính model trả lời Qwen3-VL), rồi đọc một đoạn ngắn và hiện **toàn bộ** câu trả lời lên trang Trợ lý. "Tôi đang thấy gì" và "đọc mã QR" vẫn là của plugin **Mô tả cảnh** và **Đọc mã** (chạy trên trình duyệt, không gọi model).
 
-Ảnh do `src/core/screen/ScreenCapture.ts` chụp: lấy khung hình camera hiện tại đặt vào ô vuông mà mắt đầu tiên hiển thị (lật gương nếu trang đang lật), rồi chép tài liệu, cho trình duyệt vẽ giao diện vào ảnh SVG và phủ lên trên, cắt lấy **một mắt**. Không xin quyền, chạy được trên điện thoại (`getDisplayMedia` thì không). Ảnh chỉ được chụp khi bạn hỏi, gửi qua đường có khoá truy cập, không được lưu. Chưa xử lý việc trang tự xoay hình (`viewTurn`): khi trang đang xoay thì hình camera trong ảnh có thể lệch hướng so với thứ bạn thấy.
+Ảnh do `src/core/screen/ScreenCapture.ts` chụp: lấy khung hình camera hiện tại đặt vào ô vuông mà mắt đầu tiên hiển thị (lật gương nếu trang đang lật và xoay theo `viewTurn` nếu giao diện đang xoay), rồi chép tài liệu, cho trình duyệt vẽ giao diện vào ảnh SVG và phủ lên trên, cắt lấy **một mắt**. Không xin quyền, chạy được trên điện thoại (`getDisplayMedia` thì không). Ảnh chỉ được chụp khi bạn hỏi, gửi qua đường có khoá truy cập, không được lưu.
 
 Plugin **Hỏi về hình ảnh** (`vision-ask`) đã bỏ; việc của nó giờ là của trợ lý.
 

@@ -17,9 +17,10 @@ from .prompts import system_prompt
 from .tuning import VoiceTuning
 from .wake import drop_leading_phrase
 
-ChatMessage = dict[str, str]
+ChatMessage = dict[str, Any]
 MAX_MESSAGES = 40
 MAX_MESSAGE_CHARS = 4000
+MAX_IMAGE_URI_CHARS = 2_000_000
 
 
 class Engine:
@@ -272,9 +273,28 @@ def parse_messages(raw: Any) -> list[ChatMessage]:
             raise ValueError("each message must be an object")
         role = item.get("role")
         content = item.get("content")
-        if role not in {"system", "user", "assistant"} or not isinstance(content, str) or not content.strip():
+        if role not in {"system", "user", "assistant"}:
             raise ValueError("message needs role and non-empty content")
-        messages.append({"role": role, "content": content[:MAX_MESSAGE_CHARS]})
+        if isinstance(content, str) and content.strip():
+            messages.append({"role": role, "content": content[:MAX_MESSAGE_CHARS]})
+        elif role == "user" and isinstance(content, list) and 1 <= len(content) <= 4:
+            parts: list[dict[str, Any]] = []
+            for part in content:
+                if not isinstance(part, dict):
+                    raise ValueError("each content part must be an object")
+                ptype = part.get("type")
+                if ptype == "text" and isinstance(part.get("text"), str) and part["text"].strip():
+                    parts.append({"type": "text", "text": part["text"][:MAX_MESSAGE_CHARS]})
+                elif ptype == "image_url" and isinstance(part.get("image_url"), dict):
+                    url = part["image_url"].get("url")
+                    if not isinstance(url, str) or not url.startswith("data:image/jpeg;base64,") or len(url) > MAX_IMAGE_URI_CHARS:
+                        raise ValueError("image_url must be a base64 jpeg data URI")
+                    parts.append({"type": "image_url", "image_url": {"url": url}})
+                else:
+                    raise ValueError("invalid multimodal content part")
+            messages.append({"role": role, "content": parts})
+        else:
+            raise ValueError("message needs role and non-empty content")
     return messages
 
 

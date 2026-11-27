@@ -24,9 +24,17 @@ export const ScrollBox = (
     current: null as { pointerId: number; y: number; from: number; active: boolean } | null,
   };
 
+  const maxScroll = (): number => {
+    const style = window.getComputedStyle(viewport);
+    const padTop = Number.parseFloat(style.paddingTop) || 0;
+    const padBottom = Number.parseFloat(style.paddingBottom) || 0;
+    const innerHeight = Math.max(0, (viewport.clientHeight ?? 0) - padTop - padBottom);
+    const contentHeight = Math.max(content.scrollHeight ?? 0, content.offsetHeight ?? 0);
+    return Math.max(0, Math.ceil(contentHeight - innerHeight));
+  };
+
   const scrollTo = (next: number) => {
-    const hidden = (content.offsetHeight ?? 0) - (viewport.clientHeight ?? 0);
-    useSharedUiStore.getState().setScroll(id, clamp(next, 0, Math.max(hidden, 0)));
+    useSharedUiStore.getState().setScroll(id, clamp(next, 0, maxScroll()));
   };
 
   const viewport = el("div", {

@@ -237,7 +237,7 @@ def _decode_image(raw: str) -> bytes:
 
 
 class PluginChatBody(BaseModel):
-    messages: list[dict[str, str]] = Field(min_length=1, max_length=20)
+    messages: list[dict[str, Any]] = Field(min_length=1, max_length=20)
     maxTokens: int = Field(default=256, ge=8, le=1024)
 
 

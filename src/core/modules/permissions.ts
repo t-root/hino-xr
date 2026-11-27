@@ -5,6 +5,7 @@ const IMPLICIT: readonly ModulePermission[] = ["camera-frame"];
 const PERMISSION_GRANTS: Readonly<Record<string, readonly ModulePermission[]>> = {
   map3d: ["network", "screen"],
   "face-recognition": ["network", "screen"],
+  "space-scanner": ["network", "screen"],
 };
 
 const ASSISTANT_PLUGIN_PREFIX = "ai-";

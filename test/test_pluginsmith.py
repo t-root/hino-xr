@@ -27,6 +27,8 @@ class CheckTest(unittest.TestCase):
             "const c = ({}).constructor",
             'await import("https://x.test/a.js")',
             "const p = a.__proto__",
+            "sessionStorage.getItem('vr-core.access-key')",
+            "document.cookie",
         ):
             with self.assertRaises(ValueError, msg=bad):
                 smith.check_code(GOOD + "\n" + bad)

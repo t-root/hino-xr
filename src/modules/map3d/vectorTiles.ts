@@ -273,15 +273,20 @@ export async function queryVectorTiles(
           ring.map((point) => ({ lat: latOf(tileY, point.y, layer.extent), lon: lngOf(tileX, point.x, layer.extent) }));
         if (what === "building") {
           if (feature.type !== 3) return;
-          if (Number(feature.tags.render_min_height ?? 0) > 0) return;
+          const minHeight = Number(feature.tags.render_min_height ?? 0);
           const height = Number(feature.tags.render_height ?? 0);
+          const cls = String(feature.tags.class ?? feature.tags.type ?? "yes");
           feature.rings.forEach((ring, ringIndex) => {
             if (ring.length < 4 || area(ring) <= 0) return;
             const geometry = geometryOf(ring);
             if (!touches(geometry, bounds)) return;
             elements.push({
               id: idBase + index * 8 + Math.min(ringIndex, 7),
-              tags: { building: "yes", ...(height > 0 && height !== 5 ? { height: String(height) } : {}) },
+              tags: {
+                building: cls || "yes",
+                ...(height > 0 && height !== 5 ? { height: String(height) } : {}),
+                ...(minHeight > 0 ? { min_height: String(minHeight) } : {}),
+              },
               geometry,
             });
           });

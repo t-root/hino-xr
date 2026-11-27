@@ -153,11 +153,12 @@ export class InteractionManager {
       features,
       busy: this.isHandBusy(frame.hand),
     });
-    if (features.thumbMiddle < 1.2 && frame.timestampMs - this.lastSnapLogMs > 250) {
+    if ((features.thumbMiddle < 1.1 || runtime.snap.probability >= 0.35) && frame.timestampMs - this.lastSnapLogMs > 250) {
       this.lastSnapLogMs = frame.timestampMs;
       this.snapLog.info("pose", {
         hand: frame.hand,
         state: runtime.snap.currentState,
+        prob: Number(runtime.snap.probability.toFixed(2)),
         thumbMiddle: Number(features.thumbMiddle.toFixed(2)),
         thumbIndex: Number(features.thumbIndex.toFixed(2)),
         middleWrist: Number(features.middleWrist.toFixed(2)),
