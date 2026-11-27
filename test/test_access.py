@@ -1,4 +1,3 @@
-"""The /api is for the computer's own browser and for devices that hold the key, and for nothing a web page can drive."""
 
 from __future__ import annotations
 
@@ -21,7 +20,6 @@ KEY = "k3y-for-tests"
 
 
 def call(path: str, *, client: str = "192.168.1.20", headers: dict[str, str] | None = None) -> tuple[int, dict | None]:
-    """Run one request through the middleware: (status, JSON body when it was refused), 200 when it got through."""
     seen: dict = {}
 
     async def app(scope, receive, send) -> None:
@@ -54,7 +52,7 @@ class AccessTest(unittest.TestCase):
     def setUp(self) -> None:
         self.saved = {k: os.environ.get(k) for k in ("VR_ACCESS_TOKEN", "VR_ACCESS", "VR_TUNNEL", "VR_PROFILE")}
         os.environ["VR_ACCESS_TOKEN"] = KEY
-        os.environ["VR_ACCESS"] = "on"  # off is the default; these tests are about the key being required
+        os.environ["VR_ACCESS"] = "on"
         access.reset()
 
     def tearDown(self) -> None:
@@ -98,23 +96,22 @@ class AccessTest(unittest.TestCase):
         os.environ["VR_PROFILE"] = "gpu"
         os.environ.pop("VR_ACCESS")
         os.environ.pop("VR_TUNNEL", None)
-        self.assertTrue(access.enabled())  # a public address: the key is on unless it is switched off by hand
+        self.assertTrue(access.enabled())
         os.environ["VR_TUNNEL"] = "off"
-        self.assertFalse(access.enabled())  # no public address: the page is this machine's alone
+        self.assertFalse(access.enabled())
         os.environ["VR_ACCESS"] = "on"
-        self.assertTrue(access.enabled())  # and either can be decided by hand
+        self.assertTrue(access.enabled())
 
     def test_the_cpu_profile_has_no_key_unless_asked(self) -> None:
         os.environ["VR_PROFILE"] = "cpu"
         os.environ.pop("VR_ACCESS")
         os.environ.pop("VR_TUNNEL", None)
-        self.assertFalse(access.enabled())  # a phone on the same Wi-Fi just opens the address
+        self.assertFalse(access.enabled())
         self.assertEqual(call("/api/people")[0], 200)
         os.environ["VR_ACCESS"] = "on"
         self.assertTrue(access.enabled())
 
     def test_a_request_through_the_tunnel_needs_the_key_even_from_loopback(self) -> None:
-        # cloudflared runs on this machine, so what it carries arrives from 127.0.0.1; Cloudflare's headers give it away.
         for header in ("Cf-Connecting-Ip", "X-Forwarded-For"):
             self.assertEqual(call("/api/people", client="127.0.0.1", headers={header: "203.0.113.9"})[0], 401, header)
             sent = {header: "203.0.113.9", "X-Access-Key": KEY}
@@ -126,7 +123,7 @@ class AccessTest(unittest.TestCase):
         os.environ.pop("VR_ACCESS")
         self.assertFalse(access.enabled())
         self.assertEqual(call("/api/people")[0], 200)
-        self.assertEqual(call("/api/people", headers={"Origin": "https://evil.example"})[0], 403)  # the site check stays
+        self.assertEqual(call("/api/people", headers={"Origin": "https://evil.example"})[0], 403)
 
     def test_a_key_is_made_once_and_kept(self) -> None:
         os.environ.pop("VR_ACCESS_TOKEN")
@@ -138,7 +135,7 @@ class AccessTest(unittest.TestCase):
                 first = access.token()
                 self.assertGreaterEqual(len(first), 24)
                 access.reset()
-                self.assertEqual(access.token(), first)  # after a restart it is the same, so a phone stays signed in
+                self.assertEqual(access.token(), first)
             finally:
                 access.KEY_FILE = keep
 

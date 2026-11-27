@@ -37,4 +37,3 @@ plugins-backup/
 # llama.cpp and whisper.cpp programs, fetched by run.py.
 assistant/bin/
 # The list of plugins, written from the folders at every build.
-src/modules/plugins.generated.ts

@@ -1,4 +1,3 @@
-"""Serve the headset page from this process: no Node.js required to run."""
 
 from __future__ import annotations
 
@@ -6,10 +5,12 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
 import tarfile
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -122,7 +123,6 @@ def ensure_package(name: str, version: str, root: Path = VENDOR) -> Path:
         archive = _fetch(_npm_tarball(name, version))
     except urllib.error.HTTPError as error:
         raise RuntimeError(f"could not download {name}@{version}: {error}") from error
-    # Unpacking over another version would leave its files behind.
     if dest.exists():
         shutil.rmtree(dest)
     _extract_npm(archive, dest)
@@ -187,34 +187,7 @@ def _plugin_folders() -> list[Path]:
     return sorted(path for path in modules.iterdir() if path.is_dir())
 
 
-PLUGIN_INDEX = SRC / "modules" / "plugins.generated.ts"
-
-
-def plugin_index() -> str:
-    """The list of plugins, made from the folders: every `src/modules/<id>/plugin.ts` is a plugin, and nothing else names one.
-
-    The bundler has no `import.meta.glob`, so Python writes the imports that glob would have made. Adding a plugin is adding
-    a folder; no file outside it is edited, by a person or by the assistant.
-    """
-    ids = [folder.name for folder in _plugin_folders() if (folder / "plugin.ts").is_file()]
-    lines = ["// Written by assistant/frontend.py at every build from src/modules/*/plugin.ts. Do not edit; it is not in git."]
-    lines.append('import type { PluginEntry } from "@/core/modules/definePlugin";')
-    lines += [f'import plugin{index} from "./{name}/plugin";' for index, name in enumerate(ids)]
-    lines.append(f"export const plugins: ReadonlyArray<PluginEntry> = [{', '.join(f'plugin{index}' for index in range(len(ids)))}];")
-    return "\n".join(lines) + "\n"
-
-
-def write_plugin_index() -> bool:
-    """Writes the index when the folders changed (and only then, so an unchanged tree is not rebuilt). True if it changed."""
-    text = plugin_index()
-    if PLUGIN_INDEX.is_file() and PLUGIN_INDEX.read_text(encoding="utf-8") == text:
-        return False
-    PLUGIN_INDEX.write_text(text, encoding="utf-8", newline="\n")
-    return True
-
-
 def _declared_files(folder: Path) -> list[dict[str, str]]:
-    """The on-device files a plugin's own models.json names."""
     spec_path = folder / "models.json"
     if not spec_path.exists():
         return []
@@ -237,10 +210,6 @@ def _declared_files(folder: Path) -> list[dict[str, str]]:
 
 
 def _plugin_models() -> list[dict[str, object]]:
-    """
-    Every plugin model, each kept in its own plugin's folder
-    (`src/modules/<id>/models/`), never in a place shared with others.
-    """
     return [
         {**model, "dest": folder / PLUGIN_MODELS_DIR}
         for folder in _plugin_folders()
@@ -249,11 +218,6 @@ def _plugin_models() -> list[dict[str, object]]:
 
 
 def prepare_plugin_packages() -> None:
-    """
-    A library only one plugin uses is pinned in that plugin's own vendor.json
-    and unpacked into its own `vendor/` folder, where it imports it by a
-    relative path. Core's vendor.json lists only what Core itself runs on.
-    """
     for folder in _plugin_folders():
         lock = folder / "vendor.json"
         if not lock.exists():
@@ -266,7 +230,6 @@ def prepare_plugin_packages() -> None:
 
 
 def prepare_models() -> None:
-    """Models a plugin declares in its own models.json. Core's own are in the root downloads.json."""
     for model in _plugin_models():
         dest = model["dest"]
         assert isinstance(dest, Path)
@@ -309,17 +272,29 @@ def _worker_entries() -> list[str]:
     return sorted(path.relative_to(SRC).as_posix() for path in SRC.rglob("*.worker.ts"))
 
 
-def _needs_bundle(outfile: Path) -> bool:
+def _is_plugin_file(relative: tuple[str, ...]) -> bool:
+    return len(relative) > 1 and relative[0] == "modules"
+
+
+def _worker_stale(entry: str) -> bool:
+    dest = RUNTIME / "workers" / Path(entry).with_suffix(".js")
+    if _needs_bundle(dest, plugins=False):
+        return True
+    parts = Path(entry).parts
+    return parts[0] == "modules" and dest.stat().st_mtime < _plugin_newest(SRC / "modules" / parts[1])
+
+
+def _needs_bundle(outfile: Path, plugins: bool = True) -> bool:
     if not outfile.exists():
         return True
     latest = outfile.stat().st_mtime
     if (ASSISTANT / "frontend.py").stat().st_mtime > latest:
         return True
     for path in SRC.rglob("*"):
-        # A plugin's downloads (src/modules/<id>/vendor|models) are not source;
-        # Core's own folders may share those names (src/core/models).
         relative = path.relative_to(SRC).parts
         if len(relative) > 3 and relative[0] == "modules" and relative[2] in {PLUGIN_VENDOR_DIR, PLUGIN_MODELS_DIR}:
+            continue
+        if not plugins and _is_plugin_file(relative):
             continue
         if path.suffix in {".ts", ".json", ".css"} and path.stat().st_mtime > latest:
             return True
@@ -341,7 +316,7 @@ def _esbuild_env() -> dict[str, str]:
     return env
 
 
-def _esbuild_args(esbuild: Path, entry: Path, output: str, *extra: str) -> list[str]:
+def _esbuild_args(esbuild: Path, entry: Path | str, output: str, *extra: str) -> list[str]:
     return [
         str(esbuild),
         str(entry),
@@ -350,7 +325,6 @@ def _esbuild_args(esbuild: Path, entry: Path, output: str, *extra: str) -> list[
         f"--alias:@={SRC.as_posix()}",
         *_package_aliases(),
         "--target=es2022",
-        # A plugin's vendored stylesheet may point at images (Leaflet's does).
         "--loader:.png=dataurl",
         "--loader:.svg=dataurl",
         "--log-level=warning",
@@ -361,42 +335,194 @@ def _esbuild_args(esbuild: Path, entry: Path, output: str, *extra: str) -> list[
 
 CHUNKS = RUNTIME / "chunks"
 
+_boot = str(int(time.time() * 1000))
+_builds = 0
+
+
+def build_id() -> str:
+    return f"{_boot}-{_builds}"
+
+
+LIVE_RELOAD = """    <script>
+      (() => {
+        let app = null;
+        let live = JSON.stringify(window.__hinoLive || {});
+        const look = () => fetch("/__build", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((now) => {
+            if (app === null) app = now.app;
+            else if (now.app !== app) { location.reload(); return; }
+            const text = JSON.stringify(now.live);
+            if (text === live) return;
+            live = text;
+            window.__hinoLive = now.live;
+            window.dispatchEvent(new CustomEvent("hino-live", { detail: now.live }));
+          })
+          .catch(() => {});
+        setInterval(look, 1000);
+        look();
+      })();
+    </script>
+"""
+
+
+def live_reload() -> bool:
+    return os.environ.get("VR_RELOAD", "on").strip().lower() not in {"off", "0", "false", "no"}
+
+
+LIVE = RUNTIME / "live"
+HOST = RUNTIME / "host"
+HOST_SRC = RUNTIME / "host-src"
+HOST_LIST = RUNTIME / "host.json"
+HOST_IMPORT = re.compile(r'(?:from|import)\s*"(@/[^"]+)"')
+HOST_DEFAULT = re.compile(r'import\s*[\w$]+\s*(?:,\s*\{[^}]*\}\s*)?from\s*"(@/[^"]+)"')
+_live_seen: dict[str, tuple[float, int, str]] = {}
+
+
+def _live_folders() -> list[Path]:
+    return [folder for folder in _plugin_folders() if (folder / "plugin.ts").is_file()]
+
+
+def _plugin_newest(folder: Path) -> float:
+    newest = 0.0
+    for path in folder.rglob("*"):
+        parts = path.relative_to(folder).parts
+        if parts[0] in {PLUGIN_VENDOR_DIR, PLUGIN_MODELS_DIR} and len(parts) > 1:
+            continue
+        if path.is_file() and path.suffix in {".ts", ".json", ".css"}:
+            newest = max(newest, path.stat().st_mtime)
+    return newest
+
+
+def _hosts_of(out: Path) -> set[str]:
+    return set(HOST_IMPORT.findall(out.read_text(encoding="utf-8")))
+
+
+def _build_plugin(esbuild: Path, folder: Path, out: Path) -> None:
+    result = subprocess.run(
+        [
+            str(esbuild),
+            str(folder / "plugin.ts"),
+            "--bundle",
+            f"--outfile={out}",
+            "--format=esm",
+            *_package_aliases(),
+            "--external:@/*",
+            "--target=es2022",
+            "--loader:.png=dataurl",
+            "--loader:.svg=dataurl",
+            "--log-level=warning",
+            "--log-override:package.json=silent",
+            "--minify",
+        ],
+        cwd=PROJECT,
+        env=_esbuild_env(),
+    )
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, "esbuild")
+    text = out.read_text(encoding="utf-8")
+    if HOST_DEFAULT.search(text):
+        out.unlink(missing_ok=True)
+        raise RuntimeError(f"{folder.name}: import a name from Core (`import {{ x }} from \"@/...\"`), not its default export")
+
+
+def build_live(esbuild: Path) -> set[str]:
+    LIVE.mkdir(parents=True, exist_ok=True)
+    ids = set()
+    hosts: set[str] = set()
+    for folder in _live_folders():
+        ids.add(folder.name)
+        out = LIVE / f"{folder.name}.js"
+        if not out.exists() or out.stat().st_mtime < max(_plugin_newest(folder), (ASSISTANT / "frontend.py").stat().st_mtime):
+            _log(f"  bundle   {folder.name} (plugin)")
+            _build_plugin(esbuild, folder, out)
+        hosts |= _hosts_of(out)
+    for old in LIVE.iterdir():
+        if old.stem not in ids:
+            old.unlink(missing_ok=True)
+    return hosts
+
+
+def live_state() -> dict[str, str]:
+    found: dict[str, str] = {}
+    if not LIVE.is_dir():
+        return found
+    for path in sorted(LIVE.glob("*.js")):
+        try:
+            stats = [path.stat()]
+            workers = RUNTIME / "workers" / "modules" / path.stem
+            if workers.is_dir():
+                stats += [item.stat() for item in sorted(workers.glob("*.js"))]
+            key = tuple((item.st_mtime, item.st_size) for item in stats)
+            seen = _live_seen.get(path.stem)
+            if seen is None or seen[0] != key:
+                digest = _sha256(b"".join(item.read_bytes() for item in [path, *sorted(workers.glob("*.js"))] if item.is_file()))[:12]
+                seen = (key, 0, digest)
+                _live_seen[path.stem] = seen
+            found[path.stem] = seen[2] + (":css" if path.with_suffix(".css").is_file() else "")
+        except OSError:
+            continue
+    return found
+
+
+def _write_host_entries(hosts: set[str]) -> list[str]:
+    if HOST_SRC.exists():
+        shutil.rmtree(HOST_SRC)
+    entries = []
+    for name in sorted(hosts):
+        key = name[2:]
+        entry = HOST_SRC / f"{key}.ts"
+        entry.parent.mkdir(parents=True, exist_ok=True)
+        entry.write_text(f'export * from "{name}";\n', encoding="utf-8", newline="\n")
+        entries.append(f"host/{key}={entry.as_posix()}")
+    return entries
+
+
+def _hosts_recorded() -> list[str] | None:
+    try:
+        return json.loads(HOST_LIST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
 
 def bundle(esbuild: Path) -> None:
+    global _builds
     RUNTIME.mkdir(parents=True, exist_ok=True)
-    write_plugin_index()
+    hosts = sorted(build_live(esbuild))
     app_js = RUNTIME / "app.js"
     env = _esbuild_env()
-    if _needs_bundle(app_js):
-        _log("  bundle   src/main.ts -> public/.runtime/app.js (+ chunks/)")
-        # Chunk names carry a content hash, so old ones would pile up forever.
+    if _needs_bundle(app_js, plugins=False) or _hosts_recorded() != hosts:
+        _log("  bundle   src/main.ts -> public/.runtime/app.js (+ chunks/, host/)")
         if CHUNKS.exists():
             shutil.rmtree(CHUNKS)
+        if HOST.exists():
+            shutil.rmtree(HOST)
+        entries = _write_host_entries(set(hosts))
         subprocess.run(
             _esbuild_args(
                 esbuild,
-                SRC / "main.ts",
+                f"app={(SRC / 'main.ts').as_posix()}",
                 f"--outdir={RUNTIME}",
                 "--format=esm",
-                # A plugin's `await import()` becomes its own file under
-                # chunks/, fetched the first time the plugin is switched on.
                 "--splitting",
-                "--entry-names=app",
                 "--chunk-names=chunks/[name]-[hash]",
                 "--minify",
                 "--sourcemap",
+                *entries,
             ),
             cwd=PROJECT,
             env=env,
             check=True,
         )
+        HOST_LIST.write_text(json.dumps(hosts), encoding="utf-8")
+        _builds += 1
     else:
         _log("  bundle   app.js is current")
 
     for entry in _worker_entries():
         dest = RUNTIME / "workers" / Path(entry).with_suffix(".js")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if dest.exists() and not _needs_bundle(dest):
+        if dest.exists() and not _worker_stale(entry):
             continue
         _log(f"  bundle   {entry} (classic worker)")
         subprocess.run(
@@ -415,7 +541,6 @@ def bundle(esbuild: Path) -> None:
 
 
 def prepare_frontend() -> Path:
-    """Gets the frontend ready and returns the esbuild that built it, for `watch_frontend`."""
     _log("Preparing frontend (no Node.js)")
     specs = _package_specs()
     for name in ("three", "zod", "zustand", "@mediapipe/tasks-vision"):
@@ -433,7 +558,6 @@ def prepare_frontend() -> Path:
 
 
 def _newest_source() -> float:
-    """The modification time of the newest file the bundle is built from."""
     newest = (ASSISTANT / "frontend.py").stat().st_mtime
     for path in SRC.rglob("*"):
         relative = path.relative_to(SRC).parts
@@ -444,11 +568,16 @@ def _newest_source() -> float:
     return newest
 
 
-def watch_frontend(esbuild: Path, interval: float = 1.0) -> None:
-    """Rebuilds the bundle whenever a source file changes, so a page reload shows the edit without a restart.
+def _live_stale() -> bool:
+    names = {folder.name for folder in _live_folders()}
+    for name in names:
+        out = LIVE / f"{name}.js"
+        if not out.exists() or out.stat().st_mtime < _plugin_newest(SRC / "modules" / name):
+            return True
+    return LIVE.is_dir() and any(old.stem not in names for old in LIVE.iterdir())
 
-    A build that fails (a typing slip in the middle of an edit) is reported once and tried again at the next edit.
-    """
+
+def watch_frontend(esbuild: Path, interval: float = 1.0) -> None:
     import time
 
     failed_at = 0.0
@@ -457,13 +586,13 @@ def watch_frontend(esbuild: Path, interval: float = 1.0) -> None:
         try:
             newest = _newest_source()
             if newest == failed_at or not (
-                _needs_bundle(RUNTIME / "app.js") or any(not (RUNTIME / "workers" / Path(e).with_suffix(".js")).exists() or _needs_bundle(RUNTIME / "workers" / Path(e).with_suffix(".js")) for e in _worker_entries())
+                _needs_bundle(RUNTIME / "app.js", plugins=False) or _live_stale() or any(not (RUNTIME / "workers" / Path(e).with_suffix(".js")).exists() or _worker_stale(e) for e in _worker_entries())
             ):
                 continue
             bundle(esbuild)
-            _log("  watch    rebuilt; reload the page")
+            _log("  watch    rebuilt; open pages follow on their own")
             failed_at = 0.0
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, RuntimeError):
             failed_at = newest
             _log("  watch    build failed; fix the error above and save again")
         except OSError:
@@ -561,6 +690,11 @@ def _index_html() -> str:
     html = html.replace('src="/src/main.ts"', 'src="/app.js"')
     if (RUNTIME / "app.css").exists() and "app.css" not in html:
         html = html.replace("</head>", '    <link rel="stylesheet" href="/app.css" />\n  </head>')
+    start = (
+        '    <script type="importmap">{"imports": {"@/": "/host/"}}</script>\n'
+        f"    <script>window.__hinoLive = {json.dumps(live_state())};</script>\n"
+    )
+    html = html.replace("</head>", start + (LIVE_RELOAD if live_reload() else "") + "  </head>")
     return html
 
 
@@ -570,6 +704,33 @@ def attach_frontend(app: FastAPI) -> None:
     @app.get("/", include_in_schema=False)
     def index() -> HTMLResponse:
         return HTMLResponse(_index_html())
+
+    @app.get("/__build", include_in_schema=False)
+    def build() -> Response:
+        return Response(
+            json.dumps({"app": build_id(), "live": live_state()}), media_type="application/json", headers={"Cache-Control": "no-store"}
+        )
+
+    @app.get("/live/{name}.js", include_in_schema=False)
+    def live_plugin(name: str) -> FileResponse:
+        path = LIVE / f"{name}.js"
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", name) or not path.is_file():
+            raise HTTPException(status_code=404)
+        return FileResponse(path, media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/live/{name}.css", include_in_schema=False)
+    def live_plugin_css(name: str) -> FileResponse:
+        path = LIVE / f"{name}.css"
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", name) or not path.is_file():
+            raise HTTPException(status_code=404)
+        return FileResponse(path, media_type="text/css", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/host/{module_path:path}", include_in_schema=False)
+    def host_module(module_path: str) -> FileResponse:
+        dest = (HOST / f"{module_path}.js").resolve()
+        if not str(dest).startswith(str(HOST.resolve()) + os.sep) or not dest.is_file():
+            raise HTTPException(status_code=404)
+        return FileResponse(dest, media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
     @app.get("/app.js", include_in_schema=False)
     def app_js() -> FileResponse:
@@ -594,7 +755,6 @@ def attach_frontend(app: FastAPI) -> None:
 
     @app.get("/chunks/{chunk_path:path}", include_in_schema=False)
     def chunk(chunk_path: str) -> FileResponse:
-        # Plugins split out of app.js; `import("./chunks/...")` resolves here.
         dest = (CHUNKS / chunk_path).resolve()
         root = CHUNKS.resolve()
         if not str(dest).startswith(str(root) + os.sep) or not dest.is_file():
@@ -602,12 +762,10 @@ def attach_frontend(app: FastAPI) -> None:
         media = "application/json" if dest.suffix == ".map" else "text/javascript"
         if dest.suffix == ".css":
             media = "text/css"
-        # The name changes whenever the content does.
         return FileResponse(dest, media_type=media, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
     @app.get("/plugins/{plugin_id}/models/{file_name}", include_in_schema=False)
     def plugin_model(plugin_id: str, file_name: str) -> FileResponse:
-        # Only what that plugin's own models.json declares, from its own folder.
         folder = SRC / "modules" / plugin_id
         if "/" in plugin_id or "\\" in plugin_id or plugin_id.startswith(".") or not folder.is_dir():
             raise HTTPException(status_code=404)
@@ -616,7 +774,6 @@ def attach_frontend(app: FastAPI) -> None:
         dest = folder / PLUGIN_MODELS_DIR / file_name
         if not dest.is_file():
             raise HTTPException(status_code=404)
-        # A script, an ES module and a WebAssembly file are refused by the browser under the wrong type.
         media = {".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm"}.get(dest.suffix)
         return FileResponse(
             dest, media_type=media, headers={"Cache-Control": "public, max-age=31536000, immutable"}

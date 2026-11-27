@@ -10,22 +10,14 @@ export type { CursorPhase };
 
 export type CursorVisual = Readonly<{
   hand: Handedness;
-  /** Display-space position, `0..1`. */
   point: NormalizedPoint;
   phase: CursorPhase;
-  /** How far a held pinch has got towards becoming a drag, `0..1`. */
   holdProgress: number;
   confidence: number;
 }>;
 
-/** A cursor is this share of the eye's height, before the wearer's size setting. */
 const UNIT = 0.022;
 
-/**
- * Hand cursors, handed to the one thing that draws them: `CursorOverlay`, a DOM layer above everything in each
- * eye. They used to be meshes in the 3D scene, which every panel of the interface covered; a cursor you cannot see
- * is a hand you cannot aim.
- */
 export class CursorLayer {
   constructor(
     private readonly mapper: CoordinateMapper,
@@ -33,11 +25,6 @@ export class CursorLayer {
     private readonly cursorScale: () => number,
   ) {}
 
-  /**
-   * Where to draw the cursor, `0..1` of the eye. With the lens on, the camera picture is bent, so the hand is
-   * SEEN at the inverse-warped spot of the camera square (the same bend the interface gets); drawing at the
-   * plain spot leaves the cursor off the hand. A full-screen plugin view is not bent.
-   */
   private eyeSpot(point: NormalizedPoint): NormalizedPoint {
     if (useSharedUiStore.getState().fillFrame) {
       const ndc = this.mapper.displayToNdc(point);
@@ -49,7 +36,6 @@ export class CursorLayer {
     return { x: box.x + seen.x * box.width, y: box.y + seen.y * box.height };
   }
 
-  /** Marks a press that landed on something, at the hand that made it. */
   flash(hand: Handedness, nowMs: number): void {
     useCursorStore.getState().flash(hand, nowMs);
   }

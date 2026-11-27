@@ -1,4 +1,3 @@
-"""The reply is spoken a sentence at a time, while the model is still writing."""
 
 from __future__ import annotations
 
@@ -52,8 +51,8 @@ class PlaybackTest(unittest.TestCase):
         client = (SRC / "core/models/ModelClient.ts").read_text(encoding="utf-8")
         self.assertIn("enqueue(", player)
         self.assertIn("idle(", player)
-        self.assertEqual(bridge.count("this.audioSink(abort)"), 3)  # wake, ask, talk
-        self.assertEqual(client.count("onAudio?: (audio: Blob) => void,"), 3)  # complete, wake, talk
+        self.assertEqual(bridge.count("this.audioSink(abort)"), 3)
+        self.assertEqual(client.count("onAudio?: (audio: Blob) => void,"), 3)
         self.assertIn("handlers.onAudio?.(piece)", client)
 
     def test_a_turn_ends_when_the_speaker_goes_quiet_not_when_the_text_does(self) -> None:

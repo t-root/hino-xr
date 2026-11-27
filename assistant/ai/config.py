@@ -31,7 +31,6 @@ REPO = HERE.parents[1]
 
 ASSISTANT_STAGES = ("chat", "agent", "vision", "code", "stt", "stt_wake", "tts")
 PLUGIN_STAGES = ("plugin_chat",)
-# What a stage asks of its endpoint: a chat completion, a transcription or speech.
 KIND = {
     "chat": "chat",
     "agent": "chat",
@@ -45,7 +44,7 @@ KIND = {
 
 
 class ConfigError(Exception):
-    """The configuration names something that does not exist."""
+    pass
 
 
 def env(name: str) -> str | None:
@@ -57,7 +56,7 @@ load_env = profiles.load_env  # reads VR_* from assistant/.env; profiles.py has 
 load_env()
 
 _spec: dict[str, Any] | None = None
-_models: dict[str, str] = {}  # what the wearer chose by voice while running; gone at the next start
+_models: dict[str, str] = {}
 
 
 def spec() -> dict[str, Any]:
@@ -79,11 +78,11 @@ def path_of(raw: str) -> Path:
 @dataclass(frozen=True)
 class Stage:
     name: str
-    kind: str  # chat | stt | tts
-    url: str  # base without a trailing slash; "" for a voice that runs inside this process
+    kind: str
+    url: str
     key: str
     model: str
-    server: str | None  # the id in `servers` that serves the url, None when the url is somebody else's
+    server: str | None
     voice: str
 
     @property
@@ -136,7 +135,6 @@ def set_model(name: str, value: str) -> None:
 
 
 def reset() -> None:
-    """Forget the choices made by voice and re-read stages.json. Used by tests."""
     global _spec
     _models.clear()
     _spec = None

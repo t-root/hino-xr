@@ -8,11 +8,6 @@ type Recording = Readonly<{
   durationMs: number;
 }>;
 
-/**
- * Opens the microphone while the wearer has talk switched on.
- *
- * Samples are packed as WAV. Nothing here recognises speech.
- */
 export class VoiceCapture {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;

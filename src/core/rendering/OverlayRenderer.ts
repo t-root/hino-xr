@@ -13,7 +13,6 @@ type OverlayEntry = {
   readonly picker: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   label: THREE.Sprite | null;
   readonly unregister: () => void;
-  /** Display-space rect, smoothed toward the latest detection. */
   rect: NormalizedRect;
   target: NormalizedRect;
   moduleId: string;
@@ -34,11 +33,6 @@ const OUTLINE_UNIT_SQUARE = new Float32Array([
 const SMOOTHING = 0.35;
 const FADE_PER_MS = 0.004;
 
-/**
- * Renders normalised detections onto the video plane. Because the overlay is a
- * child of the plane, both eyes get correct parallax from the same scene graph;
- * pixels are never copied from one eye to the other.
- */
 export class OverlayRenderer {
   private readonly entries = new Map<string, OverlayEntry>();
   private readonly labels = new LabelFactory();
@@ -59,10 +53,6 @@ export class OverlayRenderer {
     this.state = state;
   }
 
-  /**
-   * Accepts a batch. Batches whose source frame is too old are dropped instead
-   * of being drawn against a newer camera image.
-   */
   submit(batch: DetectionBatch, nowMs: number, currentFrameId: number, frameIntervalMs: number): boolean {
     const ageMs = (currentFrameId - batch.sourceFrameId) * frameIntervalMs;
     if (ageMs > this.maxBatchAgeMs) return false;
@@ -78,7 +68,6 @@ export class OverlayRenderer {
     return true;
   }
 
-  /** Drops every entry produced by a module, e.g. when it is disabled. */
   clearModule(moduleId: string): void {
     for (const [key, entry] of this.entries) {
       if (entry.moduleId !== moduleId) continue;
@@ -106,7 +95,6 @@ export class OverlayRenderer {
     }
   }
 
-  /** Called once per rendered frame; smooths boxes and fades stale ones out. */
   update(nowMs: number, deltaMs: number): void {
     const plane = this.mapper.videoPlaneSize();
     for (const [key, entry] of this.entries) {
@@ -136,7 +124,6 @@ export class OverlayRenderer {
       const focused = this.state.hoveredId === targetId || this.state.selectedId === targetId;
 
       entry.group.position.set(centre.x, centre.y, 0.001);
-      // Single-colour rule: focus is expressed with alpha and size, never a hue.
       entry.outline.scale.set(width * (focused ? 1.04 : 1), height * (focused ? 1.04 : 1), 1);
       entry.picker.scale.set(width, height, 1);
       entry.outline.material.opacity = entry.opacity * (focused ? ALPHA.focus : ALPHA.text);
@@ -210,7 +197,6 @@ export class OverlayRenderer {
 
   private updateLabel(entry: OverlayEntry, detection: Detection): void {
     const figure = ` ${(detection.confidence * 100).toFixed(0)}%`;
-    // A plugin that writes the whole label itself (a person's name, say) asks for no percentage after it.
     const text = detection.attributes?.plainLabel === true && detection.label ? detection.label : `${detection.label ?? detection.kind}${figure}`;
     if (entry.label && entry.label.userData.text === text) return;
 

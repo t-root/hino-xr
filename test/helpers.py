@@ -1,4 +1,3 @@
-"""Shared paths for the Python tests."""
 
 from __future__ import annotations
 
@@ -9,12 +8,10 @@ SRC = ROOT / "src"
 ASSISTANT = ROOT / "assistant"
 
 
-# What Python downloads into a plugin's folder: packages and model files.
 DOWNLOADED = {"vendor", "models"}
 
 
 def downloaded_into_plugin(path: Path) -> bool:
-    """True for files under src/modules/<id>/vendor or src/modules/<id>/models only."""
     parts = path.resolve().relative_to(SRC.resolve()).parts if path.resolve().is_relative_to(SRC.resolve()) else ()
     return len(parts) > 3 and parts[0] == "modules" and parts[2] in DOWNLOADED
 

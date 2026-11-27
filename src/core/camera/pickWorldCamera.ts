@@ -1,12 +1,3 @@
-/**
- * Which rear camera a headset should look through.
- *
- * Phones expose several back cameras. `facingMode: "environment"` only says
- * "not the selfie lens"; the browser still often hands over the telephoto,
- * which looks zoomed-in and is useless for walking around. We want the widest
- * world-facing camera (ultra-wide when the device has one), then pull that
- * lens out to its minimum zoom.
- */
 const scoreWorldCamera = (label: string): number => {
   const text = label
     .toLowerCase()

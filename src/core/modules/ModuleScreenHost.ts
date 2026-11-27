@@ -1,6 +1,5 @@
 import type { ModuleScreen, ModuleScreenView } from "./module-contract";
 
-/** A plugin's screen plus the handle Core keeps to show, hide and remove it. */
 export type ModuleScreenHandle = Readonly<{
   screen: ModuleScreen;
   setVisible: (visible: boolean) => void;
@@ -15,32 +14,19 @@ type Entry = {
   id: string;
   view: ModuleScreenView | null;
   visible: boolean;
-  /** One copy per eye, keyed by that eye's camera frame. */
   copies: Map<HTMLElement, Copy>;
 };
 
-/**
- * Puts plugin screens where the rest of the interface lives: one copy in every
- * eye's camera frame (rules.md). The eyes are rebuilt when the layout
- * changes, so frames come and go independently of plugins; whichever side
- * arrives second is mounted into what the other already has.
- */
 export class ModuleScreenHost {
   private readonly frames = new Set<HTMLElement>();
   private readonly entries = new Map<string, Entry>();
 
   constructor(
     private readonly close: (moduleId: string) => void,
-    /** A screen just appeared: whatever it covers should get out of the way. */
     private readonly onShown: () => void = () => {},
-    /**
-     * A plugin's drawing code threw. It runs inside Core's own mount of each
-     * eye, so it is caught here and reported instead of taking the eye down.
-     */
     private readonly onError: (moduleId: string, error: unknown) => void = () => {},
   ) {}
 
-  /** Called for every eye's camera frame; the returned function forgets it. */
   mountFrame(frame: HTMLElement): () => void {
     this.frames.add(frame);
     for (const entry of this.entries.values()) this.mount(entry, frame);

@@ -6,33 +6,10 @@ export type GestureState = "idle" | "tracking" | "hover" | "pinching" | "draggin
 
 type GestureTick = Readonly<{
   nowMs: number;
-  /** `null` while the hand is not tracked; the lost timeout is handled here. */
   pointer: HandPointer | null;
-  /** Target currently under the pointer, from the hit-test service. */
   targetId: string | null;
 }>;
 
-/**
- * Per-hand interaction state machine.
- *
- * One pinch — thumb and index closing — is the whole vocabulary, and what it
- * means is decided by how it ends: let go where you started and it is a click,
- * keep holding and it becomes a drag. Nothing else in the application invents
- * its own way of being pressed, so a control added next year gets both for
- * free.
- *
- * Nothing here reads the other three fingers, and there is deliberately no
- * second pose to compete with the pinch. A hand closing curls those fingers on
- * its own, so a fist-shaped gesture would enter first and hold the pointer,
- * leaving the pinch inside it unable to be anything at all.
- *
- * Two rules drive the rest of the design: thresholds have hysteresis plus a
- * hold time so noise cannot toggle a state, and a click is only withheld when
- * the hand actually travelled. Holding still long enough becomes a drag so a
- * slider can follow, but releasing in the same place is still a click.
- */
-
-/** Gap closing this fast, while not fully open, counts as a pinch without waiting. */
 const CLOSING_PER_SEC = 1.6;
 
 export class GestureStateMachine {
@@ -48,16 +25,8 @@ export class GestureStateMachine {
 
   private pinchOrigin: { x: number; y: number } | null = null;
   private capturedTargetId: string | null = null;
-  /** True once the hand has actually travelled, not merely held still. */
   private travelled = false;
-  /** Smallest pinch ratio seen during the current pinch; 1 when none is held. */
   private tightestRatio = 1;
-  /**
-   * False after a pinch ends, until the fingers have opened past the enter
-   * line. Without this, a release that lands still below `pinchEnterRatio`
-   * would start a new pinch on the next frame — which is "I let go and it
-   * still thinks I am holding".
-   */
   private readyToPinch = true;
 
   constructor(settings: GestureSettings) {
@@ -72,30 +41,16 @@ export class GestureStateMachine {
     return this.state;
   }
 
-  /**
-   * How far a held pinch has got towards becoming a drag, `0..1`.
-   *
-   * The cursor draws this, so the wearer can watch a hold fill up and let go in
-   * time when a click was what they meant.
-   */
   holdProgress(nowMs: number): number {
     if (this.state === "dragging") return 1;
     if (this.state !== "pinching") return 0;
     return clamp01((nowMs - this.pinchStartedMs) / Math.max(this.settings.dragHoldMs, 1));
   }
 
-  /** Target holding pointer capture during a pinch or a drag. */
   get captureTargetId(): string | null {
     return this.state === "pinching" || this.state === "dragging" ? this.capturedTargetId : null;
   }
 
-  /**
-   * The gap the fingers must open past to let go, right now.
-   *
-   * During a pinch this is the nearer of the absolute exit and "a little wider
-   * than the tightest this pinch got". A click never opens the hand halfway;
-   * it opens from however closed it was.
-   */
   get releaseRatio(): number {
     const sensitivity = Math.max(this.settings.sensitivity, 0.1);
     const pinchExit = this.settings.pinchExitRatio * sensitivity;
@@ -128,8 +83,6 @@ export class GestureStateMachine {
     const openDelta = this.settings.pinchOpenDelta / sensitivity;
     const closing = pointer.pinchVelocity <= -CLOSING_PER_SEC;
 
-    // A closing snap starts on the first frame the fingers are clearly coming
-    // together. The hold is only for a pinch that is already sitting closed.
     const pinchHeld = this.holdSatisfied(
       pointer.pinchStrength < pinchEnter,
       nowMs,
@@ -137,14 +90,6 @@ export class GestureStateMachine {
       this.settings.pinchEnterHoldMs,
     );
     const pinchSnapped = closing && pointer.pinchStrength < pinchEnter + 0.08;
-    // A snap press puts the index next to the middle, close enough that a
-    // snappy pinch would enter, mark the hand busy, and cancel the snap. Only
-    // a clearly closer thumb-middle pair is that press; a pinch with the other
-    // fingers curled in is not.
-    // Let go when the fingers open from *this* pinch, not when they reach a
-    // stretched pose. The absolute exit is only a backstop. Do not also demand
-    // that they clear the enter line: a comfortable pinch never got that tight,
-    // and opening a little from it must still count as letting go.
     const opened = pointer.pinchStrength > this.tightestRatio + openDelta;
     const pinchReleased = this.holdSatisfied(
       opened || pointer.pinchStrength > pinchExit,
@@ -165,10 +110,6 @@ export class GestureStateMachine {
         break;
       }
       case "pinching": {
-        // The pinch point slides as the fingers finish closing, and jumps as
-        // they open. Neither is the hand travelling. Follow the close; ignore
-        // the open. Otherwise a snappy pinch spends itself as a drag and the
-        // click never fires.
         if (pointer.pinchVelocity < -0.3 && this.pinchOrigin) {
           this.pinchOrigin = { x: pointer.position.x, y: pointer.position.y };
         }
@@ -209,11 +150,6 @@ export class GestureStateMachine {
     return events;
   }
 
-  /**
-   * Gives up whatever this hand was holding because a gesture that takes both hands has begun.
-   * The fingers are still closed, so the hand must open before it can pinch again; otherwise
-   * the next frame would start a new press.
-   */
   abort(nowMs: number, pointer?: HandPointer): readonly GestureEvent[] {
     const events: GestureEvent[] = [];
     this.cancel(events, nowMs, pointer);
@@ -277,15 +213,8 @@ export class GestureStateMachine {
   }
 
   private endPinch(events: GestureEvent[], pointer: HandPointer, currentTargetId: string | null): void {
-    // A press that started on nothing can still land: the fingers close, the
-    // tracker catches up, and by the time they open there is a control under
-    // them. Swallowing that would look like a gesture that never fires.
     const target = this.capturedTargetId ?? currentTargetId;
     events.push(this.event("pinchend", pointer, target));
-    // Held still is still a click. Time turning the press into a drag is so a
-    // slider can follow the hand *during* the hold; it is not a reason to
-    // throw the click away when the hand never went anywhere. Only travelling
-    // past the threshold spends the press on a drag instead.
     if (!this.travelled && target) {
       events.push(this.event("select", pointer, target));
     }
@@ -295,7 +224,6 @@ export class GestureStateMachine {
     this.hoverEmittedFor = target;
   }
 
-  /** True once `condition` has held continuously for `holdMs`. */
   private holdSatisfied(
     condition: boolean,
     nowMs: number,

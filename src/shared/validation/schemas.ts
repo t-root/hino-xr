@@ -2,20 +2,10 @@ import * as z from "zod/mini";
 import en from "zod/v4/locales/en.js";
 import type { DetectionBatch, ModuleManifest } from "../contracts/vision";
 
-/*
- * `zod/mini`, not `zod`: the same checks in a functional form, at about a
- * tenth of the bundle (the full build pulls in every method on every schema).
- * Mini ships no messages of its own, so the English ones are loaded here; they
- * only reach the log, when a plugin's manifest or batch is malformed.
- */
 z.config(en());
 
 const normalized = z.number().check(z.gte(0), z.lte(1));
 
-/**
- * Text in every language the app speaks. Strict and required per locale: a
- * manifest that ships one language would leave a blank card in the other.
- */
 const localizedTextSchema = z.strictObject({
   vi: z.string().check(z.minLength(1)),
   en: z.string().check(z.minLength(1)),

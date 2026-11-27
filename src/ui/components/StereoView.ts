@@ -15,24 +15,8 @@ type StereoViewHandle = {
   dispose: () => void;
 };
 
-/**
- * The only parent a session widget may receive (rules.md).
- *
- * `.eye` is the black GL viewport. It is not a mount point. Anything drawn
- * during a session — boot hologram, veil, menu, diagnostics, and whatever
- * is written later — goes into `.camera-frame`.
- */
 type StereoMount = (frame: HTMLElement) => () => void;
 
-/**
- * Renders the interface once per eye (rules.md).
- *
- * The eye is the black stage. `mount` receives only `.camera-frame`, so
- * widgets resize and clip with the square Core names. Both copies are
- * filled by the same function reading the same stores, so they show the
- * same markup by construction. Both stay interactive.
- */
-/** Grows the CSS eye past the GL viewport so a 1px raster gap cannot leak. */
 const EYE_BLEED = 3;
 
 const eyeBox = (eye: { x: number; y: number; width: number; height: number }): Record<string, string> => ({
@@ -47,7 +31,6 @@ const placeFrame = (
   mapper: CoordinateMapper,
   eye: { width: number; height: number },
 ): void => {
-  // A full-screen plugin view takes the whole eye, not just the camera square.
   const fill = useSharedUiStore.getState().fillFrame;
   node.dataset.fill = String(fill);
   if (fill) {
@@ -80,8 +63,6 @@ export const StereoView = (
   const host = el("div", { className: "stereo-dom" });
   parent.append(host);
 
-  // A mouse hovers one copy only, and `:hover` lives on that element alone.
-  // The same chain is marked in every other eye so both light up (rules.md).
   let mouseTwins: Element[] = [];
   const onPointerOver = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return;
@@ -131,9 +112,6 @@ export const StereoView = (
       const frame = el("div", { className: "camera-frame" });
       placeFrame(frame, options.mapper, eye);
       turnBox.append(frame);
-      // Above the interface in z-order whatever it does: the cursor is always on top. It sits beside the
-      // turned box, not in it: the hand is placed on the camera picture, which the quarter-turn does not
-      // rotate, so inside the turn the cursor would be swung a quarter-turn away from the hand.
       const cursor = CursorOverlay();
       box.append(turnBox, cursor.root);
       host.append(box);

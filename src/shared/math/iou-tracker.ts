@@ -13,11 +13,6 @@ const intersectionOverUnion = (a: NormalizedRect, b: NormalizedRect): number => 
 
 type Track = { id: string; rect: NormalizedRect; missedFrames: number };
 
-/**
- * Greedy IoU tracker. Detectors emit unordered boxes every frame; without stable
- * ids the overlay would recreate and re-animate every box, and selection would
- * jump between objects.
- */
 export class IouTracker {
   private readonly tracks: Track[] = [];
   private counter = 0;
@@ -27,7 +22,6 @@ export class IouTracker {
     private readonly maxMissedFrames = 6,
   ) {}
 
-  /** Returns one stable id per input rect, in the same order. */
   assign(rects: readonly NormalizedRect[]): readonly string[] {
     const used = new Set<string>();
     const ids: string[] = [];

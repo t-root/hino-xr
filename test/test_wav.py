@@ -1,4 +1,3 @@
-"""PCM WAV packing matches the header the assistant expects."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""The assistant looking at a picture of the screen, and the one AI a plugin may use: two stages, kept apart."""
 
 from __future__ import annotations
 
@@ -57,7 +56,7 @@ class ScreenTest(unittest.TestCase):
             os.environ.pop(key, None)
         os.environ["VR_VISION_URL"] = self.url
         os.environ["VR_PLUGIN_CHAT_URL"] = self.url
-        os.environ["VR_ACCESS"] = "on"  # the key check is off by default; this test is about it refusing the network
+        os.environ["VR_ACCESS"] = "on"
         ai.config.reset()
         SEEN.clear()
 
@@ -91,7 +90,6 @@ class ScreenTest(unittest.TestCase):
         with self.assertRaises(vision.VisionError):
             vision.ask_screen(JPEG, "x", "en")
 
-    # the endpoints
 
     def call(self, path: str, body: dict, client: str = "127.0.0.1") -> tuple[int, dict]:
         sent: list[dict] = []
@@ -119,7 +117,7 @@ class ScreenTest(unittest.TestCase):
         self.assertEqual(self.call("/api/assistant/screen", {**good, "image": "not base64!"})[0], 400)
         too_big = base64.b64encode(b"x" * (vision.MAX_IMAGE + 1)).decode()
         self.assertEqual(self.call("/api/assistant/screen", {**good, "image": too_big})[0], 413)
-        self.assertEqual(self.call("/api/assistant/screen", good, client="192.168.1.9")[0], 401)  # the screen is not for the network
+        self.assertEqual(self.call("/api/assistant/screen", good, client="192.168.1.9")[0], 401)
 
     def test_a_failure_is_a_503_with_the_reason(self) -> None:
         os.environ["VR_VISION_URL"] = "http://127.0.0.1:1/v1"
@@ -128,7 +126,7 @@ class ScreenTest(unittest.TestCase):
         self.assertIn("vision", body["detail"])
 
     def test_a_plugin_asks_the_plugin_stage_and_never_the_assistants(self) -> None:
-        os.environ["VR_CHAT_URL"] = "http://127.0.0.1:1/v1"  # Hino's own answering is down: the plugin is not affected
+        os.environ["VR_CHAT_URL"] = "http://127.0.0.1:1/v1"
         status, body = self.call("/api/plugin-ai/chat", {"messages": [{"role": "user", "content": "xin chào"}]})
         self.assertEqual(status, 200)
         self.assertIn("Lỗi 404", body["text"])
@@ -141,7 +139,6 @@ class ScreenTest(unittest.TestCase):
 
 
 class SightWordsTest(unittest.TestCase):
-    """The camera looks that remain are the scene and the code; the rest is the assistant's, at the screen."""
 
     def look(self, line: str, locale: str = "vi") -> str | None:
         out = sight.sight_command(line, locale)

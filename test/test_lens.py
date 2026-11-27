@@ -1,4 +1,3 @@
-"""Lens optics must not darken or digitally zoom the camera picture."""
 
 from __future__ import annotations
 
@@ -38,8 +37,6 @@ class LensNoZoomTest(unittest.TestCase):
         self.assertNotIn("lensCenterOffset", video)
 
     def test_k1_k2_keep_the_camera_edge_from_zooming(self) -> None:
-        # Mid-edge of a square eye must still sample the mid-edge after barrel,
-        # otherwise k1/k2 shrink the picture like a zoom.
         k1, k2 = 0.3, 0.1
         uv = (1.0, 0.5)
         center = (0.5, 0.5)

@@ -1,4 +1,3 @@
-"""The system starts on "system call", the assistant listens after its name."""
 
 from __future__ import annotations
 
@@ -100,12 +99,10 @@ class FlowTest(unittest.TestCase):
         start = self.app[self.app.index("const handleStart") : self.app.index("const handleSettings")]
         self.assertIn('setMode("stereo")', start)
         self.assertIn("runtime.startCamera()", start)
-        # The two eyes are built whenever the session is: waiting to be called counts as one.
         self.assertIn("starting || armed || running", self.app)
         camera = self.runtime[self.runtime.index("const startCamera") : self.runtime.index("const startHands")]
         self.assertIn("videoLayer.mesh.visible = true", camera)
         self.assertIn("frameHub.start()", camera)
-        # What waits for the call is drawn inside the eyes, never what makes them.
         eyes = self.app[self.app.index("const mountEyes") : self.app.index("const showStart")]
         self.assertNotIn("StereoView", eyes)
 

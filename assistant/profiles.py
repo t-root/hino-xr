@@ -54,7 +54,6 @@ def stages_file() -> Path:
 
 
 def wanted(entry: dict) -> bool:
-    """Whether an entry of `downloads.json` belongs to the profile in use (its `profile` lists the profiles; none means both)."""
     return name() in entry.get("profile", PROFILES)
 
 
@@ -66,10 +65,8 @@ def tunnel() -> bool:
 
 
 def host() -> str:
-    """Where the server listens: this machine only behind the tunnel (a rented server opens no port), else the network."""
     return "127.0.0.1" if is_gpu() else "0.0.0.0"
 
 
 def https() -> bool:
-    """The cpu profile serves HTTPS itself (a phone's camera needs it); the gpu profile's HTTPS is the tunnel's."""
     return not is_gpu()

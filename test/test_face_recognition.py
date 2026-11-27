@@ -1,4 +1,3 @@
-"""Face recognition is one plugin, in one folder, that keeps people on the server and never a picture of a face."""
 
 from __future__ import annotations
 
@@ -14,7 +13,7 @@ PLUGIN = SRC / "modules" / "face-recognition"
 class PluginTest(unittest.TestCase):
     def test_it_replaced_the_old_detector_rather_than_joining_it(self) -> None:
         self.assertFalse((SRC / "modules" / "face-detection").exists())
-        self.assertTrue((SRC / "modules" / "face-recognition" / "plugin.ts").is_file())  # found from its folder, nothing lists it
+        self.assertTrue((SRC / "modules" / "face-recognition" / "plugin.ts").is_file())
 
     def test_every_file_the_code_names_is_declared_with_a_hash(self) -> None:
         declared = {item["file"]: item for item in json.loads((PLUGIN / "models.json").read_text(encoding="utf-8"))["files"]}

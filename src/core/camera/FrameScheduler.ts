@@ -6,19 +6,12 @@ export type ConsumerTiming = {
 };
 
 type SchedulerLoad = Readonly<{
-  /** Measured render FPS; drives adaptive downscaling of analysis rate. */
   renderFps: number;
-  /** False when the tab is hidden: analysis pauses entirely. */
   visible: boolean;
 }>;
 
 const TARGET_RENDER_FPS = 30;
 
-/**
- * Decides which consumers receive the current frame. Rendering always wins:
- * when render FPS drops the analysis quota shrinks proportionally instead of
- * letting inference steal frame time.
- */
 export class FrameScheduler {
   private load: SchedulerLoad = { renderFps: TARGET_RENDER_FPS, visible: true };
 
@@ -26,7 +19,6 @@ export class FrameScheduler {
     this.load = load;
   }
 
-  /** 1 at healthy render FPS, down to 0.25 when the renderer is struggling. */
   get adaptiveScale(): number {
     if (!this.load.visible) return 0;
     const ratio = this.load.renderFps / TARGET_RENDER_FPS;

@@ -1,7 +1,3 @@
-/**
- * The look of the plugin's screen, scoped under `.face-id` so none of it reaches the rest of the interface.
- * Colours are the interface's own (variables from the theme), sizes are shares of the screen box (cqi, cqb).
- */
 export const faceRecognitionCss = (): string => `
 .face-id {
   position: absolute;

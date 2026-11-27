@@ -1,4 +1,3 @@
-"""Noise is not a question: a line with no voice in it is never handed to Whisper."""
 
 from __future__ import annotations
 

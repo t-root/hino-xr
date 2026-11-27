@@ -1,4 +1,3 @@
-"""The spoken name is written once, in assistant.json."""
 
 from __future__ import annotations
 
@@ -57,8 +56,8 @@ class VoiceTuningTest(unittest.TestCase):
     def test_the_client_sends_the_voice_on_every_spoken_request(self) -> None:
         client = (SRC / "core/models/ModelClient.ts").read_text(encoding="utf-8")
         bridge = (SRC / "core/models/ModelBridge.ts").read_text(encoding="utf-8")
-        self.assertEqual(client.count("voiceQuery(voice)"), 4)  # complete, wake, talk, preview
-        self.assertEqual(bridge.count("this.voice()"), 5)  # wake, ask, talk, preview, acknowledge
+        self.assertEqual(client.count("voiceQuery(voice)"), 4)
+        self.assertEqual(bridge.count("this.voice()"), 5)
 
 
 class GreetingTest(unittest.TestCase):

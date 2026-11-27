@@ -1,8 +1,3 @@
-"""The one client every AI call goes through, for any stage and any endpoint that speaks the OpenAI HTTP API.
-
-Whoever serves a stage (llama.cpp here, or an API of somebody else) is `config.stage(name).url`; nothing below depends
-on it. A failed call raises `AIError` with a line for the log. There is no second source to fall back to.
-"""
 
 from __future__ import annotations
 
@@ -22,7 +17,7 @@ Message = dict[str, Any]
 
 
 class AIError(Exception):
-    """The call failed; the text is for the log."""
+    pass
 
 
 def _stage(name: str) -> config.Stage:
@@ -46,14 +41,13 @@ def _request(stage: config.Stage, path: str, data: bytes | None, content_type: s
     request = urllib.request.Request(stage.url + path, data=data, headers=headers, method="GET" if data is None else "POST")
     try:
         return urllib.request.urlopen(request, timeout=timeout)
-    except urllib.error.HTTPError as error:  # before URLError: it is a subclass
+    except urllib.error.HTTPError as error:
         raise AIError(f"{stage.name}: {path} answered {error.code}: {error.read()[:200]!r}") from error
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise AIError(f"{stage.name}: {path} failed: {error}") from error
 
 
 def _serve(stage: config.Stage) -> Any:
-    """Hold the stage's server for the length of the call. Starting it can fail, and that is an AIError too."""
     ready(stage.name)
     return servers.use(stage.server)
 
@@ -79,7 +73,6 @@ def chat(
     tools: list[dict[str, Any]] | None = None,
     timeout: float = CHAT_TIMEOUT_S,
 ) -> dict[str, Any]:
-    """One whole answer, as the endpoint sent it (an OpenAI chat completion)."""
     stage = _stage(name)
     try:
         with _serve(stage):
@@ -90,7 +83,6 @@ def chat(
 
 
 def chat_stream(name: str, messages: list[Message], max_tokens: int = 256, temperature: float = 0.5, timeout: float = CHAT_TIMEOUT_S) -> Iterator[str]:
-    """The answer a piece at a time, as it is written."""
     stage = _stage(name)
     with _serve(stage):
         with _request(stage, "/chat/completions", _body(stage, messages, max_tokens, temperature, True, None), "application/json", timeout) as response:
@@ -120,13 +112,11 @@ def _content(reply: dict[str, Any], name: str) -> str:
 
 
 def text(name: str, system: str, user: str, max_tokens: int, timeout: float = 300) -> str:
-    """A single question with a system line, answered whole: what plugin writing needs."""
     reply = chat(name, [{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens, 0.3, timeout=timeout)
     return _content(reply, name)
 
 
 def see(name: str, image_jpeg: bytes, prompt: str, max_tokens: int = 300) -> str:
-    """A question about one picture, answered by a model that reads pictures (an `image_url` data URI)."""
     uri = "data:image/jpeg;base64," + base64.b64encode(image_jpeg).decode("ascii")
     reply = chat(
         name,
@@ -143,15 +133,8 @@ def _field(boundary: str, field: str, value: str) -> bytes:
 
 
 def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None = None, careful: bool = False) -> str:
-    """Speech to text (`/audio/transcriptions`). `prompt` is the words to expect; `careful` weighs more candidates.
-
-    What the wearer says to the assistant (`careful`) is the `stt` stage; the short checks for the call word ("hino", "stop"),
-    which run on every line the microphone cuts, are `stt_wake`: the same model unless a lighter one is set for it.
-    """
     stage = _stage("stt" if careful else "stt_wake")
     boundary = uuid.uuid4().hex
-    # A question to the assistant comes back with how sure the recogniser was of each stretch, so a line it made up out of
-    # noise ("Lịt cao gấp các blog...") can be dropped instead of being answered. Only whisper.cpp of this machine says so.
     scored = careful and bool(stage.server)
     parts = [
         _field(boundary, "model", stage.model),
@@ -163,7 +146,7 @@ def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None
     if prompt:
         parts.append(_field(boundary, "prompt", prompt[:224]))
     if careful and stage.server:
-        parts.append(_field(boundary, "beam_size", "5"))  # whisper.cpp's own field; an API of somebody else has no such thing
+        parts.append(_field(boundary, "beam_size", "5"))
     parts += [
         f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="in.wav"\r\nContent-Type: audio/wav\r\n\r\n'.encode(),
         wav_bytes,
@@ -182,15 +165,12 @@ def transcribe(wav_bytes: bytes, language: str | None = None, prompt: str | None
     return heard
 
 
-# What a recogniser's own doubt is worth. whisper.cpp's average log-probability of clear speech is about -0.2 to -0.5;
-# a line made up out of noise or mumbling sits well below. Raise the floor (closer to 0) to drop more, lower it to drop less.
 MIN_LOGPROB = float(os.environ.get("VR_STT_MIN_LOGPROB", "-0.9"))
-STT_TIMEOUT_S = float(os.environ.get("VR_STT_TIMEOUT_S", "60"))  # how long one stretch of speech may take to be written down
+STT_TIMEOUT_S = float(os.environ.get("VR_STT_TIMEOUT_S", "60"))
 MAX_NO_SPEECH = float(os.environ.get("VR_STT_MAX_NO_SPEECH", "0.6"))
 
 
 def _unsure(answer: dict[str, Any]) -> bool:
-    """True when the recogniser itself doubted what it wrote: low average confidence, or a stretch it thinks is not speech."""
     segments = [item for item in answer.get("segments") or [] if isinstance(item, dict)]
     scores = [float(item["avg_logprob"]) for item in segments if isinstance(item.get("avg_logprob"), (int, float))]
     silence = [float(item["no_speech_prob"]) for item in segments if isinstance(item.get("no_speech_prob"), (int, float))]
@@ -200,7 +180,6 @@ def _unsure(answer: dict[str, Any]) -> bool:
 
 
 def speak(text_to_say: str, speed: float = 1.0) -> bytes:
-    """Text to a WAV file (`/audio/speech`), for a `tts` stage that has an url."""
     stage = _stage("tts")
     body = {
         "model": stage.model,
@@ -218,7 +197,6 @@ def speak(text_to_say: str, speed: float = 1.0) -> bytes:
 
 
 def models(name: str) -> list[str]:
-    """The model ids the endpoint of a stage offers (`/models`)."""
     stage = _stage(name)
     with _serve(stage):
         with _request(stage, "/models", None, "application/json", 20) as response:
@@ -230,7 +208,6 @@ def models(name: str) -> list[str]:
 
 
 def ready(name: str) -> None:
-    """Make a stage usable now (start its server) without asking it anything. Raises AIError when it cannot be."""
     stage = _stage(name)
     if stage.server:
         try:

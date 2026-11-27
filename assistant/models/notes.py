@@ -1,11 +1,3 @@
-"""Notes and things to do, by voice: "ghi nhớ mua sữa", "đọc ghi chú", "xong việc số hai", "xóa ghi chú ba".
-
-Keyword commands like the rest (no language model decides anything), kept in `assistant/data/notes.json`
-(gitignored, written whole and then moved into place, so a cut power never leaves half a file). A list is
-read aloud a few items at a time and printed in full on the Assistant page.
-
-Clearing everything asks first, and waits for a "đúng" (a minute at most), as a change of model does.
-"""
 
 from __future__ import annotations
 
@@ -33,7 +25,6 @@ CONFIRM_FOR_S = 60
 _lock = threading.Lock()
 _pending: dict[str, Any] = {}
 
-# What starts a note, as the folded words that open the line; the rest of the line is the note.
 _ADD = (
     ("ghi", "nho"), ("ghi", "chu"), ("ghi", "lai"), ("luu", "lai"), ("nho", "la"), ("nho", "giup"), ("them", "viec"), ("them", "ghi", "chu"),
     ("them", "vao", "danh", "sach"), ("remember", "that"), ("remember", "to"), ("note", "that"), ("note", "to"), ("note", "down"),
@@ -158,23 +149,21 @@ def _number(words: list[str]) -> int | None:
 
 
 def _starts_note(words: list[str]) -> list[str] | None:
-    """What was to be remembered, when the line opens like a note; None when it does not."""
     folded = [_fold(word) for word in words]
     for verb in sorted(_ADD, key=len, reverse=True):
         if tuple(folded[: len(verb)]) == verb:
             rest = words[len(verb) :]
             break
     else:
-        return None  # "nhớ nhà quá" or "remember when" are talk, not notes: a note opens with one of the phrases above
+        return None
     if rest and _fold(rest[0]) in _ABOUT_A_NOTE:
-        return None  # "ghi chú này là gì": a question about a note, not a note
+        return None
     while rest and _fold(rest[0]) in _LINK:
         rest = rest[1:]
     return rest
 
 
 def _plain(text: str) -> str:
-    """Lower case, no accents, words only: what the patterns above are written against."""
     out = []
     for char in unicodedata.normalize("NFC", text):
         base = unicodedata.normalize("NFD", char)[0]
@@ -183,7 +172,6 @@ def _plain(text: str) -> str:
 
 
 def command(heard: str, locale: str) -> dict[str, Any] | None:
-    """The note command in `heard`, or None when it is an ordinary line."""
     words = heard.replace(",", " ").replace(":", " ").split()
     if not words:
         return None

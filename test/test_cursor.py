@@ -1,4 +1,3 @@
-"""The hand cursor is the topmost thing on screen, always (rules.md A0)."""
 
 from __future__ import annotations
 
@@ -20,7 +19,6 @@ class CursorOnTopTest(unittest.TestCase):
         self.assertIn("pointer-events: none", layer)
 
     def test_nothing_else_reaches_it(self) -> None:
-        # Everything in the interface, and in the plugins' own styles, stays below the cursor.
         files = [SRC / "ui/styles.css", *SRC.glob("modules/*/styles.ts"), *SRC.glob("modules/*/*.css")]
         for path in files:
             text = path.read_text(encoding="utf-8")
@@ -32,7 +30,6 @@ class CursorOnTopTest(unittest.TestCase):
     def test_the_cursor_is_dom_beside_the_frame_in_every_eye_not_a_mesh_in_the_scene(self) -> None:
         view = (SRC / "ui/components/StereoView.ts").read_text(encoding="utf-8")
         self.assertIn("CursorOverlay()", view)
-        # Appended after the camera frame, so it is above it whatever the frame holds.
         self.assertLess(view.index("turnBox.append(frame)"), view.index("turnBox.append(cursor.root)"))
         layer = (SRC / "core/rendering/CursorLayer.ts").read_text(encoding="utf-8")
         self.assertNotIn("three", layer)

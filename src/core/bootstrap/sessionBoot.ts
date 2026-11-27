@@ -12,10 +12,6 @@ type SessionBootInput = Readonly<{
 
 export type SessionBootStep = "camera" | "hands" | "assistant" | "voice" | "ready";
 
-/**
- * Camera, hands, the model servers, then HINO's first spoken line. Plugin detectors stay
- * out of this list. The world stays black until `ready`.
- */
 export const sessionBootStep = (input: SessionBootInput): SessionBootStep => {
   if (input.cameraState !== "ready") return "camera";
   if (input.settings.flags.handTracking && (input.handStatus === "idle" || input.handStatus === "loading")) {

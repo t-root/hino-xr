@@ -10,13 +10,10 @@ import text from "./text.json";
 
 const MAX_CODES = 4;
 
-/** A code leaves the frame and comes back; one seen this recently, ms, still counts as in view. */
 const IN_VIEW_MS = 3000;
 
-/** What is written over a box; a long address is cut, the whole of it is read out. */
 const LABEL_CHARS = 28;
 
-/** What is read aloud; a code can hold pages. */
 const SPEECH_CHARS = 200;
 
 const cut = (value: string, max: number): string => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
@@ -25,10 +22,6 @@ const words = text as unknown as Readonly<Record<string, Readonly<Record<"vi" | 
 
 type Seen = Readonly<{ text: string; format: string; at: number }>;
 
-/**
- * Reads QR codes and barcodes. The decoded text is written over the box; asked "read the code", the
- * assistant says what the one in view holds.
- */
 class CodeReaderModule implements VisionModule {
   readonly manifest = codeReaderManifest;
 
@@ -42,7 +35,6 @@ class CodeReaderModule implements VisionModule {
       options: { maxResults: MAX_CODES, scriptUrl: READER_SCRIPT_URL },
     },
     label: (_locale, detection) => cut(String(detection.attributes?.text ?? ""), LABEL_CHARS),
-    // A code held still is steady; one held through a few missed frames flickers less.
     maxMissedFrames: 6,
   });
 

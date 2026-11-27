@@ -1,4 +1,3 @@
-"""A turn of the assistant: the answer comes from the `chat` stage, and the voice is made on its own thread."""
 
 from __future__ import annotations
 
@@ -19,7 +18,6 @@ sys.path.remove(str(ASSISTANT))
 
 
 class AnswerTest(unittest.TestCase):
-    """What the engine asks of the stage, and what it does when the stage fails."""
 
     def setUp(self) -> None:
         self.engine = engine_module.Engine()
@@ -41,7 +39,7 @@ class AnswerTest(unittest.TestCase):
         self.ai.chat_stream = stream
         text = "".join(self.engine.generate(self.spec, [{"role": "user", "content": "hi"}], 9999, "en"))
         self.assertEqual(text, "Xin chào")
-        self.assertEqual(self.asked, [("chat", ["system", "user"], 512)])  # the length is capped
+        self.assertEqual(self.asked, [("chat", ["system", "user"], 512)])
         self.assertEqual(self.engine.state, "ready")
 
     def test_a_failed_stage_is_a_failed_state_and_a_RuntimeError(self) -> None:
@@ -78,7 +76,6 @@ class AnswerTest(unittest.TestCase):
 
 
 class PipelineTest(unittest.TestCase):
-    """The voice is made on its own thread: the model goes on writing while a sentence is being spoken."""
 
     def setUp(self) -> None:
         self.engine = engine_module.Engine()
@@ -111,9 +108,9 @@ class PipelineTest(unittest.TestCase):
             if event["type"] == "token":
                 times.append(time.monotonic() - start)
         audio = [e for e in events if e["type"] == "audio"]
-        self.assertEqual(len(audio), 3)  # every sentence is spoken, in order
+        self.assertEqual(len(audio), 3)
         self.assertEqual([e["text"].strip()[:3] for e in audio], ["Xin", "Hôm", "Mìn"])
-        self.assertLess(times[-1], 0.25)  # the last token came before the first sentence was even spoken
+        self.assertLess(times[-1], 0.25)
 
     def test_a_turn_leaves_its_timings(self) -> None:
         timing.begin()

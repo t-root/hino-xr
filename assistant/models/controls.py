@@ -1,17 +1,3 @@
-"""Spoken commands that work the menu: "tăng tốc độ đọc", "tắt chẩn đoán", "mở mục giọng đọc".
-
-The page sends what it can be told to do (`controls`: a name or two in each language,
-what kind of thing it is, its range and where it stands now). The verdict is a finished
-value, worked out here, so what the assistant says back ("đã đặt tốc độ đọc một phẩy hai")
-is exactly what the page then does. Words are matched by sound-alike letters, as in
-`commands.py`; nothing here knows any particular setting.
-
-Kinds:
-- `number`: min, max, step, value, default. Said as "tăng/giảm", "đặt … 20", "tối đa", "mặc định", "50 phần trăm".
-- `toggle`: value true/false. "bật", "tắt", "mở", "đóng".
-- `choice`: options, each with its own names. "chuyển sang tiếng Anh".
-- `page`: a menu entry to open. Needs the word "mục" ("mở mục giọng đọc").
-"""
 
 from __future__ import annotations
 
@@ -73,7 +59,6 @@ _SAY: dict[str, dict[str, str]] = {
 
 
 def parse_controls(raw: Any) -> list[dict[str, Any]]:
-    """Keeps only well-formed entries; the page is trusted no further than that."""
     if not isinstance(raw, list):
         return []
     kept: list[dict[str, Any]] = []
@@ -110,7 +95,6 @@ def parse_controls(raw: Any) -> list[dict[str, Any]]:
 
 
 def _unit(raw: Any) -> dict[str, str]:
-    """The unit said in each language; a bare string is the same in both."""
     if isinstance(raw, dict):
         return {lang: str(raw.get(lang, ""))[:30] for lang in ("vi", "en")}
     text = str(raw or "")[:30]
@@ -197,7 +181,6 @@ def _toggle_command(entry: dict[str, Any], heard_set: set[str], locale: str) -> 
     else:
         return None
     name = _label(entry, locale)
-    # Something that opens and closes (the menu) is told as "opened", not "turned on".
     keys = ("already_open", "already_closed", "opened", "closed") if entry.get("open") else ("already_on", "already_off", "on", "off")
     if want == entry["value"]:
         reply = say[keys[0] if want else keys[1]].format(name=name)
@@ -207,11 +190,6 @@ def _toggle_command(entry: dict[str, Any], heard_set: set[str], locale: str) -> 
 
 
 def control_command(heard: str, controls: list[dict[str, Any]], locale: str) -> dict[str, Any] | None:
-    """The menu command in `heard`, or None when the line is an ordinary question.
-
-    The result is `{"action": "setting", "id", "value", "reply"}`; `value` is a number,
-    a bool, an option's value, or True for a page to open.
-    """
     words = heard.replace("-", " ").split()
     if not words or not controls:
         return None

@@ -6,7 +6,6 @@ type TextKey = keyof typeof text;
 
 type Child = Node | string | null | undefined | false;
 
-/** `document.createElement` with a class and children, nothing more. */
 export const h = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className = "",
@@ -18,10 +17,6 @@ export const h = <K extends keyof HTMLElementTagNameMap>(
   return node;
 };
 
-/**
- * The lucide icons the original used, at the original 14px. Drawn with
- * `currentColor`, so they take the colour of the button they sit in.
- */
 const ICONS = {
   chevronLeft: '<path d="m15 18-6-6 6-6"/>',
   chevronRight: '<path d="m9 18 6-6-6-6"/>',
@@ -42,12 +37,6 @@ export const icon = (name: IconName): SVGSVGElement => {
   return template.content.firstElementChild as SVGSVGElement;
 };
 
-/**
- * Every visible word, in the language the interface is in. Whatever reads text
- * registers how to redraw itself, so a language changed while the screen was
- * hidden is picked up when it comes back. Each copy of the screen takes a
- * `scope()` and drops it when it is taken down, so nothing outlives its copy.
- */
 export class Words {
   private readonly updates = new Set<() => void>();
   private readonly children = new Set<Words>();
@@ -67,13 +56,11 @@ export class Words {
     return fill(text[key][this.locale()], values);
   }
 
-  /** Runs `update` now and again on every `refresh`. */
   bind(update: () => void): void {
     this.updates.add(update);
     update();
   }
 
-  /** A text node that follows the language. */
   node(key: TextKey): Text {
     const node = document.createTextNode("");
     this.bind(() => {
@@ -94,24 +81,16 @@ export class Words {
   }
 }
 
-/** `isShow` of the original buttons. */
 export const show = (node: HTMLElement, visible: boolean): void => {
   node.dataset.show = String(visible);
 };
 
-/** Open, and whether the fade out is playing. Shared by every copy. */
 export type ModalState = Readonly<{ open: boolean; closing: boolean }>;
 
 export const MODAL_CLOSED: ModalState = { open: false, closing: false };
 
-/** How long the original let the fade out play before hiding, ms. */
 export const MODAL_CLOSE_DELAY_MS = 280;
 
-/**
- * One copy of the original modal: a dimmed backdrop and a card that slides in.
- * It only draws `ModalState`; clicking the backdrop asks for the close, which
- * the owner plays on every copy at once.
- */
 export class ModalView {
   readonly root: HTMLDivElement;
 

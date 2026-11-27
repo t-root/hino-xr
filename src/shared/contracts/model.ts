@@ -1,9 +1,3 @@
-/**
- * Language-model slots as the web is allowed to see them.
- *
- * Weights, tokenisers, chat templates, speech-to-text and text-to-speech live
- * on the Core model server. This file is only the JSON the bridge already speaks.
- */
 export type ModelState =
   | "offline"
   | "idle"
@@ -44,11 +38,9 @@ export type AssistantSnapshot = Readonly<{
   voice: VoiceState;
   heard: string;
   reply: string;
-  /** Turns shown in the headset. The live reply is the last assistant line while generating. */
   messages: readonly ChatMessage[];
   voiceIssue: VoiceIssue | null;
   catalog: readonly ModelInfo[];
-  /** True after the first wake (or a failed wake). Load-to-ready is not a greeting. */
   greeted: boolean;
 }>;
 

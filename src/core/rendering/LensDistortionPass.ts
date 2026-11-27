@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { DEFAULT_LENS, type LensSettings } from "../state/settings";
 import type { EyeRect } from "./StereoLayout";
 
-const VERTEX_SHADER = /* glsl */ `
+const VERTEX_SHADER =  `
 varying vec2 vUv;
 void main() {
   vUv = uv;
@@ -10,16 +10,7 @@ void main() {
 }
 `;
 
-/**
- * Barrel pre-distortion. A magnifying lens bends straight lines outward
- * (pincushion), so the image is bent inward by the same amount first and the
- * two cancel.
- *
- * This pass must not darken or zoom the camera: no black fill, no vignette,
- * no extra scale. Out-of-range samples clamp to the edge. k1/k2 only bend
- * lines — the mid-edge of the picture still maps to the mid-edge of the eye.
- */
-const FRAGMENT_SHADER = /* glsl */ `
+const FRAGMENT_SHADER =  `
 precision highp float;
 uniform sampler2D tDiffuse;
 uniform vec2 uCenter;
@@ -42,16 +33,7 @@ void main() {
 }
 `;
 
-/**
- * Renders one eye through the headset optics.
- *
- * The eye is drawn into an off-screen target, then blitted into its viewport
- * through the distortion shader. Both eyes go through the same pass with the
- * same numbers — only the lens centre is mirrored — so warping cannot make the
- * two views disagree (rules.md).
- */
 export class LensDistortionPass {
-  /** Public so the optics can be inspected without reaching into the pass. */
   readonly material: THREE.ShaderMaterial;
 
   private readonly quadScene = new THREE.Scene();
@@ -87,13 +69,7 @@ export class LensDistortionPass {
     this.quadScene.add(this.quad);
   }
 
-  /**
-   * True while the optics do nothing observable, so the renderer can skip
-   * a full-screen copy per eye.
-   */
   get isNeutral(): boolean {
-    // k1/k2 bow the camera picture on the video plane, not this full-eye copy.
-    // A blit here would slide the square away from the DOM frame.
     return true;
   }
 
@@ -104,7 +80,6 @@ export class LensDistortionPass {
     uniforms.uK2!.value = lens.k2;
   }
 
-  /** Sized to one eye: both eyes are identical, so a single target serves both. */
   setEyeSize(widthPx: number, heightPx: number): void {
     const width = Math.max(Math.floor(widthPx), 1);
     const height = Math.max(Math.floor(heightPx), 1);
@@ -113,10 +88,6 @@ export class LensDistortionPass {
     this.material.uniforms.uAspect!.value = width / height;
   }
 
-  /**
-   * `centreDirection` is -1 for the left eye and +1 for the right, so a single
-   * offset moves both lens centres outward symmetrically.
-   */
   render(
     renderer: THREE.WebGLRenderer,
     scene: THREE.Scene,

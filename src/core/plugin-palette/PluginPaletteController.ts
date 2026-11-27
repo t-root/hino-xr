@@ -2,9 +2,6 @@ import type { PluginPaletteItem, PluginPaletteController as Controller } from "@
 import type { ModuleManager } from "../modules/ModuleManager";
 import type { ModuleRegistry } from "../modules/module-registry";
 
-/**
- * Plugin list for the settings menu. There is no 3D palette of cards.
- */
 export class PluginPaletteController implements Controller {
   constructor(
     private readonly registry: ModuleRegistry,

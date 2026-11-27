@@ -1,4 +1,3 @@
-"""Always the widest rear camera, never telephoto, never a zoomed stream."""
 
 from __future__ import annotations
 
@@ -11,7 +10,6 @@ from helpers import SRC
 
 
 def score_world_camera(label: str) -> int:
-    """Must match `src/core/camera/pickWorldCamera.ts`."""
     text = "".join(
         char for char in unicodedata.normalize("NFD", label.lower()) if unicodedata.category(char) != "Mn"
     )

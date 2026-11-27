@@ -1,4 +1,3 @@
-"""The menu can be worked by voice: the server turns a spoken line into a finished value."""
 
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-"""MediaPipe WASM and models are served from this origin, as classic workers."""
 
 from __future__ import annotations
 

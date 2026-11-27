@@ -1,4 +1,3 @@
-"""UI review checklist from the plan: one colour, no icons, translucent, square."""
 
 from __future__ import annotations
 
@@ -16,7 +15,6 @@ GLYPHS = re.compile(
 
 def without_comments(text: str) -> str:
     return re.sub(r"/\*[\s\S]*?\*/", "", text)
-    # line comments stripped below
 
 
 class DesignSystemTest(unittest.TestCase):
@@ -72,7 +70,6 @@ class DesignSystemTest(unittest.TestCase):
         self.assertNotRegex(self.styles, r"\.boot-hud[^{]*\{[^}]*\b(vw|vh|vmin)\b")
         self.assertIn(".camera-frame", self.styles)
         self.assertIn("container-type: size", self.styles)
-        # Container queries belong to the camera picture, not the black eye square.
         camera = self.styles.split(".camera-frame {", 1)[1].split("}", 1)[0]
         self.assertIn("container-type: size", camera)
         self.assertNotIn("background", camera)
@@ -88,7 +85,6 @@ class DesignSystemTest(unittest.TestCase):
         styles = next(file["text"] for file in self.sources if file["id"] == "ui/styles.css")
         veil = styles.split(".start__veil {", 1)[1].split("}", 1)[0]
         self.assertIn("opacity: 0.5", veil)
-        # The cursor is square brackets and squares, never a circle (it would read as a mouse pointer).
         cursor = next(file["text"] for file in self.sources if file["id"] == "ui/panels/CursorOverlay.ts")
         self.assertRegex(cursor, r"cursor__corner")
         self.assertNotRegex(styles.split(".cursor-layer {", 1)[1], r"border-radius")

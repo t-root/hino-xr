@@ -13,20 +13,13 @@ export type { StereoMode };
 
 type RenderTick = Readonly<{ nowMs: number; deltaMs: number }>;
 
-/** Mirrors the lens centre offset outward, so one setting serves both eyes. */
 const CENTRE_DIRECTION = { left: -1, right: 1, center: 0 } as const;
 
-/**
- * Draws the shared scene once per eye into a side-by-side canvas. The render
- * loop has absolute priority: nothing here awaits inference or module work.
- */
 export class StereoRenderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly renderScene: RenderScene;
   readonly mapper = new CoordinateMapper();
-  /** Geometry shared with the DOM interface so both eyes stay identical. */
   readonly layout = new StereoLayout("mono");
-  /** Cyclops camera used for hit-testing so both eyes agree on the target. */
   readonly centerCamera: THREE.PerspectiveCamera;
 
   private readonly leftCamera: THREE.PerspectiveCamera;
@@ -63,10 +56,6 @@ export class StereoRenderer {
     this.renderer.domElement.style.display = "block";
     this.renderer.domElement.style.width = "100%";
     this.renderer.domElement.style.height = "100%";
-    // The interface sits on top of this canvas in the tree, but hit-testing a
-    // hand goes through `elementFromPoint`, which returns the topmost element
-    // that accepts pointer events. If the canvas claims them, every pinch lands
-    // on WebGL and no button ever hears about it.
     this.renderer.domElement.style.pointerEvents = "none";
     container.appendChild(this.renderer.domElement);
 
@@ -174,7 +163,6 @@ export class StereoRenderer {
     const deltaMs = nowMs - this.lastFrameMs;
     this.lastFrameMs = nowMs;
 
-    // A gap far above the display interval means the browser skipped frames.
     if (deltaMs > 50) this.droppedFrames += Math.round(deltaMs / 16.7) - 1;
     this.fps = this.fps === 0 ? 1000 / deltaMs : this.fps * 0.9 + (1000 / deltaMs) * 0.1;
 
@@ -220,7 +208,6 @@ export class StereoRenderer {
     if (neutral) this.renderer.setScissorTest(true);
 
     for (const eye of this.layout.eyes) {
-      // Layout rectangles are measured from the top; GL measures from the bottom.
       const y = size.y - eye.y - eye.height;
       const camera = cameras[eye.id] as THREE.PerspectiveCamera;
 

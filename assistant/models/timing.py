@@ -1,10 +1,3 @@
-"""How long each part of a spoken turn took, so "it is slow" can be told apart: the model or the machine.
-
-One turn is: the microphone line is turned into text (listen), the model starts writing (first word) and
-goes on at some speed (tokens a second), and each sentence is turned into speech (speak). `begin()` opens a
-turn, the engine notes what it measured, `finish()` prints one line to the log and keeps it as `last` for the
-setup card (`modelswitch.status`). Only the latest turn is kept; there is one wearer.
-"""
 
 from __future__ import annotations
 
@@ -32,7 +25,6 @@ def note(key: str, value: Any) -> None:
 
 @contextmanager
 def measure(key: str) -> Iterator[None]:
-    """Time a block into `key` (listen); each use of "speak" adds one sentence."""
     start = time.monotonic()
     try:
         yield
@@ -53,10 +45,6 @@ def tokens(count: int, first: float | None, write: float | None) -> None:
 
 
 def finish() -> str | None:
-    """Close the turn: one line in the log, the numbers kept for the setup card, and the line returned.
-
-    Closing a turn that is already closed does nothing and returns None.
-    """
     global _turn, last
     with _lock:
         turn, _turn = _turn, None
@@ -76,7 +64,6 @@ def _rate(turn: dict[str, Any]) -> float | None:
 
 
 def line(turn: dict[str, Any]) -> str:
-    """The turn in English, for the log: a console line, not something to read aloud."""
     parts = []
     if turn["listen"] is not None:
         parts.append(f"listen {turn['listen']:.1f}s")
@@ -92,7 +79,6 @@ def line(turn: dict[str, Any]) -> str:
 
 
 def summary(locale: str) -> str | None:
-    """The last turn for the screen, in the wearer's language; None before any turn."""
     turn = last
     if not turn:
         return None

@@ -2,7 +2,6 @@ import type { Handedness } from "@/shared/contracts/input";
 import { useCursorStore } from "@/core/state/CursorStore";
 import { el } from "../dom";
 
-/** A press that landed is shown as a square burst for this long, ms. */
 const FLASH_MS = 240;
 
 type Parts = Readonly<{ root: HTMLElement; frame: HTMLElement; pip: HTMLElement; grip: HTMLElement; flash: HTMLElement }>;
@@ -23,13 +22,6 @@ const size = (node: HTMLElement, px: number): void => {
   node.style.height = `${px}px`;
 };
 
-/**
- * The hand cursors of one eye: four corner brackets, a square pip that fills as a hold runs, a larger square
- * while dragging, and a one-shot burst when a press lands. One colour, nothing looping.
- *
- * It is the topmost thing in the eye, above the interface and every plugin screen, and it takes no presses
- * (rules.md A1). Every eye draws the same frame from `useCursorStore`, so both always agree.
- */
 export const CursorOverlay = (): Readonly<{ root: HTMLElement; dispose: () => void }> => {
   const root = el("div", { className: "cursor-layer" });
   const parts = new Map<Handedness, Parts>();

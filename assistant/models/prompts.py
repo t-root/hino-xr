@@ -1,4 +1,3 @@
-"""What the language model is told. The spoken name comes from assistant.json."""
 
 from __future__ import annotations
 
@@ -11,10 +10,6 @@ _DAYS_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 
 
 def _now_line(locale: str) -> str:
-    """Today's date and the time, to the minute: a model cannot know them, and "what time is it" is asked a lot.
-
-    It is the last thing in the prompt so the part before it stays the same and can be reused between questions.
-    """
     now = time.localtime()
     if locale == "en":
         return f" It is now {_DAYS_EN[now.tm_wday]}, {now.tm_year}-{now.tm_mon:02d}-{now.tm_mday:02d}, {now.tm_hour:02d}:{now.tm_min:02d} local time."
@@ -25,7 +20,6 @@ def _now_line(locale: str) -> str:
 
 
 def system_prompt(locale: str = "vi") -> str:
-    """The reply is heard, not read, so it is asked for in the wearer's own language."""
     name = assistant_name()
     if locale == "en":
         return (

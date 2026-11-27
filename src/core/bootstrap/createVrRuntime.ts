@@ -11,6 +11,7 @@ import { InteractionManager } from "../input/InteractionManager";
 import { InteractiveRegistry } from "../input/InteractiveRegistry";
 import { MediaController } from "../media/MediaController";
 import { setCameraView } from "../screen/ScreenCapture";
+import { LivePlugins } from "../modules/LivePlugins";
 import { ModuleManager } from "../modules/ModuleManager";
 import { ModuleRegistry } from "../modules/module-registry";
 import { ModuleScreenHost } from "../modules/ModuleScreenHost";
@@ -31,7 +32,6 @@ import { DeviceAccess } from "../device/DeviceAccess";
 import { AutoOrientation } from "../view/AutoOrientation";
 import { ModelBridge } from "../models/ModelBridge";
 import { WakeController } from "../models/WakeController";
-import { registerBuiltInModules } from "@/modules/registry";
 
 type VrRuntime = Readonly<{
   bus: TypedEventBus<RuntimeEvents>;
@@ -39,35 +39,19 @@ type VrRuntime = Readonly<{
   registry: ModuleRegistry;
   modules: ModuleManager;
   renderer: StereoRenderer;
-  /** Video and embedded content, kept in sync across eyes (rules.md). */
   media: MediaController;
-  /** Puts plugin screens into one eye's camera frame; called per eye. */
   mountScreens: (frame: HTMLElement) => () => void;
-  /** Language models on the Core server. The web only posts messages. */
   models: ModelBridge;
-  /** What the microphone is waiting for: "system call", then the assistant's name. */
   wake: WakeController;
-  /**
-   * Sensor, location and wake-lock prompts. Must run inside the Start tap,
-   * before fullscreen or the camera spend that gesture.
-   */
   claimDeviceAccess: () => Promise<void>;
-  /** Opens the camera and starts the picture. Nothing else is switched on. */
   startCamera: (request?: CameraRequest) => Promise<void>;
-  /** The rest of the system: hand tracking. Called once the wearer has said "system call". */
   startHands: () => Promise<void>;
   stop: () => void;
   applySettings: (settings: Settings) => void;
-  /** Show the camera after boot; the world stays black until this is called. */
   revealWorld: () => void;
   dispose: () => void;
 }>;
 
-/**
- * Composition root. Every dependency is created and wired here so the rest of
- * the codebase never reaches for a global, and the whole runtime can be torn
- * down deterministically.
- */
 export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   const store = useRuntimeStore.getState();
   let settings = loadSettings();
@@ -104,15 +88,12 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     () => settings.cursor.opacity,
     () => settings.cursor.scale,
   );
-  // Detection boxes live on the video plane, so both eyes draw them from the
-  // one scene graph with the right parallax (rules.md).
   const overlay = new OverlayRenderer(renderer.renderScene.overlayRoot, renderer.mapper, registry);
   overlay.setMaxBatchAge(settings.render.maxBatchAgeMs);
   const hitTest = new HitTestService(registry, renderer.centerCamera, renderer.mapper);
   const surface = new DomPointerSurface(container.ownerDocument, (point) => {
     const image = { x: point.x, y: point.y };
     if (!useSharedUiStore.getState().fillFrame) return renderer.mapper.imageToFrame(image);
-    // The frame is the whole eye: the hand lands where the cursor is drawn, in eye space.
     const ndc = renderer.mapper.displayToNdc(renderer.mapper.imageToDisplay(image));
     return { x: (ndc.x + 1) / 2, y: (1 - ndc.y) / 2 };
   });
@@ -128,8 +109,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     surface,
   );
 
-  // Third-party embeds live here: inside the stage, so they sit under the
-  // interface, and outside the per-eye boxes, so they are never duplicated.
   const embedHost = document.createElement("div");
   embedHost.className = "embed-host";
   container.appendChild(embedHost);
@@ -143,8 +122,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     metrics,
   });
 
-  // A plugin screen covers the menu it was switched on from, so opening one
-  // closes the menu; the snap or the screen's own close button brings it back.
   const screens = new ModuleScreenHost(
     (id) => void modules.disable(id),
     () => useSharedUiStore.getState().setMenuOpen(false),
@@ -152,7 +129,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   );
 
   const moduleRegistry = new ModuleRegistry();
-  registerBuiltInModules(moduleRegistry);
   const modules = new ModuleManager(
     bus,
     moduleRegistry,
@@ -165,7 +141,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
 
   const palette = new PluginPaletteController(moduleRegistry, modules);
 
-  // "Turn on the map plugin", said aloud, ends here.
   models.setPluginHost({
     list: () =>
       palette.items().map((item) => ({ id: item.id, vi: item.title.vi, en: item.title.en, enabled: item.enabled })),
@@ -175,9 +150,11 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     command: (name, payload) => modules.command(name, payload),
   });
 
-  // The settings menu lists plugins. There is no 3D palette of cards.
   const publishPlugins = () => useRuntimeStore.getState().setPlugins(palette.items());
   publishPlugins();
+
+  const livePlugins = new LivePlugins(bus, moduleRegistry, modules, publishPlugins);
+  livePlugins.start();
 
   const handTracking = new HandTrackingService(bus, metrics);
 
@@ -195,7 +172,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
       useRuntimeStore.getState().setCameraState(state, message, deviceLabel);
     }),
     bus.on("module.state", ({ moduleId, state }) => {
-      // A plugin that stops reporting must not leave its boxes on the picture.
       if (state !== "ready") overlay.clearModule(moduleId);
       useRuntimeStore.getState().setModuleStatuses(modules.statuses());
       publishPlugins();
@@ -221,12 +197,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     bus.on("render.metrics", ({ fps, frameMs, droppedFrames }) => {
       useRuntimeStore.getState().setDiagnostics({ renderFps: fps, frameMs, droppedFrames });
     }),
-    // Surfaced in the diagnostics panel: without icons the user needs a written
-    // trace of what the hands are doing to learn the gestures.
     bus.on("gesture", (event) => {
-      // A snap points at nothing, so it means the same thing everywhere: show
-      // the menu, where every control lives. Core recognises it
-      // and says so; deciding what it does is this layer's business.
       if (event.type === "snap") useSharedUiStore.getState().toggleMenu();
       useRuntimeStore
         .getState()
@@ -235,13 +206,9 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     useLocaleStore.subscribe(() => publishPlugins()),
   ];
 
-  // Ten times a second is fast enough to watch fingers close and slow enough
-  // that the panel is readable; and it is only paid for while it is open.
   const PROBE_INTERVAL_MS = 100;
   let lastProbeMs = 0;
 
-  // Frames per second of each stage, counted over one-second windows: render alone says
-  // little when the camera or the hand tracker is what is slow.
   let rateSince = 0;
   const publishRates = (nowMs: number): void => {
     if (rateSince === 0) rateSince = nowMs;
@@ -310,9 +277,6 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     }
 
     const source = await camera.start(request);
-    // Turning the phone makes the browser hand over a differently shaped picture (landscape <-> portrait),
-    // a moment AFTER `orientationchange` and `resize` have fired: read then, the old shape was measured and
-    // the picture, the hands and the cursor stayed cropped for it. The video says when its size changes.
     stopWatchingVideo?.();
     source.video.addEventListener("resize", syncCameraOrientation);
     stopWatchingVideo = () => source.video.removeEventListener("resize", syncCameraOrientation);
@@ -405,6 +369,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     videoLayer.dispose();
     renderer.dispose();
     registry.clear();
+    livePlugins.stop();
     bus.clear();
   };
 

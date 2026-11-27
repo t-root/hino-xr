@@ -4,15 +4,9 @@ import type { VisionModule } from "./module-contract";
 
 export type ModuleRegistration = Readonly<{
   manifest: ModuleManifest;
-  /** Lazy factory so a module's model is only fetched when it is enabled. */
   load: () => Promise<VisionModule>;
 }>;
 
-/**
- * Catalogue of known modules. The Plugin Palette reads from here instead of
- * scanning files, and manifests are validated at registration so a malformed
- * module can never reach the runtime.
- */
 export class ModuleRegistry {
   private readonly registrations = new Map<string, ModuleRegistration>();
 
@@ -25,6 +19,22 @@ export class ModuleRegistry {
       throw new Error(`Module "${registration.manifest.id}" is already registered`);
     }
     this.registrations.set(registration.manifest.id, registration);
+  }
+
+  has(id: string): boolean {
+    return this.registrations.has(id);
+  }
+
+  replace(registration: ModuleRegistration): void {
+    const result = validateModuleManifest(registration.manifest);
+    if (!result.ok) {
+      throw new Error(`Invalid manifest for "${registration.manifest.id}": ${result.error}`);
+    }
+    this.registrations.set(registration.manifest.id, registration);
+  }
+
+  unregister(id: string): void {
+    this.registrations.delete(id);
   }
 
   get(id: string): ModuleRegistration | undefined {

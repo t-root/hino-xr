@@ -4,12 +4,6 @@ import { el, watch } from "../dom";
 import { watchLocale } from "../i18n/useText";
 import { paintDiagnosticsSection } from "./DiagnosticsSection";
 
-/**
- * The figures, parked in the top corner of the camera frame.
- *
- * Read-only on purpose. Turned on and off from the menu; every number comes
- * from the shared runtime store, so both copies always say the same thing.
- */
 export const DiagnosticsOverlay = (parent: ParentNode): (() => void) => {
   let hud: HTMLElement | null = null;
 

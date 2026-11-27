@@ -1,4 +1,3 @@
-"""Looking at and choosing models by voice: what each stage uses, what an endpoint has, and a change that waits for a yes."""
 
 from __future__ import annotations
 
@@ -69,7 +68,6 @@ class ModelSwitchTest(Env):
         cls.server.shutdown()
 
     def outside(self) -> None:
-        """Answering is served by an API of somebody else, which is the only kind of stage whose model can be changed."""
         os.environ.update(VR_CHAT_URL=self.url, VR_CHAT_KEY="sk-test", VR_CHAT_MODEL="Qwen/Qwen2.5-7B-Instruct")
         ai.config.reset()
 
@@ -77,14 +75,13 @@ class ModelSwitchTest(Env):
         out = switch.command(line, locale)
         return None if out is None else out["reply"]
 
-    # what there is
 
     def test_the_models_on_offer_are_read_out(self) -> None:
         self.outside()
         reply = self.say("có những model nào để trả lời")
         self.assertIn("4 model", reply)
         self.assertIn("trả lời", reply)
-        self.assertNotIn("Qwen/", reply)  # the maker's prefix is not read aloud
+        self.assertNotIn("Qwen/", reply)
 
     def test_a_name_narrows_the_list(self) -> None:
         self.outside()
@@ -95,16 +92,15 @@ class ModelSwitchTest(Env):
         os.environ["VR_CHAT_URL"] = "http://127.0.0.1:1/v1"
         self.assertIn("chưa tra được", self.say("có những model nào để trả lời"))
 
-    # changing one
 
     def test_a_change_waits_for_a_yes_and_then_happens(self) -> None:
         self.outside()
         ask = self.say("đổi model trả lời sang qwen 72b")
         self.assertIn("72B-Instruct", ask)
-        self.assertEqual(ai.stage("chat").model, "Qwen/Qwen2.5-7B-Instruct")  # not yet
+        self.assertEqual(ai.stage("chat").model, "Qwen/Qwen2.5-7B-Instruct")
         self.assertIn("Đã đổi", self.say("đúng rồi"))
         self.assertEqual(ai.stage("chat").model, "Qwen/Qwen2.5-72B-Instruct")
-        self.assertEqual(ai.stage("agent").model, "Qwen/Qwen2.5-72B-Instruct")  # the stages that follow it follow the choice
+        self.assertEqual(ai.stage("agent").model, "Qwen/Qwen2.5-72B-Instruct")
 
     def test_a_no_leaves_the_model_as_it_was(self) -> None:
         self.outside()
@@ -141,7 +137,6 @@ class ModelSwitchTest(Env):
         switch.reset()
         self.assertEqual(ai.stage("chat").model, "Qwen/Qwen2.5-7B-Instruct")
 
-    # the setup, on the screen
 
     def test_the_setup_is_put_on_the_screen_and_the_voice_says_one_line(self) -> None:
         out = switch.command("hiện thông tin model", "vi")
@@ -157,7 +152,7 @@ class ModelSwitchTest(Env):
         self.outside()
         card = switch.status("vi")
         self.assertIn("Trả lời: API ngoài · Qwen/Qwen2.5-7B-Instruct", card)
-        self.assertIn("Nhìn màn hình: API ngoài", card)  # it follows chat
+        self.assertIn("Nhìn màn hình: API ngoài", card)
         self.assertIn("Viết plugin: máy này", card)
 
     def test_the_english_setup_reads_in_english(self) -> None:
@@ -184,7 +179,6 @@ class ModelSwitchTest(Env):
 
 
 class EventsTest(Env):
-    """What the page receives: the page opens first, then the whole text, then speech of the short line."""
 
     def setUp(self) -> None:
         super().setUp()
@@ -192,7 +186,7 @@ class EventsTest(Env):
         self.spec = catalog.ModelSpec(id="t")
         self.engine._spec, self.engine.state = self.spec, "ready"
         self.keep_ready = engine_module.ai.ready
-        engine_module.ai.ready = lambda name: None  # no server of this machine in a test
+        engine_module.ai.ready = lambda name: None
         self.spoken: list[str] = []
         self.keep = (speech_module.speech.transcribe, engine_module._tts)
         speech_module.speech.transcribe = lambda *a, **k: "hiện thông tin model"
@@ -204,7 +198,7 @@ class EventsTest(Env):
         super().tearDown()
 
     def test_the_page_opens_and_the_whole_text_is_sent_but_only_the_short_line_is_spoken(self) -> None:
-        with contextlib.redirect_stdout(io.StringIO()):  # the server logs what it heard; a console may not take accents
+        with contextlib.redirect_stdout(io.StringIO()):
             events = list(self.engine.talk(self.spec, b"wav", "vi"))
         kinds = [(e["type"], e.get("id")) for e in events if e["type"] in {"command", "token"}]
         self.assertEqual(kinds, [("command", None), ("command", "page.assistant"), ("token", None)])

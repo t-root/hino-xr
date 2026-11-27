@@ -1,4 +1,3 @@
-"""The assistant looking at the screen: the words that ask for it, and the page that takes the picture."""
 
 from __future__ import annotations
 
@@ -44,9 +43,8 @@ class ScreenWordsTest(unittest.TestCase):
         self.assertEqual(out["action"], "screen")
         self.assertEqual(out["value"]["question"], "đọc lỗi trên màn hình")
         self.assertEqual(out["reply"], "Dạ sếp")
-        self.assertIn("chụp được", out["value"]["failed"])  # what the page says when it cannot take the picture
+        self.assertIn("chụp được", out["value"]["failed"])
         self.assertEqual(screen.screen_command("what is this error", "en")["reply"], "Yes boss")
-        # The wearer's own line, written in the assistant menu, replaces the default; empty says nothing.
         self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", {"looking": "Để em xem"})["reply"], "Để em xem")
         self.assertEqual(screen.screen_command("đọc lỗi trên màn hình", "vi", {"looking": ""})["reply"], "")
         failed = screen.screen_command("đọc lỗi trên màn hình", "vi", {"failed": "Chụp hỏng rồi"})["value"]["failed"]
@@ -61,15 +59,15 @@ class PageTest(unittest.TestCase):
     def test_the_page_takes_the_picture_and_sends_it_with_the_access_key(self) -> None:
         capture = (SRC / "core/screen/ScreenCapture.ts").read_text(encoding="utf-8")
         self.assertIn("export const captureScreen", capture)
-        self.assertIn(".stereo-dom .eye", capture)  # one eye, not the two copies side by side
-        self.assertNotIn("getDisplayMedia", capture.replace("`getDisplayMedia`", ""))  # no permission prompt, works on a phone
-        self.assertIn("drawCamera(", capture)  # the camera picture is under the interface
+        self.assertIn(".stereo-dom .eye", capture)
+        self.assertNotIn("getDisplayMedia", capture.replace("`getDisplayMedia`", ""))
+        self.assertIn("drawCamera(", capture)
         runtime = (SRC / "core/bootstrap/createVrRuntime.ts").read_text(encoding="utf-8")
         self.assertIn("setCameraView(() =>", runtime)
-        self.assertIn("setCameraView(null)", runtime)  # nothing keeps a stopped camera alive
+        self.assertIn("setCameraView(null)", runtime)
         client = (SRC / "core/models/ModelClient.ts").read_text(encoding="utf-8")
         self.assertIn("assistant/screen", client)
-        self.assertIn("withAccessKey(init)", client)  # `send` adds the key to every request
+        self.assertIn("withAccessKey(init)", client)
         self.assertIn('"screen"', client)
         bridge = (SRC / "core/models/ModelBridge.ts").read_text(encoding="utf-8")
         self.assertIn('command.action === "screen"', bridge)
@@ -78,13 +76,11 @@ class PageTest(unittest.TestCase):
     def test_the_server_says_the_command_to_the_page(self) -> None:
         engine = (ASSISTANT / "models/engine.py").read_text(encoding="utf-8")
         self.assertIn("screen_command(heard, locale, lines)", engine)
-        # after the camera looks and the menu, before the tools: "đọc lỗi" is not a setting and not a weather question
         self.assertLess(engine.index("sight_command(heard, locale, lines)"), engine.index("screen_command(heard, locale, lines)"))
         self.assertLess(engine.index("screen_command(heard, locale, lines)"), engine.index("tools.command(heard, locale, place)"))
 
 
 class OwnLinesTest(unittest.TestCase):
-    """The lines the wearer writes in the assistant menu: one list of names, the same on the page, the server and in assistant.json."""
 
     def test_the_page_the_server_and_the_defaults_name_the_same_lines(self) -> None:
         import json
@@ -98,7 +94,7 @@ class OwnLinesTest(unittest.TestCase):
         defaults = json.loads((SRC / "shared/assistant.json").read_text(encoding="utf-8"))
         self.assertEqual(page_keys, server_keys)
         for key in page_keys:
-            self.assertEqual(sorted(defaults[key]), ["en", "vi"], key)  # a default for each language
+            self.assertEqual(sorted(defaults[key]), ["en", "vi"], key)
         texts = json.loads((SRC / "i18n/text.json").read_text(encoding="utf-8"))
         for key in page_keys:
             self.assertIn(f"assistant.line.{key}", texts)

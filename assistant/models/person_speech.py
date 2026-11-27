@@ -1,10 +1,3 @@
-"""Saving a person by voice: "lưu người này, tên là Nam, sinh năm 1990, thông tin: bạn đại học".
-
-Matched on words, not by the language model (rules.md F1): it runs at once, works offline and cannot
-invent a name. The line may name the person, the year of birth and a note, in any order, and may come in
-pieces ("người này sinh năm 1990", a moment later "thông tin là bạn học cũ"). What was heard is handed to
-the page as a `person` command; the page knows which face is in front of the camera and does the saving.
-"""
 
 from __future__ import annotations
 
@@ -17,7 +10,6 @@ _SAVE = re.compile(
     r"\b(?:luu|ghi nho|nho|them|dang ky|save|remember|add|register|store)\b",
 )
 
-# A slot starts at its keyword and runs to the next keyword. Longer phrases come first so "thong tin" wins over "tin".
 _SLOTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("year", re.compile(r"\b(?:sinh nam|nam sinh|sinh vao nam|born in|born|year of birth|birth year)\b")),
     ("info", re.compile(r"\b(?:thong tin|ghi chu|mo ta|information|info|notes?|about)\b")),
@@ -29,7 +21,6 @@ _SKIP = {"la"}
 
 
 def _fold(text: str) -> str:
-    """The text in lower case, without accents, and exactly as long: one letter stays one letter."""
     out = []
     for char in unicodedata.normalize("NFC", text):
         base = unicodedata.normalize("NFD", char)[0]
@@ -38,14 +29,12 @@ def _fold(text: str) -> str:
 
 
 def vietnamese_year(text: str) -> int | None:
-    """A year said or written: 1990, "một chín chín không", "một nghìn chín trăm chín mươi", "hai nghìn không trăm lẻ năm"."""
     digits = re.search(r"\b(1[89]\d{2}|20\d{2})\b", text)
     if digits:
         return int(digits.group(1))
     words = _fold(text).replace(",", " ").split()
     if not words:
         return None
-    # Four digits read one by one.
     if len(words) == 4 and all(word in _DIGITS for word in words):
         return int("".join(str(_DIGITS[word]) for word in words))
     return _composed(words)
@@ -82,7 +71,6 @@ _LEADING = re.compile(r"^(?:[\s,.:;-]+|(?:la|is|are|of|nguoi nay|khuon mat nay|t
 
 
 def _clean(value: str) -> str:
-    """The value without the words that only join it to its keyword: "là", "người này", a colon."""
     folded = _fold(value)
     match = _LEADING.match(folded)
     start = match.end() if match else 0
@@ -94,8 +82,7 @@ def _capitalise(name: str) -> str:
 
 
 def person_command(heard: str, locale: str) -> dict[str, Any] | None:
-    """What the wearer said about the person in front of the camera, or None when it was not about that."""
-    del locale  # Both languages are understood whichever the page is in.
+    del locale
     folded = _fold(heard)
     found: list[tuple[int, int, str]] = []
     for slot, pattern in _SLOTS:
@@ -107,7 +94,6 @@ def person_command(heard: str, locale: str) -> dict[str, Any] | None:
     if not found and not (about_person and save):
         return None
     if not about_person and not (save and found):
-        # "tên" and "thông tin" are common words: only a line that says whose, or says to save, is for the headset.
         return None
     found.sort()
     fields: dict[str, Any] = {}

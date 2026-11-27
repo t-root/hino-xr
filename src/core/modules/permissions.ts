@@ -1,44 +1,15 @@
 import type { ModuleManifest, ModulePermission } from "@/shared/contracts/vision";
 
-/**
- * What every plugin gets simply by being installed.
- *
- * Frames are the reason the plugin system exists, and they never leave the
- * device: the manager hands over one downscaled bitmap, takes back a list of
- * boxes, and closes the bitmap. Nothing here needs asking about separately.
- */
 const IMPLICIT: readonly ModulePermission[] = ["camera-frame"];
 
-/**
- * Permissions granted by hand, per plugin id.
- *
- * This file is the deliberate exception to "a plugin is one folder". Discovery
- * picks up any folder that appears under `src/modules/`, so if a manifest could
- * grant its own permissions, dropping in a folder would be enough to start
- * sending frames off the device. Anything past `camera-frame` therefore has to
- * be written here, outside the plugin, where it shows up in review as a change
- * to Core rather than as one more file in a plugin.
- *
- * `network` means user data leaving the device — frames, crops, results. It is
- * not about fetching a model file from a pinned URL, which every local plugin
- * does. `snapshot` means keeping a still of the camera beyond the frame it was
- * given. `screen` means covering the whole session with the plugin's own
- * interface, rather than only returning boxes for Core to draw.
- */
 const PERMISSION_GRANTS: Readonly<Record<string, readonly ModulePermission[]>> = {
-  // Sends the area the wearer picks on the map to OpenStreetMap (buildings and
-  // roads there), loads map tiles from openstreetmap.de and shows it on a screen of its own.
   map3d: ["network", "screen"],
-  // Keeps the people it knows (names, years of birth and the numbers that describe their faces, never a
-  // picture) on the model server, which is this computer, and has a screen of its own for them.
   "face-recognition": ["network", "screen"],
 };
 
 const ASSISTANT_PLUGIN_PREFIX = "ai-";
 
-/** Permissions a manifest asks for that nobody has granted it. */
 export const missingPermissions = (manifest: ModuleManifest): readonly ModulePermission[] => {
-  // A plugin the assistant wrote (and the wearer approved) may hold whatever it asks for.
   if (manifest.id.startsWith(ASSISTANT_PLUGIN_PREFIX)) return [];
   const granted = PERMISSION_GRANTS[manifest.id] ?? [];
   return manifest.permissions.filter(

@@ -1,9 +1,3 @@
-"""Spotting the spoken words that wake the system and the assistant.
-
-The speech comes back from Whisper as text that is close to what was said but
-rarely identical: "Hi-no-ỡi", "Hino is", "system call.". So the match is by
-sound-alike spelling with a margin, not by equality.
-"""
 
 from __future__ import annotations
 
@@ -24,7 +18,6 @@ def wake_spec() -> dict[str, Any]:
     return json.loads(_WAKE_JSON.read_text(encoding="utf-8"))
 
 
-# Said alone (the name before it is allowed) to make the assistant stop talking. Compared as letters, accents gone.
 _STOP_LINES = {
     "dunglai", "dung", "imdi", "imlang", "thoi", "thoidi", "duroi", "dungnoinua", "stop", "stopit", "stoptalking", "bequiet",
     "quiet", "shutup", "enough", "thatsenough", "hush",
@@ -32,23 +25,15 @@ _STOP_LINES = {
 
 
 def is_stop(heard: str, name: str) -> bool:
-    """Is the whole line a request to stop speaking ("dừng lại", "hino, im đi", "stop")?
-
-    Only a line that is nothing else counts: the assistant's own voice, heard back through the microphone,
-    must not stop it because one of its sentences happened to hold the word.
-    """
     return letters(drop_leading_phrase(heard, name)) in _STOP_LINES
 
 
 def letters(text: str) -> str:
-    """Lower-case letters only, accents removed: "Hí-nô" and "hi no" both become "hino"."""
     plain = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
     plain = "".join(char for char in plain if unicodedata.category(char) != "Mn")
     return re.sub(r"[^a-z0-9]", "", plain.lower())
 
 
-# Whisper was trained on subtitled video, so on noise or a breath it writes what videos end with
-# instead of nothing. Said to the assistant these become questions it then answers.
 _MADE_UP = (
     "subscribe",
     "dangkykenh",
@@ -65,17 +50,11 @@ _MADE_UP = (
 
 
 def is_made_up(text: str) -> bool:
-    """True for a line that is Whisper's habit on noise, not something the wearer said."""
     plain = letters(text)
     return any(phrase in plain for phrase in _MADE_UP) or (not plain and bool(text.strip()))
 
 
 def find_phrase(heard: str, phrase: str, threshold: float | None = None) -> tuple[bool, list[str]]:
-    """Whether `phrase` is in `heard`, and the words that came after it.
-
-    Every run of up to three consecutive words is compared with the phrase, so a
-    phrase Whisper split in two ("hi no") or glued ("hino") is found either way.
-    """
     margin = wake_spec()["match"] if threshold is None else threshold
     target = letters(phrase)
     words = heard.replace("-", " ").split()
@@ -96,14 +75,12 @@ def find_phrase(heard: str, phrase: str, threshold: float | None = None) -> tupl
 
 
 def question_after(words: list[str]) -> list[str]:
-    """What follows a wake word, without the "ơi" that calls someone by name."""
     if words and letters(words[0]) in {"oi", "oy"}:
         return words[1:]
     return words
 
 
 def drop_leading_phrase(heard: str, phrase: str) -> str:
-    """The question without the wake word in front of it, if there is one."""
     words = heard.replace("-", " ").split()
     head = words[:4]
     found, rest = find_phrase(" ".join(head), phrase)

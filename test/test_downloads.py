@@ -1,4 +1,3 @@
-"""Everything downloaded is listed in downloads.json; adding one is writing one entry."""
 
 from __future__ import annotations
 
@@ -37,7 +36,6 @@ run = _load()
 
 
 class Server:
-    """Serves one body, honouring Range, so resuming can be tested without the network."""
 
     def __init__(self, body: bytes) -> None:
         outer = body
@@ -83,7 +81,7 @@ def _item(body: bytes, url: str, **extra) -> dict:
 class ListTest(unittest.TestCase):
     def setUp(self) -> None:
         self.all = json.loads((ROOT / "downloads.json").read_text(encoding="utf-8"))["items"]
-        self.items = [item for item in self.all if profiles.wanted(item)]  # what the profile in use fetches
+        self.items = [item for item in self.all if profiles.wanted(item)]
 
     def test_every_entry_is_pinned_and_stays_inside_the_project(self) -> None:
         self.assertGreater(len(self.items), 0)
@@ -102,8 +100,6 @@ class ListTest(unittest.TestCase):
                 self.assertTrue(item["env"].startswith("VR_"), item["id"])
 
     def test_the_servers_look_for_what_is_downloaded(self) -> None:
-        # Whatever the profile (GPU or CPU), every file a server of `stages.json` loads is a file `downloads.json` fetches,
-        # and every program it runs is fetched flat into the folder `servers.py` looks in.
         servers = json.loads(profiles.stages_file().read_text(encoding="utf-8"))["servers"]
         fetched = {item["to"]: item for item in self.items}
         for name, server in servers.items():
@@ -117,7 +113,6 @@ class ListTest(unittest.TestCase):
             self.assertTrue(programs, kind)
             self.assertTrue(all(item["flat"] and item["unpack"] for item in programs), kind)
             self.assertTrue(any(f"{exe}.exe" in item["needs"] for item in programs), kind)
-        # The voice is many files under one folder, which is what the catalog names.
         catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
         voice = [item for item in self.items if item["id"].startswith("voice-vi")]
         self.assertGreater(len(voice), 1)
@@ -128,7 +123,7 @@ class ListTest(unittest.TestCase):
 
     def test_nothing_that_ran_inside_this_process_is_fetched_any_more(self) -> None:
         ids = {item["id"] for item in self.items}
-        self.assertFalse(ids & {"vision-llm", "vision-mmproj"})  # the picture model is the answering model
+        self.assertFalse(ids & {"vision-llm", "vision-mmproj"})
         self.assertFalse(any("qwen2.5-3b" in item["to"].lower() for item in self.items))
 
     def test_the_hand_model_is_fetched_to_where_the_page_loads_it(self) -> None:
@@ -226,7 +221,7 @@ class FetchTest(unittest.TestCase):
         item = _item(self.body, server.url, when={"env": "VR_TEST_WHEN", "equals": "local"})
         os.environ.pop("VR_TEST_WHEN", None)
         run._ensure_downloads([item])
-        self.assertFalse((self.out / "w.bin").exists())  # not asked for: nothing is fetched
+        self.assertFalse((self.out / "w.bin").exists())
         os.environ["VR_TEST_WHEN"] = "local"
         self.addCleanup(os.environ.pop, "VR_TEST_WHEN", None)
         run._ensure_downloads([item])

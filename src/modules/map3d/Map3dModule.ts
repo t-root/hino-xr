@@ -7,13 +7,6 @@ import { map3dManifest } from "./manifest";
 import { syncPalette } from "./palette";
 import { Words } from "./ui";
 
-/**
- * map3d as a plugin: the original application, on a screen of its own that
- * Core draws in each eye while the plugin is on. Mouse and touch for now.
- *
- * Frames are received only because every plugin is a frame consumer; each one
- * is answered with an empty batch.
- */
 class Map3dModule implements VisionModule {
   readonly manifest = map3dManifest;
 

@@ -1,4 +1,3 @@
-"""A model may call the menu's settings, but only through a fence that decides what happens."""
 
 from __future__ import annotations
 

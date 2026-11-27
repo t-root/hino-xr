@@ -7,18 +7,11 @@ export const RENDER_ORDER = {
   cursor: 30,
 } as const;
 
-/**
- * Scene graph shared by both eyes. Everything is authored once here and drawn
- * twice with per-eye cameras, so the two views never diverge.
- */
 export class RenderScene {
   readonly scene = new THREE.Scene();
-  /** Holds the video plane and, as children, the detection overlay. */
   readonly videoRoot = new THREE.Group();
   readonly overlayRoot = new THREE.Group();
-  /** Panels and the plugin palette, closer to the viewer than the video. */
   readonly uiRoot = new THREE.Group();
-  /** Hand cursors, always drawn last and never depth-tested. */
   readonly cursorRoot = new THREE.Group();
 
   constructor(videoDistance: number, uiDistance: number) {
@@ -32,8 +25,6 @@ export class RenderScene {
 
     this.videoRoot.add(this.overlayRoot);
     this.scene.add(this.videoRoot, this.uiRoot, this.cursorRoot);
-    // No lights: every material is unlit so the single UI colour renders exactly
-    // as authored, and the video texture is never tinted by shading.
   }
 
   setDistances(videoDistance: number, uiDistance: number): void {

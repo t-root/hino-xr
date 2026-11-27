@@ -1,7 +1,3 @@
-"""The assistant's turn: hear a line, work out what it asks for, answer it and say the answer.
-
-Every AI it needs is a stage of `ai/stages.json` (chat, agent, stt, tts); this file holds none of them.
-"""
 
 from __future__ import annotations
 
@@ -53,7 +49,6 @@ class Engine:
         }
 
     def load(self, spec: ModelSpec) -> None:
-        """Make the answering model ready (its server is started here when it is a server of this machine)."""
         with self._lock:
             warm = self._spec == spec and self.state == "ready"
             if not warm:
@@ -97,8 +92,6 @@ class Engine:
         locale: str,
         tuning: VoiceTuning | None = None,
     ) -> Iterator[dict[str, Any]]:
-        # Speak each sentence as soon as it is written, while the model goes on with the next: the speech is made
-        # on its own thread, one sentence at a time and in order, so the model is never held up waiting for a voice.
         pending = ""
         first = True
         began = time.monotonic()
@@ -135,13 +128,12 @@ class Engine:
             yield from ready(True)
 
     def talk(self, *args: Any, **kwargs: Any) -> Iterator[dict[str, Any]]:
-        """One spoken turn; how long each part took is logged at the end (`timing`)."""
         timing.begin()
         try:
             yield from self._talk(*args, **kwargs)
             text = timing.finish()
             if text:
-                yield {"type": "timing", "text": text}  # the page writes it to its log, so it can be read in the headset
+                yield {"type": "timing", "text": text}
         finally:
             timing.finish()
 
@@ -170,7 +162,6 @@ class Engine:
         with timing.measure("listen"):
             heard = speech.transcribe(wav_bytes, locale, prompt=_vocabulary(locale), careful=True)
         if strip_wake:
-            # Said as "hino, what time is it": the name is a call, not part of the question.
             heard = drop_leading_phrase(heard, assistant_name())
         print(f"  talk     heard {heard!r}", flush=True)
         if not heard:
@@ -193,7 +184,6 @@ class Engine:
         if command is None:
             command = notes.command(heard, locale)
         if command:
-            # Switching or writing a plugin is the headset's doing, not the model's: say so and stop.
             yield {
                 "type": "command",
                 "action": command["action"],
@@ -202,17 +192,14 @@ class Engine:
                 "value": command.get("value"),
             }
             if command.get("open"):
-                # Something to look at: open the menu page that prints what the assistant says, so it is on screen now.
                 yield {"type": "command", "action": "setting", "id": f"page.{command['open']}", "description": "", "value": True}
             if command["reply"]:
-                # The screen gets all of it; the voice reads only the short line.
                 yield {"type": "token", "text": command.get("display") or command["reply"]}
                 audio = _tts(command["reply"], locale, tuning)
                 if audio:
                     yield audio
             return
         if controls or plugins:
-            # Not a keyword command: the model may still hear a request in it and call the settings.
             calls = agent.plan(heard, controls or [], plugins or [], locale)
             if calls:
                 for call in calls:
@@ -233,10 +220,6 @@ class Engine:
         tuning: VoiceTuning | None = None,
         greeting: str | None = None,
     ) -> Iterator[dict[str, Any]]:
-        """Say the first line. It is the wearer's own text, spoken as written, not asked of the model.
-
-        `greeting` is None for "use the default" and empty for "say nothing".
-        """
         self.load(spec)
         yield {"type": "status", "state": self.state}
         text = (assistant_greeting(locale) if greeting is None else greeting).strip()
@@ -249,7 +232,6 @@ class Engine:
 
 
 def _vocabulary(locale: str) -> str:
-    """Words Whisper should expect: the assistant's name and what the wearer commands it with."""
     name = assistant_name()
     if locale == "vi":
         return (
@@ -292,7 +274,7 @@ def parse_messages(raw: Any) -> list[ChatMessage]:
         content = item.get("content")
         if role not in {"system", "user", "assistant"} or not isinstance(content, str) or not content.strip():
             raise ValueError("message needs role and non-empty content")
-        messages.append({"role": role, "content": content[:MAX_MESSAGE_CHARS]})  # a spoken turn is short; this is a ceiling
+        messages.append({"role": role, "content": content[:MAX_MESSAGE_CHARS]})
     return messages
 
 

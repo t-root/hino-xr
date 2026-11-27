@@ -1,4 +1,3 @@
-"""HTTP surface for the assistant. All model work stays in this process."""
 
 from __future__ import annotations
 
@@ -56,7 +55,6 @@ def _locale(value: str) -> str:
 
 
 def _short(wav: bytes) -> bool:
-    """A line of about three seconds or less: cheap enough to read twice."""
     try:
         with wave.open(io.BytesIO(wav)) as clip:
             return clip.getnframes() / float(clip.getframerate()) <= 3.0
@@ -77,7 +75,6 @@ def _tuning(
     rhythm: float = Query(_range("rhythm")["default"], ge=_range("rhythm")["min"], le=_range("rhythm")["max"]),
     pause: float = Query(_range("pause")["default"], ge=_range("pause")["min"], le=_range("pause")["max"]),
 ) -> VoiceTuning:
-    """How the reply sounds, from the query string. Missing values are the defaults."""
     return VoiceTuning(pitch_hz=pitchHz, speed=speed, expression=expression, rhythm=rhythm, pause=pause)
 
 
@@ -160,7 +157,6 @@ def wake(
     return _sse(engine.wake(spec, _locale(locale), tuning, greeting))
 
 
-# The lines the wearer wrote in the assistant menu, sent with each question: only these names, each a short string.
 OWN_LINES = ("looking", "failed", "noScene", "noCode")
 
 
@@ -240,8 +236,6 @@ def _decode_image(raw: str) -> bytes:
     return image
 
 
-# The AI a plugin may use. Its stage (`plugin_chat`) is not the assistant's: it has its own
-# url, key and model in `ai/stages.json`, so pointing a plugin at another endpoint never touches Hino.
 class PluginChatBody(BaseModel):
     messages: list[dict[str, str]] = Field(min_length=1, max_length=20)
     maxTokens: int = Field(default=256, ge=8, le=1024)
@@ -249,7 +243,6 @@ class PluginChatBody(BaseModel):
 
 @app.post("/api/plugin-ai/chat")
 async def plugin_chat(body: PluginChatBody) -> dict[str, str]:
-    """A question to the language model, for a plugin: the messages go in, the whole answer comes out."""
     try:
         messages = parse_messages(body.messages)
         reply = await run_in_threadpool(ai.chat, "plugin_chat", messages, body.maxTokens, 0.4)
@@ -261,14 +254,13 @@ async def plugin_chat(body: PluginChatBody) -> dict[str, str]:
 
 
 class ScreenBody(BaseModel):
-    image: str = Field(min_length=1)  # a JPEG of the screen the wearer is looking at, base64
+    image: str = Field(min_length=1)
     question: str = Field(default="", max_length=400)
     locale: str = "vi"
 
 
 @app.post("/api/assistant/screen")
 async def assistant_screen(body: ScreenBody) -> dict[str, str]:
-    """The assistant's own use of pictures: a question about what is on the screen (an error, a log, a page)."""
     image = _decode_image(body.image)
     try:
         return await run_in_threadpool(vision.ask_screen, image, body.question, _locale(body.locale))
@@ -288,7 +280,6 @@ def pending_plugins() -> dict:
 
 @app.post("/api/plugins/draft")
 async def draft_plugin(body: DraftBody) -> dict[str, Any]:
-    """Has the assistant write a plugin. It lands in plugins-pending/ and runs only once approved."""
     locale = _locale(body.locale)
     try:
         made = await run_in_threadpool(pluginsmith.draft, body.description, locale)
@@ -299,7 +290,6 @@ async def draft_plugin(body: DraftBody) -> dict[str, Any]:
 
 @app.post("/api/plugins/{plugin_id}/revise")
 async def revise_plugin(plugin_id: str, body: DraftBody) -> dict[str, Any]:
-    """Has the assistant change an installed plugin. The change waits in plugins-pending/ until approved."""
     locale = _locale(body.locale)
     try:
         made = await run_in_threadpool(pluginsmith.revise, plugin_id, body.description, locale)
@@ -326,7 +316,6 @@ def reject_plugin(plugin_id: str) -> dict[str, bool]:
 
 @app.post("/api/voice/preview")
 def preview_voice(body: PreviewBody, tuning: VoiceTuning = Depends(_tuning)) -> Response:
-    """Speak one line with the given tuning, without the language model."""
     try:
         wav = speech.synthesize(body.text, _locale(body.locale), tuning)
     except Exception as error:  # noqa: BLE001
@@ -338,11 +327,6 @@ def preview_voice(body: PreviewBody, tuning: VoiceTuning = Depends(_tuning)) -> 
 
 @app.post("/api/voice/listen")
 async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> dict[str, Any]:
-    """Is the spoken line the word that wakes the system ("system call") or the assistant (its name)?
-
-    `after` counts the words that came after it, so the page can tell a bare call from
-    a call with the question already attached.
-    """
     if expect not in {"system", "wake", "stop"}:
         raise HTTPException(status_code=400, detail="expect must be system, wake or stop")
     wav = await request.body()
@@ -351,7 +335,6 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
     if len(wav) > MAX_WAV:
         raise HTTPException(status_code=413, detail="audio too large")
     if expect == "stop":
-        # Heard while the assistant itself is talking: only a line that is nothing but "stop" counts.
         own_language = "vi" if _locale(locale) == "vi" else "en"
         try:
             said = await run_in_threadpool(
@@ -362,9 +345,6 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
         return {"heard": said, "matched": is_stop(said, assistant_name()), "after": 0}
     phrase = wake_spec()["systemCall"] if expect == "system" else assistant_name()
     own = "vi" if _locale(locale) == "vi" else "en"
-    # "System call" is English whoever says it. A name is first tried in the wearer's own
-    # language; a short line that misses is tried again in the other, because a name
-    # said in Vietnamese is often written down better by the English reading of it.
     languages = ["en"] if expect == "system" else [own, "en" if own == "vi" else "vi"]
     heard, matched, rest = "", False, []
     readings: list[str] = []
@@ -382,7 +362,6 @@ async def listen(request: Request, expect: str = "wake", locale: str = "vi") -> 
         if matched:
             break
     if not matched and len(readings) > 1:
-        # Show every reading: the retry in the other language is not what was said.
         heard = " | ".join(readings)
     after = [word for word in question_after(rest) if letters(word)]
     return {"heard": heard, "matched": matched, "after": len(after)}
@@ -420,7 +399,6 @@ def create_person(body: PersonBody) -> dict[str, Any]:
 
 @app.patch("/api/people/{person_id}")
 def update_person(person_id: str, body: PersonPatch) -> dict[str, Any]:
-    # Only what the request names changes: `year: null` clears it, a missing `year` leaves it.
     fields = {key: getattr(body, key) for key in body.model_fields_set}
     try:
         return people.update(person_id, **fields)
@@ -449,7 +427,6 @@ def delete_person(person_id: str) -> dict[str, bool]:
 
 @app.post("/api/voice/dictate")
 async def dictate(request: Request, locale: str = "vi") -> dict[str, str]:
-    """What was said, as text, for the on-screen keyboard's microphone key. No wake word, no model."""
     wav = await request.body()
     if not wav:
         raise HTTPException(status_code=400, detail="empty audio")

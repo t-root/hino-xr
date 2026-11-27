@@ -1,15 +1,8 @@
 import type { OsmElement } from "./overpass";
 
-/**
- * Buildings and roads from OpenFreeMap's vector tiles: OpenStreetMap data cut into tiles,
- * served by a plain CDN with no key. It is the way in when a network blocks the OpenStreetMap
- * API and every Overpass server, as some do. Heights are the tiles' own `render_height`.
- */
-
 const TILEJSON = "https://tiles.openfreemap.org/planet";
 const ZOOM = 14;
 const MAX_TILES = 16;
-/** Roads a person or a car uses; rails, ferries and cable cars are not roads. */
 const ROAD_CLASSES = new Set([
   "motorway",
   "trunk",
@@ -52,7 +45,6 @@ class Reader {
     let shift = 0;
     for (;;) {
       const byte = this.bytes[this.pos++] ?? 0;
-      // Arithmetic, not bit shifts: ids and long values can pass 32 bits.
       result += (byte & 0x7f) * 2 ** shift;
       if ((byte & 0x80) === 0) return result;
       shift += 7;
@@ -67,7 +59,6 @@ class Reader {
     else throw new Error(`Unsupported protobuf wire type ${wire}`);
   }
 
-  /** A length-delimited field as its own reader. */
   sub(): Reader {
     const length = this.varint();
     const reader = new Reader(this.bytes, this.pos + length);
@@ -178,12 +169,10 @@ const readLayer = (reader: Reader): TileLayer => {
     else if (field === 5) layer.extent = reader.varint();
     else reader.skip(wire);
   }
-  // Keys and values come after the features in some encoders, so features are read last.
   layer.features = featureReaders.map((feature) => readFeature(feature, keys, values));
   return layer;
 };
 
-/** The layers of one Mapbox vector tile, and nothing else of it. */
 export const decodeTile = (bytes: Uint8Array): TileLayer[] => {
   const reader = new Reader(bytes);
   const layers: TileLayer[] = [];
@@ -211,7 +200,6 @@ const latOf = (tileY: number, py: number, extent: number): number => {
   return (Math.atan(Math.sinh(n)) * 180) / Math.PI;
 };
 
-/** Twice the signed area; in tile coordinates (y down) an outer ring is positive. */
 const area = (ring: Point[]): number => {
   let sum = 0;
   for (let i = 0; i < ring.length - 1; i += 1) {
@@ -256,7 +244,6 @@ const template = (signal?: AbortSignal): Promise<string> => {
   return tileTemplate;
 };
 
-/** Buildings or roads inside `bounds`, shaped like what Overpass returns for them. */
 export async function queryVectorTiles(
   what: "building" | "highway",
   bounds: Bounds,
@@ -286,9 +273,7 @@ export async function queryVectorTiles(
           ring.map((point) => ({ lat: latOf(tileY, point.y, layer.extent), lon: lngOf(tileX, point.x, layer.extent) }));
         if (what === "building") {
           if (feature.type !== 3) return;
-          // A part that floats above the ground would stand on top of the building under it.
           if (Number(feature.tags.render_min_height ?? 0) > 0) return;
-          // The tiles give 5 when OpenStreetMap has no height or levels for a building, so 5 means "unknown".
           const height = Number(feature.tags.render_height ?? 0);
           feature.rings.forEach((ring, ringIndex) => {
             if (ring.length < 4 || area(ring) <= 0) return;

@@ -1,19 +1,8 @@
-/**
- * Telex, the way Vietnamese is typed on a Latin keyboard: `aa` makes a circumflex a, `dd` makes d with a
- * stroke, `w` turns a, o and u into the breve and horn forms, and `s f r x j` put on the five tone marks
- * (acute, grave, hook, tilde, dot below). `z` takes the mark off. Typing the same key again undoes it, so
- * `aaa` is `aa`.
- *
- * Only the word being typed is touched, and a space ends it. The mark goes on the vowel Vietnamese puts it
- * on (modern spelling) and moves if a later letter changes where it belongs.
- */
-
 type Shape = "" | "^" | "(" | "+";
 
 type Piece = { base: string; upper: boolean; shape: Shape; tone: number };
 
 const SHAPE_MARK: Record<Exclude<Shape, "">, string> = { "^": "\u0302", "(": "\u0306", "+": "\u031b" };
-/** none, acute, grave, hook, tilde, dot below */
 const TONE_MARK = ["", "\u0301", "\u0300", "\u0309", "\u0303", "\u0323"] as const;
 const TONE_KEYS: Readonly<Record<string, number>> = { s: 1, f: 2, r: 3, x: 4, j: 5 };
 const VOWELS = "aeiouy";
@@ -51,7 +40,6 @@ const compose = (pieces: readonly Piece[]): string =>
 
 const isVowel = (piece: Piece | undefined): boolean => piece !== undefined && VOWELS.includes(piece.base);
 
-/** The indexes of the vowels of the syllable; the u of qu and the i of gi are consonants. */
 const vowelRun = (pieces: readonly Piece[]): number[] => {
   const run: number[] = [];
   for (let i = 0; i < pieces.length; i += 1) {
@@ -67,7 +55,6 @@ const vowelRun = (pieces: readonly Piece[]): number[] => {
   return run;
 };
 
-/** Which vowel of the run carries the mark. */
 const toneIndex = (pieces: readonly Piece[], run: readonly number[]): number => {
   const shaped = run.filter((i) => (pieces[i] as Piece).shape !== "");
   if (shaped.length > 0) return shaped[shaped.length - 1] as number;
@@ -77,7 +64,6 @@ const toneIndex = (pieces: readonly Piece[], run: readonly number[]): number => 
   const second = run[1] as number;
   const closed = second < pieces.length - 1;
   if (closed) return second;
-  // Modern spelling: an open pair takes the mark on its first vowel (hoa, khoe, thuy with the mark on o, o, u).
   return first;
 };
 
@@ -89,7 +75,6 @@ const setTone = (pieces: Piece[], tone: number): void => {
   if (tone > 0 && run.length > 0) (pieces[toneIndex(pieces, run)] as Piece).tone = tone;
 };
 
-/** The same word, with the mark moved to the vowel it now belongs on. */
 const replace = (pieces: Piece[]): string => {
   const tone = currentTone(pieces);
   if (tone > 0) setTone(pieces, tone);
@@ -110,10 +95,6 @@ const toggleShape = (piece: Piece, shape: Shape): boolean => {
   return true;
 };
 
-/**
- * The word after `key` is typed at its end. `word` is the letters before the caret since the last space;
- * the result replaces them.
- */
 export const telex = (word: string, key: string): string => {
   const k = key.toLowerCase();
   const pieces = parse(word);
@@ -162,7 +143,6 @@ export const telex = (word: string, key: string): string => {
     const run = vowelRun(pieces);
     const u = run.find((i) => (pieces[i] as Piece).base === "u" && (pieces[i + 1] as Piece | undefined)?.base === "o");
     if (u !== undefined) {
-      // u followed by o, with w, takes the horn on both at once.
       const both = [pieces[u] as Piece, pieces[u + 1] as Piece];
       if (both.every((piece) => piece.shape === "+")) {
         for (const piece of both) piece.shape = "";
@@ -178,7 +158,6 @@ export const telex = (word: string, key: string): string => {
       const changed = toggleShape(piece, shape);
       return changed ? replace(pieces) : replace(pieces) + key;
     }
-    // Nothing to turn: a lone w is u with a horn.
     const last = pieces[pieces.length - 1];
     if (!last || !isVowel(last)) return replace(pieces) + (key === "W" ? U_HORN.toUpperCase() : U_HORN);
     return append(pieces, key);
@@ -187,5 +166,4 @@ export const telex = (word: string, key: string): string => {
   return append(pieces, key);
 };
 
-/** The letters at the end of `before`: the word `telex` works on. */
 export const tailWord = (before: string): string => /[\p{L}]{1,12}$/u.exec(before)?.[0] ?? "";

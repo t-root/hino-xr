@@ -3,10 +3,6 @@ import { FilesetResolver, ObjectDetector } from "@mediapipe/tasks-vision";
 import type { WorkerInitPayload, WorkerRequest, WorkerResponse } from "@/core/workers/protocol";
 import { toPersonDetections, type RawDetection } from "./mapping";
 
-/**
- * Person detection, off the main thread. It knows nothing about the DOM, the
- * camera or the renderer: bitmap in, normalised detections out.
- */
 let detector: ObjectDetector | null = null;
 let options: WorkerInitPayload | null = null;
 let lastTimestamp = 0;
@@ -25,11 +21,6 @@ const categoriesOption = (payload: WorkerInitPayload): readonly string[] => {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 };
 
-/**
- * GPU first, then CPU. The GPU delegate is a large win where it works and a
- * hard failure where the driver is blocked, and a plugin that refuses to start
- * on such a device is worse than one that runs slower on it.
- */
 const createDetector = async (payload: WorkerInitPayload): Promise<ObjectDetector> => {
   const fileset = await FilesetResolver.forVisionTasks(payload.wasmBase);
   let lastError: unknown;
@@ -67,7 +58,6 @@ const infer = (request: Extract<WorkerRequest, { type: "infer" }>): void => {
   }
 
   try {
-    // MediaPipe video mode rejects a timestamp that does not move forward.
     const timestamp = Math.max(Math.round(request.timestampMs), lastTimestamp + 1);
     lastTimestamp = timestamp;
     const result = detector.detectForVideo(image, timestamp);

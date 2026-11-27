@@ -1,4 +1,3 @@
-"""Sentences live in JSON, in every language, without lazy English in Vietnamese."""
 
 from __future__ import annotations
 

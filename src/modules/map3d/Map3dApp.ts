@@ -9,7 +9,6 @@ const PRETENDARD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/di
 
 type ModalKey = "warn";
 
-/** What every copy of the screen shows. */
 type AppState = Readonly<{
   step: number;
   isNextButtonDisabled: boolean;
@@ -17,14 +16,6 @@ type AppState = Readonly<{
   modals: Readonly<Record<ModalKey, ModalState>>;
 }>;
 
-/**
- * The original `App.tsx`: pick an area on the map, go to the next step to load
- * its buildings into the 3D stage, go back to pick again, export what is shown.
- *
- * Held once, in a Core `SharedState`. Every eye mounts an `AppView` that draws
- * from it and sends its clicks back here, so both copies always show the same
- * step, the same buttons and the same open modal (rules.md).
- */
 export class Map3dApp {
   readonly map: MapModel;
   readonly space: SpaceCore;
@@ -36,7 +27,6 @@ export class Map3dApp {
     modals: { warn: MODAL_CLOSED },
   });
 
-  /** The chosen area; not drawn by the copies, only used to load it. */
   private areaData: [LatLng, LatLng] | null = null;
   private readonly views = new Set<AppView>();
   private readonly modalTimers: Record<ModalKey, number> = { warn: 0 };
@@ -53,7 +43,6 @@ export class Map3dApp {
     this.space = new SpaceCore(words);
   }
 
-  /** Draws one copy into `element` (one eye); returns how to take it down. */
   mount(element: HTMLElement): () => void {
     const view = new AppView(this, this.words.scope());
     this.views.add(view);
@@ -65,18 +54,15 @@ export class Map3dApp {
     };
   }
 
-  /** The screen was shown or hidden by Core. */
   setActive(active: boolean): void {
     this.active = active;
     this.space.setRunning(active);
     if (!active) return;
     this.words.refresh();
     for (const view of this.views) view.activate();
-    // Every time the plugin is opened the map goes to where the device is, without being asked.
     this.map.requestLocation(false);
   }
 
-  /** The theme moved while the screen was away: recolour everything. */
   applyPalette(): void {
     for (const view of this.views) view.restyle();
     this.map.state.notify();
@@ -92,7 +78,6 @@ export class Map3dApp {
     this.space.dispose();
   }
 
-  /** Every change to what is shown goes through here, then to every copy. */
   private update(patch: Partial<AppState>): void {
     this.state.set(patch);
     this.space.setShowPlatform(this.state.get().step === 2);
@@ -101,8 +86,6 @@ export class Map3dApp {
   private setModal(key: ModalKey, modal: ModalState): void {
     this.update({ modals: { ...this.state.get().modals, [key]: modal } });
   }
-
-  // ---- what the copies ask for ----
 
   setStep(step: number): void {
     this.update({ step });
@@ -113,7 +96,6 @@ export class Map3dApp {
     this.setModal(key, { open: true, closing: false });
   }
 
-  /** Plays the fade out on every copy, then hides, as the original did. */
   closeModal(key: ModalKey): void {
     if (!this.state.get().modals[key].open) return;
     window.clearTimeout(this.modalTimers[key]);
@@ -139,8 +121,6 @@ export class Map3dApp {
     this.setStep(step + 1);
   }
 
-  // ---- the original logic ----
-
   private checkIsBig(area: [LatLng, LatLng]): boolean {
     const a = area[0].lat - area[1].lat;
     const b = area[0].lng - area[1].lng;
@@ -150,8 +130,6 @@ export class Map3dApp {
   private handleDone(data: [LatLng, LatLng]): void {
     this.areaData = data;
     this.space.setCenter(data);
-    // The original kept the previous city on screen until the next load; it
-    // was drawn against the new centre, in the wrong place. Cleared instead.
     this.space.setAreas([]);
     this.update({ isNextButtonDisabled: false });
   }
@@ -191,7 +169,6 @@ export class Map3dApp {
   }
 }
 
-/** One eye's copy of the whole screen. Holds no state of its own. */
 class AppView {
   readonly root: HTMLDivElement;
 
@@ -243,8 +220,6 @@ class AppView {
     closeButton.addEventListener("click", () => app.close());
 
     this.spaceView = app.space.createView(words);
-    // The buttons are one row along the top, where they cover none of the map or the city: Close, Back, Next and the
-    // locate button.
     const bar = h("div", "m3-bar", closeButton, this.prevButton, this.nextButton, this.mapView.locateButton);
     this.root = h(
       "div",
@@ -274,7 +249,6 @@ class AppView {
     this.warnModal.render(state.modals.warn);
   }
 
-  /** Became visible: Leaflet measures again and the readouts catch up. */
   activate(): void {
     this.mapView.invalidate();
     this.spaceView.renderReadout();

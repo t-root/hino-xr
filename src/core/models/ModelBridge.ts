@@ -20,33 +20,23 @@ const QUIET_WAIT_MS = 120_000;
 const DEFAULT_ID = DEFAULT_SETTINGS.assistant.modelId;
 const HISTORY = 24;
 
-/** The lines the wearer wrote in the assistant menu, for the language in use: the server says them instead of its own. */
 const ownLines = (locale: Locale): Record<string, string> => {
   const { assistant } = useRuntimeStore.getState().settings;
   return Object.fromEntries(LINE_KEYS.map((key) => [key, assistant[key][locale]]));
 };
-/** Skip poll during a live turn. Load and wake already talk to the server. */
 const HOLD_POLL = new Set(["generating", "listening", "speaking"]);
 
-/** What the headset lets a spoken line do to its plugins. */
 export type PluginVoiceHost = Readonly<{
   list: () => readonly SpokenPlugin[];
   set: (id: string, on: boolean) => void;
-  /** Gives a spoken command to the running plugins; resolves to what one of them says back, or null. */
   command: (name: string, payload: Readonly<Record<string, unknown>>) => Promise<CommandReply | null>;
 }>;
 
-/** What the headset lets a spoken line do to its menu and settings. */
 export type ControlVoiceHost = Readonly<{
   describe: () => readonly SpokenControl[];
   run: (id: string, value: unknown) => void;
 }>;
 
-/**
- * Keeps the UI store in step with the model server. Poll, load, ask, talk,
- * wake: that is the whole of what the headset is allowed to do with a language
- * model.
- */
 export class ModelBridge {
   private readonly client = new ModelClient();
   private readonly capture = new VoiceCapture();
@@ -54,7 +44,6 @@ export class ModelBridge {
   private readonly logger = createLogger("models");
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private askAbort: AbortController | null = null;
-  /** Timers the wearer set by voice: the clock is here, so they run without the server. */
   private readonly timers = new Set<number>();
   private limitTimer: ReturnType<typeof setTimeout> | null = null;
   private phase: "idle" | "listening" | "sending" = "idle";
@@ -74,12 +63,10 @@ export class ModelBridge {
     this.modelId = assistant.modelId;
   }
 
-  /** Lets "turn on the map plugin", said aloud, switch plugins. Without it every line is a question. */
   setPluginHost(host: PluginVoiceHost): void {
     this.pluginHost = host;
   }
 
-  /** Lets a spoken "raise the speaking speed" or "open the lens section" work the menu. */
   setControlHost(host: ControlVoiceHost): void {
     this.controlHost = host;
   }
@@ -97,20 +84,18 @@ export class ModelBridge {
       const host = this.pluginHost;
       const name = command.action;
       const payload = typeof command.value === "object" && command.value !== null ? (command.value as Record<string, unknown>) : {};
-      // "What do I see?" with the plugin off has to be answered; the server wrote what to say for that case.
       const missing = name === "sight" && typeof payload.missing === "string" ? payload.missing : "";
       void this.followUp(async () => {
         const said = await host.command(name, payload);
         if (said === null) return { ok: false, say: missing };
         return typeof said === "string" ? { ok: true, say: said } : { ok: true, say: said.say, show: said.show };
-      }, false);
+      });
       return;
     }
     if (command.action === "screen") {
       const info = typeof command.value === "object" && command.value !== null ? (command.value as Record<string, unknown>) : {};
       const question = typeof info.question === "string" ? info.question : "";
       const failed = typeof info.failed === "string" ? info.failed : "";
-      // The server already said it is looking; the picture and the answer follow, and the whole text goes to the screen.
       void this.followUp(async () => {
         try {
           const image = await captureScreen();
@@ -120,17 +105,17 @@ export class ModelBridge {
           this.logger.warn("screen question failed", { message: error instanceof Error ? error.message : String(error) });
           return { ok: false, say: failed };
         }
-      }, false);
+      });
       return;
     }
     if (command.action === "revise" && command.id) {
       const id = command.id;
-      void this.followUp(() => this.client.revisePlugin(id, command.description, currentLocale()), false);
+      void this.followUp(() => this.client.revisePlugin(id, command.description, currentLocale()));
     } else if (command.action === "create") {
-      void this.followUp(() => this.client.draftPlugin(command.description, currentLocale()), false);
+      void this.followUp(() => this.client.draftPlugin(command.description, currentLocale()));
     } else if (command.action === "approve" && command.id) {
       const id = command.id;
-      void this.followUp(() => this.client.approvePlugin(id, currentLocale()), true);
+      void this.followUp(() => this.client.approvePlugin(id, currentLocale()));
     } else if (command.action === "reject" && command.id) {
       void this.client.rejectPlugin(command.id);
     } else if (this.pluginHost && command.id && (command.action === "enable" || command.action === "disable")) {
@@ -138,7 +123,6 @@ export class ModelBridge {
     }
   }
 
-  /** Runs a timer the server worked out: after `seconds`, says the line the server wrote for that moment. */
   private startTimer(value: unknown): void {
     const info = typeof value === "object" && value !== null ? (value as { seconds?: unknown; say?: unknown }) : {};
     const seconds = typeof info.seconds === "number" && Number.isFinite(info.seconds) ? info.seconds : 0;
@@ -146,29 +130,19 @@ export class ModelBridge {
     if (seconds <= 0 || say === "") return;
     const handle = window.setTimeout(() => {
       this.timers.delete(handle);
-      void this.followUp(async () => ({ ok: true, say }), false);
+      void this.followUp(async () => ({ ok: true, say }));
     }, seconds * 1000);
     this.timers.add(handle);
   }
 
-  /**
-   * Work that outlasts the spoken answer (writing a plugin, rebuilding the app for
-   * one): when it ends the server's own line is spoken, and the page reloads if
-   * a new plugin was installed so the registry that lists it is the one running.
-   */
-  private async followUp(work: () => Promise<{ ok: boolean; say: string; show?: string }>, reloadOnSuccess: boolean): Promise<void> {
+  private async followUp(work: () => Promise<{ ok: boolean; say: string; show?: string }>): Promise<void> {
     try {
       const outcome = await work();
-      // A command no plugin took has nothing to say: silence, not an empty reply read out.
       if (outcome.say === "") return;
-      // Writing takes minutes and the wearer may be talking to the assistant meanwhile: wait for that
-      // turn to end, because speaking now would cut it off (previewVoice stops whatever is playing).
       await this.untilQuiet();
       await this.previewVoice(outcome.say);
       useRuntimeStore.getState().patchAssistant({ reply: outcome.show ?? outcome.say });
-      // A longer text than was read aloud: open the page that prints it, so it can be read.
       if (outcome.show) this.controlHost?.run("page.assistant", true);
-      if (reloadOnSuccess && outcome.ok) window.location.reload();
     } catch (error) {
       this.logger.warn("plugin follow-up failed", { message: error instanceof Error ? error.message : String(error) });
     }
@@ -203,12 +177,10 @@ export class ModelBridge {
     useRuntimeStore.getState().setAssistant(EMPTY_ASSISTANT);
   }
 
-  /** Call from the Start tap before any await, so later speech is allowed. */
   prepareAudio(): void {
     this.player.unlock();
   }
 
-  /** After the camera is up: poll the catalog, then greet if the assistant is on. */
   onSessionStart(): void {
     this.inSession = true;
     this.start();
@@ -403,7 +375,6 @@ export class ModelBridge {
     }
   }
 
-  /** The wearer said "stop": end the answer being written and the speech being played, whatever phase it is in. */
   stopSpeaking(): void {
     this.askAbort?.abort();
     this.askAbort = null;
@@ -435,11 +406,6 @@ export class ModelBridge {
     this.player.stop();
   }
 
-  /**
-   * Hands each sentence to the speaker the moment the server has it, while the
-   * model is still writing the next one. Without this the wearer would hear
-   * nothing until the whole reply existed.
-   */
   private audioSink(abort: AbortController): (audio: Blob) => void {
     return (audio) => {
       if (abort.signal.aborted) return;
@@ -454,7 +420,6 @@ export class ModelBridge {
     return useRuntimeStore.getState().settings.assistant.voice;
   }
 
-  /** Resolves when no turn is under way and nothing is being said; gives up waiting after two minutes. */
   private async untilQuiet(): Promise<void> {
     const deadline = Date.now() + QUIET_WAIT_MS;
     while (this.enabled && this.talking() && Date.now() < deadline) {
@@ -462,7 +427,6 @@ export class ModelBridge {
     }
   }
 
-  /** Speaks a fixed line in the current voice settings so the wearer can judge them. */
   async previewVoice(text: string): Promise<void> {
     if (!this.enabled) return;
     this.askAbort?.abort();
@@ -484,10 +448,6 @@ export class ModelBridge {
     return useRuntimeStore.getState().settings.assistant.modelId || this.modelId || DEFAULT_ID;
   }
 
-  /**
-   * Answers a line the wearer spoke without pressing anything: the microphone
-   * heard the assistant's name, and the line may begin with it.
-   */
   async answerSpeech(wav: Blob): Promise<void> {
     if (!this.enabled || this.phase !== "idle") {
       this.logger.warn("line dropped: assistant is not ready for it", { enabled: this.enabled, phase: this.phase });
@@ -498,23 +458,16 @@ export class ModelBridge {
     await this.sendTalk(wav, true);
   }
 
-  /** True while a turn is under way, however it began. */
   busy(): boolean {
     const state = useRuntimeStore.getState().assistant.state;
     return this.phase !== "idle" || this.waking || state === "generating" || state === "speaking" || state === "loading";
   }
 
-  /**
-   * True only while the assistant is itself making sound or a spoken turn is in
-   * flight. Loading the model is not that: the wearer calling its name while the
-   * model loads must still be heard and answered with a cue.
-   */
   talking(): boolean {
     const state = useRuntimeStore.getState().assistant.state;
     return this.phase !== "idle" || state === "generating" || state === "speaking";
   }
 
-  /** The assistant is waiting for the wearer to speak, or has stopped waiting. */
   markListening(on: boolean): void {
     const current = useRuntimeStore.getState().assistant;
     if (on) {
@@ -524,7 +477,6 @@ export class ModelBridge {
     }
   }
 
-  /** Says the wearer's own "I am listening" line: the proof that the name was heard. No tone first. Never throws. */
   async acknowledge(): Promise<void> {
     const line = useRuntimeStore.getState().settings.assistant.ack[currentLocale()].trim();
     if (!line) return;
@@ -539,7 +491,6 @@ export class ModelBridge {
     }
   }
 
-  /** Resolves when nothing is being played. */
   quiet(): Promise<void> {
     return this.player.idle();
   }
@@ -550,7 +501,7 @@ export class ModelBridge {
     this.askAbort?.abort();
     const abort = new AbortController();
     this.askAbort = abort;
-    refreshPlace(); // for the next question; this one uses the last place known
+    refreshPlace();
     useRuntimeStore.getState().patchAssistant({
       state: "generating",
       reply: "",
@@ -730,7 +681,6 @@ export class ModelBridge {
     }
     const reply = (last?.role === "assistant" ? last.content : "") + token;
     useRuntimeStore.getState().patchAssistant({
-      // Sentences may already be playing while the rest is still being written.
       state: current.state === "speaking" ? "speaking" : "generating",
       reply,
       messages: messages.slice(-HISTORY),

@@ -46,7 +46,6 @@ export const mountApp = (host: HTMLElement): () => void => {
   const layout = runtime.renderer.layout;
   const dictation = new Dictation();
 
-  // The menu, worked by voice: "raise the speaking speed", "turn off diagnostics", "open the lens section".
   runtime.models.setControlHost(
     createVoiceControls({
       settings: () => useRuntimeStore.getState().settings,
@@ -56,11 +55,6 @@ export const mountApp = (host: HTMLElement): () => void => {
     }),
   );
 
-  /**
-   * The system proper: hands, the assistant, the boot log, the menu. Only runs
-   * after the wearer has said "system call"; until then the camera is open and
-   * split into two eyes and nothing is written on it.
-   */
   const handleSystemCall = async () => {
     const ui = useSharedUiStore.getState();
     ui.setArmed(false);
@@ -82,11 +76,9 @@ export const mountApp = (host: HTMLElement): () => void => {
     } finally {
       useSharedUiStore.getState().setStarting(false);
     }
-    // From here on the assistant answers to its name.
     void runtime.wake.listenForAssistant();
   };
 
-  /** The fingerprint: open the camera, split it in two, then wait to be called. */
   const handleStart = async () => {
     runtime.models.prepareAudio();
     runtime.renderer.setMode("stereo");
@@ -106,7 +98,6 @@ export const mountApp = (host: HTMLElement): () => void => {
     try {
       await runtime.wake.listenForSystemCall(() => void handleSystemCall());
     } catch {
-      // No microphone to call the system with: start it anyway so the app is not stuck on a bare picture.
       void handleSystemCall();
     }
   };
@@ -115,11 +106,6 @@ export const mountApp = (host: HTMLElement): () => void => {
     runtime.applySettings(settings);
   };
 
-  /**
-   * Everything the system draws in one eye: boot log, figures, plugin screens, menu.
-   * Not built at all while the system waits to be called, so nothing of it exists,
-   * runs a timer or listens to a store until "system call" has been said.
-   */
   const mountInterface = (frame: HTMLElement): (() => void) => {
     const { mode, monoReasons } = stereoState(layout);
     const stopLoad = LoadingOverlay(frame);
@@ -206,13 +192,9 @@ export const mountApp = (host: HTMLElement): () => void => {
     layout.subscribe(() => {
       stage.dataset.mode = stereoState(layout).mode;
     }),
-    // Debug: S = "system call", M = finger snap (menu).
     installDebugKeys({ systemCall: () => runtime.wake.simulateSystemCall() }),
-    // Touching the screen twice starts the system, the same as saying "system call".
     installDoubleTap({ systemCall: () => runtime.wake.simulateSystemCall() }),
-    // Head turns left and right run the menu band.
     installImuMenu(),
-    // Choosing a text box, by hand, finger or mouse, brings the on-screen keyboard up.
     installKeyboardFocus(document),
   ];
 

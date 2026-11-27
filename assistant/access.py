@@ -44,7 +44,6 @@ _token: str | None = None
 
 
 def token() -> str:
-    """The access key: from the environment, else the saved one, else a new random one that is saved."""
     global _token
     if _token:
         return _token
@@ -62,13 +61,12 @@ def token() -> str:
             KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
             KEY_FILE.write_text(saved + "\n", encoding="utf-8")
         except OSError:
-            pass  # not saved: the key lasts until the server stops, and the next start prints a new one
+            pass
     _token = saved
     return _token
 
 
 def reset() -> None:
-    """Forget the key held in memory. Used by tests."""
     global _token
     _token = None
 
@@ -93,7 +91,6 @@ def _refuse(status: int, detail: str):
 
 
 class AccessMiddleware:
-    """Pure ASGI, so streamed replies (server-sent events) pass through untouched."""
 
     def __init__(self, app) -> None:
         self.app = app

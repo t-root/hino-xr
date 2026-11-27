@@ -14,161 +14,84 @@ import {
 import { LOCALES, type Locale } from "@/shared/contracts/locale";
 
 export type GestureSettings = Readonly<{
-  /** Minimum landmark confidence for a hand to drive a pointer. */
   trackingConfidence: number;
-  /** Frames a hand must stay confident before it produces a pointer. */
   trackingWarmupFrames: number;
-  /** Hover dwell before `hover` is emitted, ms. */
   hoverDwellMs: number;
-  /** Pinch enters below this ratio of hand size and releases above the hysteresis value. */
   pinchEnterRatio: number;
   pinchExitRatio: number;
-  /**
-   * How much the gap must grow from the tightest point of this pinch to count
-   * as letting go, as a share of hand size.
-   *
-   * A click opens the fingers a little, not to a stretched pose. The absolute
-   * exit ratio is a backstop for a pinch that was never very tight; this is
-   * what makes a normal release actually release.
-   */
   pinchOpenDelta: number;
   pinchEnterHoldMs: number;
   pinchExitHoldMs: number;
-  /** Movement in normalised viewport units that promotes a pinch into a drag. */
   dragThreshold: number;
-  /** Time a pinch may be held before it becomes a drag on its own, ms. */
   dragHoldMs: number;
-  /** Time without landmarks before an in-flight interaction is cancelled, ms. */
   lostTimeoutMs: number;
-  /** Multiplies every distance threshold; exposed as a sensitivity slider. */
   sensitivity: number;
 }>;
 
-/** The three phases of a snap, as numbers. */
 export type SnapSettings = Readonly<{
-  /** Thumb and middle fingertip count as touching below this ratio. */
   contactRatio: number;
-  /** How long they must stay touching before it counts as a press, ms. */
   contactHoldMs: number;
-  /** Ratio above which the two fingers count as parted. */
   releaseRatio: number;
   velocityThreshold: number;
-  /** Middle fingertip counts as landed on the palm below this ratio. */
   palmRatio: number;
   windowMs: number;
   cooldownMs: number;
 }>;
 
 export type RenderSettings = Readonly<{
-  /** Interpupillary separation of the two virtual eyes, metres. */
   ipdMeters: number;
-  /** Distance of the video plane from the viewer, metres. */
   videoPlaneDistance: number;
-  /** Distance of the UI/overlay plane, metres. Closer than the video plane. */
   uiPlaneDistance: number;
-  /** Detection batches older than this are hidden instead of drawn misaligned. */
   maxBatchAgeMs: number;
   showDiagnostics: boolean;
   mirrorFrontCamera: boolean;
-  /** Rounded corners and a soft dark fade at the edge of the camera picture. Off: the picture ends square and sharp. */
   softEdge: boolean;
 }>;
 
-/**
- * Optics of the headset the phone is sitting in.
- *
- * Every value applies to both eyes at once — the only asymmetry allowed is the
- * lens centre, which is mirrored rather than set per eye, so the two views stay
- * identical to each other (rules.md).
- */
 export type LensSettings = Readonly<{
-  /** Vertical field of view of one eye, degrees. */
   fovYDeg: number;
-  /** Black band between the two eye images, px. Matches the headset divider. */
   eyeGapPx: number;
-  /** Optical centre of each eye, as a fraction of eye width from its middle.
-   *  Positive pushes the centres apart, for lenses spaced wider than the eyes. */
   lensCenterOffset: number;
-  /** Barrel pre-distortion cancelling the pincushion a magnifier introduces. */
   k1: number;
-  /** Fourth-order term, for lenses the quadratic term alone cannot straighten. */
   k2: number;
-  /** Size of the square camera frame. 1 is the largest square in the eye; not an image zoom. */
   frameScale: number;
 }>;
 
 type PipelineSettings = Readonly<{
   handTrackingFps: number;
   moduleFps: number;
-  /** Longest edge of the analysis image handed to modules. */
   analysisMaxSize: number;
 }>;
 
 type AssistantSettings = Readonly<{
-  /** When on, the assistant loads and greets as soon as the wearer presses Start. */
   enabled: boolean;
-  /** The assistant to talk to: `assistant`. */
   modelId: string;
-  /** How the reply sounds. */
   voice: VoiceSettings;
-  /** Seconds the assistant keeps listening after it was called or after it answered. */
   listenSeconds: number;
-  /** Keep the microphone open while the assistant speaks, so "stop" can interrupt it. Off by default: the loudspeaker can leak into the microphone. */
   bargeIn: boolean;
-  /** The first line it says when the system comes up, in each language. Empty says nothing. */
   greeting: Readonly<Record<Locale, string>>;
-  /** What it says the moment it hears its name and nothing else, in each language. Empty says nothing. */
   ack: Readonly<Record<Locale, string>>;
-  /** What it says when asked to look at the screen or at something held up, in each language. Empty says nothing. */
   looking: Readonly<Record<Locale, string>>;
-  /** What it says when the picture could not be taken. Empty says nothing. */
   failed: Readonly<Record<Locale, string>>;
-  /** What it says when asked what it sees and the Scene description plugin is off. Empty says nothing. */
   noScene: Readonly<Record<Locale, string>>;
-  /** What it says when asked to read a code and the Code reader plugin is off. Empty says nothing. */
   noCode: Readonly<Record<Locale, string>>;
 }>;
 
-/** The longest greeting that can be written. */
 export const GREETING_MAX = 120;
 
 type FeatureFlags = Readonly<{
-  /** Snap opens the menu. On by default now that landing on the palm is
-   *  required as well, which is what used to make it fire by accident. */
   snapGesture: boolean;
   webxr: boolean;
   handTracking: boolean;
 }>;
 
-/**
- * The hand cursor's own settings.
- *
- * Opacity and size are the user's because the right values depend on what is
- * behind the reticle and how far the hand sits from the camera: a cursor
- * readable against a dark room hides half a face in a bright one, and only the
- * person wearing the headset can see which they have.
- */
 type CursorSettings = Readonly<{
-  /** Multiplies every part of the cursor; 0 hides it, 1 draws it in full. */
   opacity: number;
-  /** Multiplies the drawn size; 1 is the default reticle. */
   scale: number;
 }>;
 
 type ViewSettings = Readonly<{
-  /**
-   * Quarter-turn applied to the interface inside each eye.
-   *
-   * The stage always splits the long side into two squares. This is only how
-   * the picture sits inside those squares. The camera image does not follow.
-   */
   rotation: Turn;
-  /**
-   * When on, gravity from the phone's sensors chooses the quarter-turn so the
-   * interface stays upright in the headset. The saved `rotation` is the fallback
-   * when the sensors are silent, and the value a tap of 90° writes when the
-   * wearer takes over by hand.
-   */
   autoRotate: boolean;
 }>;
 
@@ -185,13 +108,6 @@ export type Settings = Readonly<{
   assistant: AssistantSettings;
 }>;
 
-/**
- * Starting optics for a common phone headset (Cardboard-style, one biconvex
- * lens per eye): a wider view, a mild barrel bend to cancel the lens's
- * pincushion, and a camera frame a little inside the eye so the blurry lens
- * edge is not where the picture ends. Headsets differ, so the lens menu still
- * fine-tunes every value; "reset" returns here.
- */
 export const DEFAULT_LENS: LensSettings = {
   fovYDeg: 70,
   eyeGapPx: 0,
@@ -206,24 +122,12 @@ export const DEFAULT_SETTINGS: Settings = {
     trackingConfidence: 0.7,
     trackingWarmupFrames: 2,
     hoverDwellMs: 80,
-    // MediaPipe never reports bone tips as touching: a pinch that looks closed
-    // still sits around a third of the knuckle span. 0.22 was bone-on-bone and
-    // the wearer had to crush their fingers together. 0.4 is "clearly closing".
     pinchEnterRatio: 0.4,
     pinchExitRatio: 0.55,
     pinchOpenDelta: 0.08,
     pinchEnterHoldMs: 16,
     pinchExitHoldMs: 24,
-    // A hand held up in the air is never still, and as the thumb arrives to
-    // meet the index the two tips each move. The cursor sits at their midpoint,
-    // so that closing motion largely cancels; what is left is tremor. At one
-    // per cent of the view every press still travelled far enough to count as a
-    // drag, and a drag is not a click — so nothing opened. This is roughly a
-    // fingertip's width on screen: wide enough to absorb a tremor, short enough
-    // that meaning to move reads as moving.
     dragThreshold: 0.05,
-    // Long enough that a deliberate tap is still a tap when the hand is slow,
-    // short enough that waiting for a drag does not feel like waiting.
     dragHoldMs: 500,
     lostTimeoutMs: 150,
     sensitivity: 1,
@@ -232,13 +136,7 @@ export const DEFAULT_SETTINGS: Settings = {
     contactRatio: 0.45,
     contactHoldMs: 40,
     releaseRatio: 0.7,
-    // Ratio units per second. A deliberate snap separates in ~30 ms. Tracking
-    // at 24 fps often samples that as one jump, so this is below "one frame
-    // from pressed to open" rather than a studio-camera 60 fps slope.
     velocityThreshold: 5,
-    // Extended, the middle fingertip sits about 1.8 hand-lengths from the palm
-    // centre; folded in, well under one. The line between goes here, with room
-    // for a tracker that never quite reports the finger on the skin.
     palmRatio: 1.25,
     windowMs: 320,
     cooldownMs: 450,
@@ -289,20 +187,9 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const STORAGE_KEY = "vr-core.settings.v1";
 
-/**
- * Pitch, expression and the rest were saved for the old Piper voice, where a pitch of 215 Hz
- * was natural. On the VieNeu voice (about 138 Hz) the same number is a chipmunk. Saves made
- * before this marker existed take today's defaults; once settings are saved under it, they stay.
- */
 const VOICE_MODEL_KEY = "vr-core.voice-model";
 const VOICE_MODEL = "vieneu-turbo";
 
-/**
- * 250 ms was the old default for `maxBatchAgeMs`, saved with everything else
- * although nothing in the menu sets it. On a phone running a detector on its
- * CPU, a result is often older than that by the time it lands, and every box
- * was thrown away; a saved 250 is read as "never chosen" and moved to today's.
- */
 const migrateRender = (render: RenderSettings): RenderSettings =>
   render.maxBatchAgeMs === 250 ? { ...render, maxBatchAgeMs: DEFAULT_SETTINGS.render.maxBatchAgeMs } : render;
 
@@ -317,16 +204,11 @@ export const loadSettings = (): Settings => {
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const gestureIn = parsed.gesture ?? {};
     const gesture = { ...DEFAULT_SETTINGS.gesture, ...gestureIn };
-    // Older sessions saved 0.35 / 0.55 and had no `pinchOpenDelta`. Those
-    // numbers are the bug this field exists to fix, and they were never on a
-    // slider, so nobody chose them. Taking the new defaults is not resetting a
-    // preference; it is applying the correction.
     if (!("pinchOpenDelta" in gestureIn)) {
       gesture.pinchEnterRatio = DEFAULT_SETTINGS.gesture.pinchEnterRatio;
       gesture.pinchExitRatio = DEFAULT_SETTINGS.gesture.pinchExitRatio;
       gesture.pinchOpenDelta = DEFAULT_SETTINGS.gesture.pinchOpenDelta;
     }
-    // 0.22 / 60 ms was the "crush the fingertips together" pair. Not a slider.
     if (gesture.pinchEnterRatio <= 0.25) {
       gesture.pinchEnterRatio = DEFAULT_SETTINGS.gesture.pinchEnterRatio;
       gesture.pinchExitRatio = DEFAULT_SETTINGS.gesture.pinchExitRatio;
@@ -336,8 +218,6 @@ export const loadSettings = (): Settings => {
     }
     const snapIn = parsed.snap ?? {};
     const snap = { ...DEFAULT_SETTINGS.snap, ...snapIn };
-    // Older saves are the sets that fired on a fist, or the set so strict a
-    // real snap never qualified. None of this was on a slider.
     if (
       (snap.contactRatio <= 0.36 && snap.velocityThreshold >= 8) ||
       snap.palmRatio <= 1.05 ||
@@ -391,7 +271,6 @@ const readFrameScale = (value: Partial<LensSettings> & { viewScale?: number }): 
   return DEFAULT_LENS.frameScale;
 };
 
-/** A saved line is kept as written, even empty; a missing one is the default. */
 const parseLines = (raw: unknown, defaults: Readonly<Record<Locale, string>>): Readonly<Record<Locale, string>> => {
   const saved = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return Object.fromEntries(
@@ -440,6 +319,5 @@ export const persistSettings = (settings: Settings): void => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     localStorage.setItem(VOICE_MODEL_KEY, VOICE_MODEL);
   } catch {
-    // Storage may be unavailable in private mode; settings stay session-only.
   }
 };

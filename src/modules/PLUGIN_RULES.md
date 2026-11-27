@@ -26,6 +26,8 @@ plugin you may change any `.ts`, `.json` (not `models.json`, `vendor.json`) or `
 
 - Import only from the plugin's own folder (`./...`) and from `@/core/...`, `@/shared/...`, `@/i18n/text`, `@/ui/theme`,
   `@/env`. Never from another plugin (`../<other>`, `@/modules/...`): what two plugins need belongs in Core, not in one of them.
+- From Core (`@/...`) import names, never a default export: the page gives the plugin the app's own copy of that module, and a
+  plugin's file is built apart from the app and swapped in while the server runs.
 - No `eval`, `Function`, dynamic `import()` of a URL or a computed path, `require`, `Proxy`, `Reflect`, `prototype`,
   `__proto__`, `.constructor`, `import.meta`, `<script>`, `ServiceWorker`, `SharedWorker`.
 - No Node.js and no npm. A package the plugin needs goes in its `vendor.json`; you do not add one.

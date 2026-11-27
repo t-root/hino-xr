@@ -6,19 +6,10 @@ import { TEXTURE_NEUTRAL_TINT, uiColorHex } from "@/ui/theme";
 import { RENDER_ORDER } from "../rendering/RenderScene";
 import type { MediaSource } from "./media-source";
 
-/** Height of the panel in metres at the UI plane; width follows the video aspect. */
 const PANEL_HEIGHT = 0.9;
 const FALLBACK_ASPECT = 16 / 9;
 const METADATA_TIMEOUT_MS = 15_000;
 
-/**
- * A video played once and drawn per eye (rules.md).
- *
- * The element is created here and never enters the DOM tree that is duplicated
- * per eye, so there is exactly one decoder and one playback clock. Both eyes
- * sample the same texture, which means they show the same decoded frame — sync
- * is not maintained, it is structurally impossible to lose.
- */
 export class VideoSurface {
   readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 
@@ -40,8 +31,6 @@ export class VideoSurface {
     this.video.playsInline = true;
     this.video.muted = true;
     this.video.loop = true;
-    // Kept out of the document on purpose: an element inside an eye box would be
-    // duplicated, and two decoders drift.
     this.video.crossOrigin = "anonymous";
   }
 
@@ -49,7 +38,6 @@ export class VideoSurface {
     return this.video;
   }
 
-  /** Rejects if the source cannot be decoded or its pixels cannot be read. */
   async play(source: MediaSource): Promise<void> {
     this.close();
 
@@ -114,8 +102,6 @@ export class VideoSurface {
 const waitForMetadata = (video: HTMLVideoElement): Promise<void> => {
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    // A source that neither loads nor errors would otherwise leave the caller
-    // waiting forever, with the interface stuck on its opening state.
     const timer = setTimeout(() => fail(message("media.error.timeout")), METADATA_TIMEOUT_MS);
 
     const done = (): void => {

@@ -19,7 +19,6 @@ type ModuleRuntime = {
   readonly id: string;
   readonly budget: ModuleBudget;
   module: VisionModule | null;
-  /** Only for a plugin granted `screen`; lives as long as `module` does. */
   screen: ModuleScreenHandle | null;
   state: ModuleState;
   unregisterConsumer: Unsubscribe | null;
@@ -32,17 +31,11 @@ type ModuleRuntime = {
 export type ModuleStatus = Readonly<{
   id: string;
   state: ModuleState;
-  /** Shown to the user, so it carries every language rather than one. */
   lastError: LocalizedText | null;
   lastLatencyMs: number;
   batches: number;
 }>;
 
-/**
- * Owns module lifecycle and isolates their failures. A module that throws,
- * times out or returns an invalid payload is paused; the camera, renderer and
- * every other module keep running.
- */
 export class ModuleManager {
   private readonly runtimes = new Map<string, ModuleRuntime>();
   private readonly logger;
@@ -54,7 +47,6 @@ export class ModuleManager {
     private readonly metrics: Metrics,
     private readonly moduleFps: () => number,
     private readonly locale: () => Locale = () => "vi",
-    /** Absent in tests and headless runs: `screen` is then never handed out. */
     private readonly screenFor: ModuleScreenFactory | null = null,
   ) {
     this.logger = createLogger("module-manager", bus);
@@ -101,13 +93,8 @@ export class ModuleManager {
     };
     this.runtimes.set(id, runtime);
 
-    // Checked before the model is fetched, and before a line of the plugin has
-    // run: a folder that asks for more than frames stays switched off until
-    // somebody grants it that outside the plugin (`permissions.ts`).
     const missing = missingPermissions(registration.manifest);
     if (missing.length > 0) {
-      // Written in every language at once: this is stored and read back later,
-      // by which time the interface may be in the other one.
       const names = missing.map((permission) => message(permissionKey(permission)));
       runtime.lastError = format(message("module.missingPermissions"), {
         list: joinLocalized(names),
@@ -124,7 +111,6 @@ export class ModuleManager {
       if (!runtime.module) {
         const wantsScreen = registration.manifest.permissions.includes("screen");
         if (wantsScreen && this.screenFor && !runtime.screen) runtime.screen = this.screenFor(id);
-        // Shown while it loads, so a plugin can say it is busy on its own screen.
         runtime.screen?.setVisible(true);
         await module.initialize(this.createContext(id, runtime.screen));
         runtime.module = module;
@@ -147,8 +133,6 @@ export class ModuleManager {
       runtime.lastError = null;
       this.setState(runtime, "ready");
     } catch (error) {
-      // A plugin that never started must not leave what it drew behind; the
-      // next attempt starts from an empty screen.
       if (!runtime.module) {
         runtime.screen?.dispose();
         runtime.screen = null;
@@ -172,10 +156,6 @@ export class ModuleManager {
     this.setState(runtime, "paused");
   }
 
-  /**
-   * Parks a module that failed outside `process()` — in code Core runs for it,
-   * such as drawing its screen — with the reason shown in the menu.
-   */
   fail(id: string, error: unknown): void {
     const runtime = this.runtimes.get(id);
     if (!runtime || runtime.state === "failed") return;
@@ -186,11 +166,6 @@ export class ModuleManager {
     this.logger.error(`module "${id}" failed`, { message: runtime.lastError.en });
   }
 
-  /**
-   * Offers a spoken command to every plugin that is running, in turn, until one answers. Core does not know
-   * which plugin a command is for: a plugin that does not handle it returns null, and one that fails does not
-   * stop the others hearing it.
-   */
   async command(name: string, payload: Readonly<Record<string, unknown>>): Promise<CommandReply | null> {
     for (const runtime of this.runtimes.values()) {
       if (runtime.state !== "ready" || !runtime.module?.command) continue;
@@ -206,6 +181,23 @@ export class ModuleManager {
     return null;
   }
 
+  async forget(id: string): Promise<void> {
+    const runtime = this.runtimes.get(id);
+    if (!runtime) return;
+    runtime.unregisterConsumer?.();
+    runtime.unregisterConsumer = null;
+    try {
+      await runtime.module?.setEnabled(false);
+      await runtime.module?.dispose();
+    } catch (error) {
+      this.logger.warn(`module "${id}" threw while being replaced`, { message: error instanceof Error ? error.message : String(error) });
+    }
+    runtime.screen?.dispose();
+    runtime.screen = null;
+    this.runtimes.delete(id);
+    this.bus.emit("module.state", { moduleId: id, state: "idle" });
+  }
+
   async toggle(id: string): Promise<void> {
     if (this.isEnabled(id)) await this.disable(id);
     else await this.enable(id);
@@ -217,7 +209,6 @@ export class ModuleManager {
       try {
         await runtime.module?.dispose();
       } catch {
-        // A failing dispose must not block teardown of the remaining modules.
       }
       runtime.screen?.dispose();
       runtime.screen = null;
@@ -225,10 +216,6 @@ export class ModuleManager {
     this.runtimes.clear();
   }
 
-  /**
-   * Runs one frame through a module. The frame's bitmap is always released
-   * here, whether the module consumed it, transferred it or threw.
-   */
   private async runModule(runtime: ModuleRuntime, packet: FramePacket): Promise<void> {
     const module = runtime.module;
     if (!module || runtime.state !== "ready") {
@@ -292,7 +279,6 @@ export class ModuleManager {
 
   private setState(runtime: ModuleRuntime, state: ModuleState, error?: Error): void {
     runtime.state = state;
-    // Whatever the plugin itself does, a switched-off plugin covers nothing.
     runtime.screen?.setVisible(state === "ready" || state === "loading");
     this.bus.emit("module.state", error ? { moduleId: runtime.id, state, error } : { moduleId: runtime.id, state });
   }

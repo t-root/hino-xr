@@ -1,14 +1,5 @@
 import { clamp, clamp01 } from "@/shared/math/num";
 
-/**
- * Colours of the interface.
- *
- * The primary token paints every ordinary surface, label, outline and cursor.
- * The accent token is reserved for things that have to stand apart from that
- * field: errors, warnings, log lines that failed, the notices on Start.
- * Opacity scales the token before it is mixed, so turning it down thins the
- * whole UI rather than punching a hole in one control.
- */
 export type ThemeSettings = Readonly<{
   primary: string;
   primaryOpacity: number;
@@ -23,7 +14,6 @@ export const DEFAULT_THEME: ThemeSettings = {
   accentOpacity: 1,
 };
 
-/** Alpha scale. Hierarchy comes from transparency, never from a third hue. */
 export const ALPHA = {
   hairline: 0.14,
   surface: 0.08,
@@ -106,19 +96,10 @@ export const uiColor = (alpha: number): string => rgbaOf(primaryRgb, alpha * cur
 
 export const uiColorHex = (): number => pack(primaryRgb);
 
-/**
- * The void behind the camera image. Pure black so a 1px raster gap cannot
- * show a tinted hairline between the picture and the stage.
- */
 export const voidHex = (): number => 0;
 
-/** Neutral multiplier for textured materials: shows the texture untinted. */
 export const TEXTURE_NEUTRAL_TINT = 0xffffff;
 
-/**
- * Publishes the tokens to CSS and to the live getters the renderer reads.
- * Called at startup and whenever the wearer moves a colour slider.
- */
 export const applyTheme = (theme: ThemeSettings): void => {
   current = theme;
   primaryRgb = hexToRgb(theme.primary);

@@ -10,24 +10,11 @@ type ScrollBoxHandle = {
   dispose: () => void;
 };
 
-/** Vertical travel before a press becomes a scroll rather than a tap. */
 const AXIS_LOCK_PX = 8;
 
 const isControl = (target: EventTarget | null): boolean =>
   target instanceof Element && Boolean(target.closest("input, select, textarea, button"));
 
-/**
- * The one scrollable region in the interface (rules.md).
- *
- * Native overflow keeps the scroll position inside the element. In stereo the
- * interface exists twice, so two copies each hold their own position and the
- * eyes drift apart. Here the offset lives in the shared store under a logical
- * id and the content is moved by transform.
- *
- * The region listens for pointer events, nothing else. A hand reaches those
- * events through core (`dispatchHandPointer`); do not add a second path for
- * hands here.
- */
 export const ScrollBox = (
   parent: ParentNode,
   options: { id: string; className?: string },

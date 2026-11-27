@@ -1,4 +1,3 @@
-"""The on-screen keyboard comes up by itself, types into any text box, and is built once in Core."""
 
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ class KeyboardTest(unittest.TestCase):
         typed = "".join(layout["numbers"]) + "".join(
             "".join(row) for page in (layout["letters"], layout["symbols"], layout["more"]) for row in page
         )
-        # The comma and the period sit by the space bar on every page, so they are not in the layout.
         typed += ",."
         every_sign = "".join(chr(c) for c in range(33, 127) if not chr(c).isalnum())
         for char in every_sign:
@@ -33,7 +31,6 @@ class KeyboardTest(unittest.TestCase):
 
     def test_a_box_put_away_and_chosen_again_brings_the_keyboard_back(self) -> None:
         source = (SRC / "core/input/keyboardInput.ts").read_text(encoding="utf-8")
-        # A box that kept the focus gets no focusin, so choosing it must open the keyboard by itself.
         self.assertIn('"click"', source)
         self.assertIn("openKeyboardFor", source)
         self.assertIn("blur()", source)
@@ -56,9 +53,9 @@ class KeyboardTest(unittest.TestCase):
         self.assertIn("KeyboardPanel(frame", app)
         panel = (SRC / "ui/panels/KeyboardPanel.ts").read_text(encoding="utf-8")
         self.assertIn("useKeyboardStore", panel)
-        self.assertIn('"VI"', panel)  # the key that switches the typing language
+        self.assertIn('"VI"', panel)
         self.assertIn('"EN"', panel)
-        self.assertIn('state.setLayer(letters ? "symbols" : "letters")', panel)  # letters to signs and back
+        self.assertIn('state.setLayer(letters ? "symbols" : "letters")', panel)
 
     def test_no_plugin_makes_its_own_keyboard(self) -> None:
         for path in walk(SRC / "modules"):

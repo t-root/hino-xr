@@ -1,4 +1,3 @@
-"""A timer, the weather, a look-up, and "stop": keyword commands that need no language model."""
 
 from __future__ import annotations
 
@@ -39,8 +38,8 @@ class TimerTest(unittest.TestCase):
         self.assertEqual(seconds("hẹn giờ mười phút"), 600)
         self.assertEqual(seconds("hẹn giờ một tiếng rưỡi"), 5400)
         self.assertEqual(seconds("hẹn giờ nửa tiếng"), 1800)
-        self.assertEqual(seconds("hẹn giờ sáu phút"), 360)  # "sáu" is six...
-        self.assertEqual(seconds("hẹn giờ sau mười phút"), 600)  # ...and "sau" is only "after"
+        self.assertEqual(seconds("hẹn giờ sáu phút"), 360)
+        self.assertEqual(seconds("hẹn giờ sau mười phút"), 600)
 
     def test_english(self) -> None:
         self.assertEqual(seconds("set a timer for 5 minutes", "en"), 300)
@@ -100,7 +99,7 @@ class WeatherAndLookupTest(unittest.TestCase):
         self.assertIn("từ 26 đến 33 độ", out["reply"])
         self.assertIn("mưa 60 phần trăm", out["reply"])
         self.assertEqual(out["open"], "assistant")
-        self.assertIn("name=%C4%90%C3%A0+N%E1%BA%B5ng", self.asked[0])  # the city, and nothing else, is sent
+        self.assertIn("name=%C4%90%C3%A0+N%E1%BA%B5ng", self.asked[0])
 
     def test_tomorrow(self) -> None:
         out = tools.command("thời tiết ở Đà Nẵng ngày mai", "vi")
@@ -112,11 +111,11 @@ class WeatherAndLookupTest(unittest.TestCase):
         self.assertIn("Today, 26 to 33 degrees", out["reply"])
 
     def test_no_city_uses_where_the_device_is_or_asks(self) -> None:
-        self.assertIn("ở đâu", tools.command("thời tiết hôm nay thế nào", "vi")["reply"])  # no city and no position
+        self.assertIn("ở đâu", tools.command("thời tiết hôm nay thế nào", "vi")["reply"])
         out = tools.command("thời tiết hôm nay", "vi", (16.05, 108.2))
         self.assertIn("Chỗ bạn: hiện 31 độ", out["reply"])
         self.assertTrue(any("latitude=16.05" in url and "longitude=108.2" in url for url in self.asked))
-        self.assertFalse(any("geocoding" in url for url in self.asked))  # nothing to look up: only the two numbers go out
+        self.assertFalse(any("geocoding" in url for url in self.asked))
         self.assertIn("Where you are: 31 degrees", tools.command("weather today", "en", (16.05, 108.2))["reply"])
 
     def test_a_city_that_is_said_wins_over_where_the_device_is(self) -> None:
@@ -166,18 +165,17 @@ class StopTest(unittest.TestCase):
     def test_the_page_and_the_server_have_it(self) -> None:
         root = ASSISTANT.parent
         self.assertIn('"stop"', (root / "src/core/models/WakeController.ts").read_text(encoding="utf-8"))
-        self.assertIn("bargeIn: false", (root / "src/core/state/settings.ts").read_text(encoding="utf-8"))  # off until asked for
+        self.assertIn("bargeIn: false", (root / "src/core/state/settings.ts").read_text(encoding="utf-8"))
         self.assertIn("is_stop", (ASSISTANT / "app.py").read_text(encoding="utf-8"))
 
 
 class SpokenPathTest(unittest.TestCase):
-    """What the page receives when the wearer asks for a timer."""
 
     def test_a_timer_reaches_the_page_as_a_command_with_its_clock(self) -> None:
         engine = engine_module.Engine()
         spec = catalog.ModelSpec(id="t")
         engine._spec, engine.state = spec, "ready"
-        engine_module.ai.ready = lambda name: None  # no server of this machine in a test
+        engine_module.ai.ready = lambda name: None
         keep = (speech_module.speech.transcribe, engine_module._tts)
         speech_module.speech.transcribe = lambda *a, **k: "hẹn giờ năm phút"
         engine_module._tts = lambda text, locale, tuning: None
@@ -189,7 +187,7 @@ class SpokenPathTest(unittest.TestCase):
         command = next(e for e in events if e["type"] == "command")
         self.assertEqual(command["action"], "timer")
         self.assertEqual(command["value"]["seconds"], 300)
-        self.assertTrue(any(e["type"] == "timing" for e in events))  # the page logs how long the turn took
+        self.assertTrue(any(e["type"] == "timing" for e in events))
 
 
 if __name__ == "__main__":

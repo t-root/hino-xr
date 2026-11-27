@@ -1,4 +1,3 @@
-"""Two hands pinching is one gesture, recognised once in Core and used by everything."""
 
 from __future__ import annotations
 

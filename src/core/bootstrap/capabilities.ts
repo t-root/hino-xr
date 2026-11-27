@@ -24,7 +24,6 @@ const hasWebGl2 = (): boolean => {
   }
 };
 
-/** Detects SIMD support the same way the MediaPipe WASM loader does. */
 const hasWasmSimd = (): boolean => {
   try {
     return WebAssembly.validate(
@@ -68,7 +67,6 @@ export const detectCapabilities = async (): Promise<Capabilities> => {
 
 export type CapabilityBlocker = Readonly<{ id: string; message: LocalizedText }>;
 
-/** Blockers stop the runtime; everything else degrades to a fallback path. */
 export const findBlockers = (capabilities: Capabilities): readonly CapabilityBlocker[] => {
   const blockers: CapabilityBlocker[] = [];
   if (!capabilities.secureContext) {

@@ -1,28 +1,15 @@
 import { encodeWav } from "./wav";
 
-/** Speech shorter than this is a cough or a knock, not a word. */
 const MIN_SPEECH_MS = 250;
-/** Quiet this long ends a line. */
 const END_SILENCE_MS = 1000;
-/** Blocks kept from before the voice crossed the threshold, so the first sound is not cut. */
 const PRE_ROLL_BLOCKS = 5;
-/** Loud blocks in a row that count as the start of speech. */
 const START_BLOCKS = 2;
-/** What Whisper reads. */
 const TARGET_RATE = 16_000;
-/** The voice has to be at least this loud, and this many times the room's own noise. */
 const MIN_LEVEL = 0.02;
 const NOISE_MARGIN = 3;
 
 export type Heard = Readonly<{ blob: Blob; durationMs: number }>;
 
-/**
- * An open microphone that cuts what it hears into lines of speech.
- *
- * It decides only where a line starts and stops, by loudness. What was said is
- * the model server's business. While paused it throws every sample away, so
- * the assistant's own voice and the time it is busy are never kept.
- */
 export class WakeListener {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
@@ -39,12 +26,10 @@ export class WakeListener {
   private preRoll: Float32Array[] = [];
   private segment: Float32Array[] = [];
 
-  /** Loudness of every block the microphone delivers, even while paused: it says the microphone is alive. */
   onLevel: ((level: number) => void) | null = null;
 
   constructor(private readonly onHeard: (heard: Heard) => void) {}
 
-  /** True while a line is being spoken. */
   get speaking(): boolean {
     return this.inSpeech;
   }
@@ -83,7 +68,6 @@ export class WakeListener {
     }
   }
 
-  /** The longest a single line may run before it is handed over as it is. */
   setMaxMs(ms: number): void {
     this.maxMs = ms;
   }
@@ -115,7 +99,6 @@ export class WakeListener {
     if (this.paused) return;
     const blockMs = (block.length / rate) * 1000;
     if (!this.inSpeech) {
-      // The room's own noise, followed slowly and only while nobody is speaking.
       this.floor = Math.min(0.05, Math.max(0.003, this.floor * 0.95 + level * 0.05));
     }
     const loud = level > Math.max(MIN_LEVEL, this.floor * NOISE_MARGIN);
@@ -175,7 +158,6 @@ const concat = (chunks: readonly Float32Array[]): Float32Array => {
   return out;
 };
 
-/** Linear resampling; speech for a recogniser does not need better. */
 const downsample = (samples: Float32Array, from: number, to: number): Float32Array => {
   if (from <= to) return samples;
   const count = Math.max(1, Math.floor((samples.length * to) / from));

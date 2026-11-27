@@ -1,4 +1,3 @@
-"""A plugin the assistant writes is checked before it exists, and not installed until approved."""
 
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from helpers import ASSISTANT, SRC
 
 sys.path.insert(0, str(ASSISTANT))
 frontend = importlib.import_module("frontend")
-smith = importlib.import_module("models.pluginsmith")  # a package member: it imports the `ai` package
+smith = importlib.import_module("models.pluginsmith")
 sys.path.remove(str(ASSISTANT))
 
 GOOD = smith._EXAMPLE
@@ -77,7 +76,7 @@ class ReplyTest(unittest.TestCase):
 
 
 class InstallTest(unittest.TestCase):
-    def test_a_plugin_is_found_from_its_folder_and_nothing_outside_it_is_edited(self) -> None:
+    def test_every_plugin_folder_is_its_own_live_file_and_nothing_names_one(self) -> None:
         import tempfile
         from pathlib import Path
 
@@ -87,32 +86,22 @@ class InstallTest(unittest.TestCase):
                 (modules / name).mkdir(parents=True)
                 if has_plugin:
                     (modules / name / "plugin.ts").write_text("export default {};", encoding="utf-8")
-            keep = frontend.SRC, frontend.PLUGIN_INDEX
-            frontend.SRC, frontend.PLUGIN_INDEX = Path(tmp), modules / "plugins.generated.ts"
+            keep = frontend.SRC
+            frontend.SRC = Path(tmp)
             try:
-                before = frontend.plugin_index()
-                self.assertTrue(frontend.write_plugin_index())
-                self.assertFalse(frontend.write_plugin_index())  # unchanged: the file keeps its time, so nothing is rebuilt
-                (modules / "ai-people").mkdir()
-                (modules / "ai-people" / "plugin.ts").write_text("export default {};", encoding="utf-8")
-                after = frontend.plugin_index()
-                self.assertTrue(frontend.write_plugin_index())
+                found = [folder.name for folder in frontend._live_folders()]
             finally:
-                frontend.SRC, frontend.PLUGIN_INDEX = keep
-        self.assertNotIn("ai-people", before)
-        self.assertIn('import plugin0 from "./a-plugin/plugin";', after)  # in path order
-        self.assertNotIn("not-a-plugin", after)
-        self.assertIn('"./ai-people/plugin"', after)
-        self.assertNotIn("registry", after)
+                frontend.SRC = keep
+        self.assertEqual(found, ["a-plugin", "b-plugin"])
+        self.assertFalse(hasattr(frontend, "plugin_index"))
 
     def test_installing_a_draft_touches_no_file_outside_the_plugin_folder(self) -> None:
         source = (ASSISTANT / "models/pluginsmith.py").read_text(encoding="utf-8")
-        install = source[source.index("def _approve"):source.index("# --- changing a plugin that exists")]
+        install = source[source.index("def _approve"):source.index("EDITABLE = ")]
         self.assertNotIn("registry", install.lower())
         self.assertNotIn("write_text", install)
         self.assertNotIn("_register", source)
-        registry = (SRC / "modules/registry.ts").read_text(encoding="utf-8")
-        self.assertNotRegex(registry, r"from \"\./[a-z-]+/plugin\"")  # no plugin is named there
+        self.assertFalse((SRC / "modules/registry.ts").exists())
 
     def test_a_draft_gets_the_permissions_it_asked_for_and_only_those(self) -> None:
         import tempfile
@@ -151,7 +140,6 @@ class InstallTest(unittest.TestCase):
             self.assertEqual(sorted(imports), ["./manifest", "@/core/modules/definePlugin"])
 
     def test_the_lock_is_not_held_while_the_model_writes(self) -> None:
-        """Approving another plugin must not wait minutes for a draft that is still being written."""
         free_during_the_ask: list[bool] = []
 
         def slow_model(system: str, user: str) -> str:
@@ -187,12 +175,11 @@ class InstallTest(unittest.TestCase):
 
 
 class RulesTest(unittest.TestCase):
-    """The plugin rules are a file, and it is what the model is shown every time it writes or changes a plugin."""
 
     def test_the_file_is_there_and_short_enough_for_the_model_window(self) -> None:
         text = smith.rules()
         self.assertGreater(len(text), 1500)
-        self.assertLess(len(text), 12000)  # the code model has 16k tokens for the rules, the plugin and the answer
+        self.assertLess(len(text), 12000)
 
     def test_it_is_put_after_both_prompts(self) -> None:
         for system in (smith._SYSTEM, smith._REVISE_SYSTEM):

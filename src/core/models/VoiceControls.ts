@@ -7,7 +7,6 @@ import { useLocaleStore } from "../state/LocaleStore";
 import { SETTINGS_CATEGORIES, useSharedUiStore, type SettingsCategory } from "../state/SharedUiStore";
 import { DEFAULT_LENS, DEFAULT_SETTINGS, type Settings } from "../state/settings";
 
-/** A control as the model server needs it to hear a spoken line: names, kind, range, where it stands. */
 export type SpokenControl = Readonly<
   | {
       id: string;
@@ -32,7 +31,6 @@ export type SpokenControl = Readonly<
     }
 >;
 
-/** What the headset lets a spoken line reach: its settings, and the switches that are not settings. */
 export type ControlDeps = Readonly<{
   settings: () => Settings;
   apply: (settings: Settings) => void;
@@ -80,7 +78,6 @@ const pipeline = (s: Settings, patch: Partial<Settings["pipeline"]>): Settings =
 
 const D = DEFAULT_SETTINGS;
 
-/** The numbers the menu has sliders for, with the same ranges. Names are what a person would say. */
 const NUMBERS: readonly NumberEntry[] = [
   {
     id: "lens.ipd",
@@ -226,16 +223,10 @@ const NUMBERS: readonly NumberEntry[] = [
 
 type Said = Readonly<{ vi: readonly string[]; en: readonly string[]; unit?: Readonly<{ vi: string; en: string }> }>;
 
-/** What a person calls a control, in each language: `src/shared/voice-controls.json`. */
 const said = (id: string): Said => (names as unknown as Record<string, Said>)[id] ?? { vi: [], en: [] };
 
 const ui = () => useSharedUiStore.getState();
 
-/**
- * Everything a spoken line may work: the menu's sliders and switches, the
- * language, and which entry the menu is on. Not the assistant's own on/off
- * switch: turning it off by voice would leave nobody to turn it back on.
- */
 export const createVoiceControls = (deps: ControlDeps) => {
   const toggles: readonly ToggleEntry[] = [
     {
@@ -270,7 +261,6 @@ export const createVoiceControls = (deps: ControlDeps) => {
     },
   ];
 
-  /** What is sent to the server with each spoken line. */
   const describe = (): readonly SpokenControl[] => {
     const settings = deps.settings();
     const out: SpokenControl[] = [];
@@ -305,7 +295,6 @@ export const createVoiceControls = (deps: ControlDeps) => {
     return out;
   };
 
-  /** Does what the server decided. Unknown ids and values out of shape are ignored. */
   const run = (id: string, value: unknown): void => {
     if (id.startsWith("page.")) {
       const category = id.slice(5) as SettingsCategory;

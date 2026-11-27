@@ -1,20 +1,7 @@
-/**
- * Bends the interface drawn on `.camera-frame` (menu, text, cursor-sized controls) the same way the
- * camera picture is bent, so a lens does not straighten the video and leave the menu flat and square.
- *
- * `VideoLayer` samples the camera at `0.5 + (uv - 0.5) * factor / fit`. This does the same to the DOM
- * with an SVG displacement filter, built from the same formula, so a hand that points at a spot in the
- * camera picture lands on the control drawn there: the hit-test needs no correction of its own.
- *
- * Off (no filter at all) while k1 and k2 are both 0, so a flat view costs nothing.
- */
-
 const FILTER_ID = "hino-lens-warp";
 const SVG_NS = "http://www.w3.org/2000/svg";
-/** The displacement field is smooth, so a coarse grid is enough; the browser interpolates it. */
 const GRID = 96;
 
-/** Where the picture is sampled for a point of the frame: both in `0..1` of the square. */
 export const warpSource = (u: number, v: number, k1: number, k2: number): { x: number; y: number } => {
   const dx = u - 0.5;
   const dy = v - 0.5;
@@ -25,11 +12,6 @@ export const warpSource = (u: number, v: number, k1: number, k2: number): { x: n
   return { x: 0.5 + dx * scale, y: 0.5 + dy * scale };
 };
 
-/**
- * Where on the frame a point of the camera picture is SEEN: the inverse of `warpSource`. A hand at
- * `(x, y)` of the picture shows up here once the lens has bent the picture, so a cursor that marks the
- * hand has to be drawn here, not at `(x, y)`. Both in `0..1` of the square.
- */
 export const warpTarget = (x: number, y: number, k1: number, k2: number): { x: number; y: number } => {
   if (k1 === 0 && k2 === 0) return { x, y };
   const dx = x - 0.5;
@@ -37,7 +19,6 @@ export const warpTarget = (x: number, y: number, k1: number, k2: number): { x: n
   const rho = Math.hypot(dx, dy);
   if (rho === 0) return { x, y };
   const fit = Math.max(1 + k1 * 0.25 + k2 * 0.0625, 1);
-  // The source radius of a frame radius r is r * (1 + k1 r^2 + k2 r^4) / fit: find the r that gives rho.
   const sourceRadius = (r: number): number => (r * (1 + k1 * r * r + k2 * r * r * r * r)) / fit;
   let low = 0;
   let high = 4;
@@ -52,7 +33,6 @@ export const warpTarget = (x: number, y: number, k1: number, k2: number): { x: n
 
 type Field = Readonly<{ url: string; scale: number }>;
 
-/** The displacement map as an image: red and green are the sideways and downward move, 0.5 meaning none. */
 const buildField = (k1: number, k2: number, width: number, height: number): Field | null => {
   const canvas = document.createElement("canvas");
   canvas.width = GRID;
@@ -67,8 +47,6 @@ const buildField = (k1: number, k2: number, width: number, height: number): Fiel
       const u = column / (GRID - 1);
       const v = row / (GRID - 1);
       const source = warpSource(u, v, k1, k2);
-      // Past the edge the picture clamps to its edge (as `VideoLayer` does) instead of going clear: a
-      // clear patch lets the bright camera show through where the dark veil should be.
       const moveX = (Math.min(Math.max(source.x, 0), 1) - u) * width;
       const moveY = (Math.min(Math.max(source.y, 0), 1) - v) * height;
       moves.push(moveX, moveY);
@@ -95,7 +73,6 @@ class LensWarp {
   private svg: SVGSVGElement | null = null;
   private lastKey = "";
 
-  /** Frame position `0..1` where a point of the camera picture is seen; unchanged while the warp is off. */
   seen(x: number, y: number): { x: number; y: number } {
     return this.active() ? warpTarget(x, y, this.k1, this.k2) : { x, y };
   }
@@ -110,7 +87,6 @@ class LensWarp {
     this.apply();
   }
 
-  /** Size in px of the camera square. Both eyes share it. */
   setFrameSize(width: number, height: number): void {
     if (width === this.width && height === this.height) return;
     this.width = width;
@@ -149,7 +125,6 @@ class LensWarp {
     }
     const w = String(this.width);
     const h = String(this.height);
-    // sRGB, or the browser reads the map as linear light and every move comes out wrong.
     this.svg.innerHTML = `
       <filter id="${FILTER_ID}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse"
               x="0" y="0" width="${w}" height="${h}" color-interpolation-filters="sRGB">

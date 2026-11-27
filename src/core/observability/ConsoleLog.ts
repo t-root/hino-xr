@@ -9,22 +9,10 @@ type LogEntry = Readonly<{
   atMs: number;
 }>;
 
-/**
- * Lines kept. A headset has no devtools to scroll back through, but a buffer
- * that grows all session is a leak with a nice name.
- */
 const LIMIT = 300;
 
-/** One line cannot be allowed to push everything else off the screen. */
 const MAX_TEXT = 400;
 
-/**
- * Lines are collected for this long before the store is touched.
- *
- * Two reasons. A failure usually arrives as a burst of lines, and a store write
- * per line is a menu rebuild per line. And `console.error` can be called from
- * inside a subscriber, where writing to a store immediately would recurse.
- */
 const FLUSH_MS = 200;
 
 const LEVELS: readonly LogLevel[] = ["debug", "log", "info", "warn", "error"];
@@ -35,12 +23,6 @@ type LogState = {
   clear: () => void;
 };
 
-/**
- * What the browser console has said this session.
- *
- * A store, not a ref: the log panel is drawn once per eye and both copies read
- * from here, like every other piece of interface state (rules.md).
- */
 export const useLogStore = createStore<LogState>((set) => ({
   entries: [],
   append: (incoming) => set((state) => ({ entries: [...state.entries, ...incoming].slice(-LIMIT) })),
@@ -55,8 +37,6 @@ const describe = (value: unknown): string => {
     try {
       return JSON.stringify(value) ?? String(value);
     } catch {
-      // Cyclic objects and live DOM nodes are common in console output and
-      // neither is worth throwing over.
       return Object.prototype.toString.call(value);
     }
   }
@@ -83,8 +63,6 @@ const flush = (): void => {
 };
 
 const record = (level: LogLevel, args: readonly unknown[]): void => {
-  // Formatting a value can call a getter, and a getter can log. Without this
-  // the first such line would take the tab down with it.
   if (recording) return;
   recording = true;
   try {
@@ -96,13 +74,6 @@ const record = (level: LogLevel, args: readonly unknown[]): void => {
   }
 };
 
-/**
- * Mirrors the console into the store, and keeps printing it as before.
- *
- * The point is a device with no devtools: on a phone inside a headset the
- * console is unreachable, so a failure that only speaks there is a failure
- * nobody can read. Nothing collected here leaves the tab.
- */
 export const captureConsole = (target: Console = console): (() => void) => {
   if (installed) return installed;
 
@@ -115,8 +86,6 @@ export const captureConsole = (target: Console = console): (() => void) => {
     };
   }
 
-  // Uncaught failures never reach `console.error` as a call we can wrap; the
-  // browser prints them itself, so they have to be listened for.
   const onError = (event: ErrorEvent): void => record("error", [event.message]);
   const onRejection = (event: PromiseRejectionEvent): void =>
     record("error", ["unhandled rejection", event.reason]);
@@ -135,7 +104,6 @@ export const captureConsole = (target: Console = console): (() => void) => {
   return installed;
 };
 
-/** Wall clock, padded by hand so both eyes read the same characters. */
 export const clockOf = (atMs: number): string => {
   const time = new Date(atMs);
   const pad = (value: number, size = 2): string => `${value}`.padStart(size, "0");

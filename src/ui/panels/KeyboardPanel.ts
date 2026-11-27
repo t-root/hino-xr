@@ -10,25 +10,14 @@ type Kind = "key" | "wide" | "space" | "action";
 
 const NEXT_SHIFT = { off: "once", once: "lock", lock: "off" } as const;
 
-/** How much of the box is shown above the keys on each side of the caret; the box itself may be hidden behind them. */
 const BEFORE_CARET = 36;
 const AFTER_CARET = 16;
 
-/**
- * The on-screen keyboard, laid out like a phone's: the number row on top, the letters below it, and a key
- * that turns the letters into signs and back. It comes up by itself when a text box is chosen and goes away
- * when it is done.
- *
- * It is the interface like any other panel, drawn into each eye from the one `KeyboardStore`, and every key
- * is a plain button, so a pinch, a finger or a mouse presses it the way it presses everything else. What a
- * key does is in `keyboardInput`: it types into the box the wearer chose, whichever plugin owns it.
- */
 export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => void) => {
   let root: HTMLElement | null = null;
   let preview: HTMLElement | null = null;
   let watched: HTMLElement | null = null;
 
-  /** The box's text with the caret drawn where it really is, so moving it left and right can be seen. */
   const paintPreview = () => {
     if (!preview) return;
     const target = useKeyboardStore.getState().target;
@@ -42,10 +31,6 @@ export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => 
   const key = (label: string, kind: Kind, onClick: () => void, data: Record<string, string | boolean> = {}) =>
     el("button", { className: "vkb__key", text: label, dataset: { kind, ...data }, onClick: () => onClick() });
 
-  /**
-   * A key drawn as a picture, with its name kept as the tooltip and the accessible label: a word such as
-   * "Xuong dong" is wider than the key it is on and breaks into two lines.
-   */
   const iconKey = (
     picture: IconName,
     name: string,
@@ -61,7 +46,6 @@ export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => 
 
   const rowOf = (...keys: HTMLElement[]) => el("div", { className: "vkb__row" }, keys);
 
-  /** A key that types its own character; letters take their capital while shift is on. */
   const printable = (char: string, shifted: boolean) => {
     const out = shifted ? char.toUpperCase() : char;
     return key(out, "key", () => typeKey(out));
@@ -102,7 +86,6 @@ export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => 
         key(letters ? t("keyboard.symbols") : t("keyboard.letters"), "wide", () =>
           state.setLayer(letters ? "symbols" : "letters"),
         ),
-        // Which language the keys type in: VI is Telex, EN is the letters as they are.
         key(state.lang === "vi" ? "VI" : "EN", "wide", () => state.setLang(state.lang === "vi" ? "en" : "vi"), {
           active: true,
         }),
@@ -128,7 +111,6 @@ export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => 
       ]),
       ...rows,
     ]);
-    // A mouse press on a key must not take the focus off the box being typed into.
     root.addEventListener("pointerdown", (event) => event.preventDefault());
     paintPreview();
   };
@@ -141,7 +123,6 @@ export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => 
 
   const sync = () => {
     const state = useKeyboardStore.getState();
-    // The box was removed from the page (the menu was rebuilt): there is nothing left to type into.
     if (state.open && state.target && !state.target.isConnected) {
       state.hide();
       return;
@@ -158,7 +139,6 @@ export const KeyboardPanel = (parent: ParentNode, dictation: Dictation): (() => 
     if (root) parent.append(root);
   };
 
-  // A box that is hidden (a form that was closed) is as good as gone, but nothing tells the keyboard: look now and then.
   const watchTarget = window.setInterval(() => {
     const { open, target } = useKeyboardStore.getState();
     if (open && target && (!target.isConnected || target.offsetParent === null)) {

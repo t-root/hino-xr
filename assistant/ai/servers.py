@@ -1,13 +1,3 @@
-"""The AI servers of this machine: llama.cpp (answers, pictures, code) and whisper.cpp (listening).
-
-They are ordinary programs that speak the OpenAI HTTP API, started here and stopped with the server, so the rest of the
-project only ever sees a url (`config.stage`). Nothing in this file knows what a stage is for.
-
-- A server marked `lazy` starts the first time something asks for it and stops after `idle_s` seconds of not being asked.
-- Servers of the same `group` share one device (a GPU too small for both models): starting one first stops the others, once
-  they are idle. The GPU profile puts the model that answers and the one that writes plugins in a group; the CPU profile does not.
-- A server that is not running is started on demand, so a crash is healed by the next request.
-"""
 
 from __future__ import annotations
 
@@ -35,7 +25,7 @@ INFERENCE_PATH = "/v1/audio/transcriptions"
 
 
 class ServerError(Exception):
-    """A server could not be started; the text says what is missing."""
+    pass
 
 
 _cond = threading.Condition()
@@ -58,7 +48,6 @@ def executable(kind: str) -> Path:
 
 
 def command(server_id: str, no_gpu: bool = False) -> list[str]:
-    """The program and arguments that start a server."""
     spec = config.servers()[server_id]
     model = config.path_of(spec["model"])
     if not model.is_file():
@@ -71,9 +60,9 @@ def command(server_id: str, no_gpu: bool = False) -> list[str]:
             "-np", "1", "--jinja", "-a", str(spec.get("alias", server_id)),
         ]
         if spec.get("threads"):
-            args += ["-t", str(spec["threads"])]  # on a processor: the physical cores, not the hyper-threads
+            args += ["-t", str(spec["threads"])]
         if spec.get("image_max_tokens"):
-            args += ["--image-max-tokens", str(spec["image_max_tokens"])]  # a picture costs tokens, and tokens cost seconds on a CPU
+            args += ["--image-max-tokens", str(spec["image_max_tokens"])]
         if spec.get("mmproj"):
             mmproj = config.path_of(spec["mmproj"])
             if not mmproj.is_file():
@@ -120,7 +109,6 @@ def _spawn(server_id: str, no_gpu: bool) -> tuple[subprocess.Popen[bytes], Path]
 def _launch(server_id: str) -> None:
     spec = config.servers()[server_id]
     for no_gpu in (False, True) if spec["kind"] == "whisper" else (False,):
-        # A CUDA build that does not know this GPU dies at start: whisper then runs on the processor instead.
         proc, log = _spawn(server_id, no_gpu)
         _procs[server_id] = proc
         print(f"  ai       starting {server_id}{' (processor)' if no_gpu else ''}...", flush=True)
@@ -159,7 +147,6 @@ def _yield_group(server_id: str) -> None:
 
 
 def ensure(server_id: str) -> None:
-    """Return once the server answers, starting it (and stopping a rival on its GPU) if it is not up."""
     global _atexit_set
     if server_id not in config.servers():
         raise ServerError(f"unknown server: {server_id}")
@@ -179,7 +166,6 @@ def ensure(server_id: str) -> None:
 
 @contextmanager
 def use(server_id: str | None) -> Iterator[None]:
-    """Hold a server for the length of a call: it is up inside, and not stopped to make room for another."""
     if server_id is None:
         yield
         return
@@ -212,7 +198,6 @@ def stop_all() -> None:
 
 
 def start_background() -> threading.Thread:
-    """Start every server that is not lazy, in the background, so the page opens at once."""
 
     def run() -> None:
         for server_id, spec in config.servers().items():
@@ -229,7 +214,6 @@ def start_background() -> threading.Thread:
 
 
 def _wanted(server_id: str) -> bool:
-    """A server is started only when some stage that is not pointed elsewhere still uses it."""
     return any(config.stage(name).server == server_id for name in config.KIND)
 
 

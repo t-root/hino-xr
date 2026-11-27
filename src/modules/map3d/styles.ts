@@ -1,12 +1,5 @@
 import { a, c } from "./palette";
 
-/**
- * The original stylesheet (`index.css` plus every component's emotion styles),
- * scoped under `.map3d` so none of it reaches the rest of the interface.
- *
- * Built as a string because each colour is computed: see `palette.ts`. The
- * numbers are the original's, untouched.
- */
 export const map3dCss = (): string => `
 .map3d,
 .map3d * {

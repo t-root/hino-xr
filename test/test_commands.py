@@ -1,4 +1,3 @@
-"""Plugins can be switched by voice: the line is a command, not a question for the model."""
 
 from __future__ import annotations
 

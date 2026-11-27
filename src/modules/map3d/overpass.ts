@@ -1,6 +1,5 @@
 import { queryVectorTiles } from "./vectorTiles";
 
-/** A way as Overpass returns it with `out body geom`. */
 export type OsmElement = {
   id: number;
   tags?: Record<string, string>;
@@ -64,20 +63,11 @@ async function queryOsmMap(query: string, signal?: AbortSignal): Promise<OsmResu
   return { elements };
 }
 
-/**
- * Runs a query against a small pool of public Overpass instances. Public
- * instances occasionally become saturated, so a timeout on one should not
- * prevent the map viewer from loading its data.
- */
 let osmApiUnreachable = false;
 
 export async function queryOverpass(query: string, signal?: AbortSignal): Promise<OsmResult> {
   let lastError: unknown;
 
-  // The normal OSM map API is available from the same service used for map
-  // tiles and is usually more reliable on restricted networks. It returns all
-  // map data inside the selected box; we keep only the requested feature type.
-  // A network that blocks it refuses every time, so once it has failed to connect it is not asked again.
   if (!osmApiUnreachable) {
     try {
       return await queryOsmMap(query, signal);
@@ -88,8 +78,6 @@ export async function queryOverpass(query: string, signal?: AbortSignal): Promis
     }
   }
 
-  // Some networks block the OpenStreetMap API and every Overpass server alike. OpenFreeMap serves
-  // the same data as plain tiles from a CDN, so it is tried before the slow, often saturated, servers.
   const bounds = getBounds(query);
   if (bounds) {
     try {

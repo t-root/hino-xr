@@ -1,4 +1,3 @@
-"""Two rules for everything that can be pressed or typed into: no white and black ring, and not on an edge (A13, H7)."""
 
 from __future__ import annotations
 
@@ -63,7 +62,6 @@ class PlacementTest(unittest.TestCase):
         bar = css.split(".map3d .m3-bar {", 1)[1].split("}", 1)[0]
         self.assertIn("left: 50%", bar)
         self.assertRegex(bar, r"top:\s*(1\d|[2-3]\d)(\.\d+)?cqb")
-        # Close, Back and Next are not positioned on their own any more: they sit in the bar.
         for name in ("m3-close", "m3-next", "m3-prev"):
             self.assertNotRegex(css, rf"\.map3d \.{name}\s*\{{[^}}]*position: absolute")
         app = (SRC / "modules/map3d/Map3dApp.ts").read_text(encoding="utf-8")

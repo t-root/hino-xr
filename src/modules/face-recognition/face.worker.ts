@@ -5,13 +5,6 @@ import type { Detection } from "@/shared/contracts/vision";
 import { alignFace, landmarksFor, SIZE } from "./align";
 import { toFaceDetectionsWithSource, type RawFaceDetection } from "./mapping";
 
-/**
- * Face detection and the numbers that tell faces apart, off the main thread. Bitmap in, boxes out, each with
- * 128 numbers describing the face: the image is closed here and never stored, so no picture of a face outlives
- * the frame it arrived in; only the numbers go on.
- */
-
-// The ONNX runtime is a plain script: `importScripts` makes it the global `ort`.
 declare const ort: {
   env: { wasm: { wasmPaths: string; numThreads: number } };
   InferenceSession: { create(url: string, options: object): Promise<OrtSession> };
@@ -25,9 +18,7 @@ type OrtSession = {
   run(feeds: Record<string, unknown>): Promise<Record<string, { data: Float32Array }>>;
 };
 
-/** Faces turned into numbers per frame, largest first; each costs tens of milliseconds, more on a phone. */
 const MAX_EMBEDDED = 3;
-/** A face that has hardly moved keeps the numbers it was given, for this long, ms. */
 const REUSE_MS = 700;
 const REUSE_IOU = 0.6;
 
@@ -55,11 +46,6 @@ const stringOption = (payload: WorkerInitPayload, key: string): string => {
   return value;
 };
 
-/**
- * GPU first, then CPU. The GPU delegate is a large win where it works and a
- * hard failure where the driver is blocked, and a plugin that refuses to start
- * on such a device is worse than one that runs slower on it.
- */
 const createDetector = async (payload: WorkerInitPayload): Promise<FaceDetector> => {
   const fileset = await FilesetResolver.forVisionTasks(payload.wasmBase);
   let lastError: unknown;
@@ -80,7 +66,6 @@ const createDetector = async (payload: WorkerInitPayload): Promise<FaceDetector>
 const createSession = async (payload: WorkerInitPayload): Promise<OrtSession> => {
   importScripts(stringOption(payload, "ortScriptUrl"));
   ort.env.wasm.wasmPaths = stringOption(payload, "ortBase");
-  // One thread: more needs cross-origin isolation, which this page does not have.
   ort.env.wasm.numThreads = 1;
   return ort.InferenceSession.create(stringOption(payload, "embeddingUrl"), { executionProviders: ["wasm"] });
 };
@@ -109,7 +94,6 @@ const overlap = (a: Detection["bounds"], b: Detection["bounds"]): number => {
   return union > 0 ? shared / union : 0;
 };
 
-/** 128 numbers as base64 of their bytes: a detection's attributes can hold a string, not a list. */
 const encode = (values: Float32Array): string => {
   const bytes = new Uint8Array(values.buffer, values.byteOffset, values.byteLength);
   let text = "";
@@ -117,7 +101,6 @@ const encode = (values: Float32Array): string => {
   return btoa(text);
 };
 
-/** The numbers for one face, or null when its landmarks cannot line it up. */
 const embed = async (image: ImageBitmap, raw: RawFaceDetection): Promise<string | null> => {
   if (!session || !canvas) return null;
   const marks = landmarksFor(raw.keypoints, image.width, image.height);
@@ -132,7 +115,6 @@ const embed = async (image: ImageBitmap, raw: RawFaceDetection): Promise<string 
   context.drawImage(image, 0, 0);
   const pixels = context.getImageData(0, 0, SIZE, SIZE).data;
 
-  // The model takes red, green, blue planes of 0..255, one after the other.
   const input = new Float32Array(3 * SIZE * SIZE);
   const plane = SIZE * SIZE;
   for (let i = 0; i < plane; i += 1) {
@@ -144,7 +126,6 @@ const embed = async (image: ImageBitmap, raw: RawFaceDetection): Promise<string 
   const output = (await session.run(feeds))[session.outputNames[0] as string];
   if (!output) return null;
 
-  // Length one, so two faces are compared by the angle between their numbers alone.
   const values = Float32Array.from(output.data);
   let norm = 0;
   for (const value of values) norm += value * value;
@@ -163,7 +144,6 @@ const infer = async (request: Extract<WorkerRequest, { type: "infer" }>): Promis
   }
 
   try {
-    // MediaPipe video mode rejects a timestamp that does not move forward.
     const timestamp = Math.max(Math.round(request.timestampMs), lastTimestamp + 1);
     lastTimestamp = timestamp;
     const result = detector.detectForVideo(image, timestamp);
@@ -178,7 +158,6 @@ const infer = async (request: Extract<WorkerRequest, { type: "infer" }>): Promis
     const now = performance.now();
     remembered = remembered.filter((item) => now - item.at < REUSE_MS);
     const kept: Remembered[] = [];
-    // Largest first: the face in front of the wearer is the one worth the time.
     const order = found.map((_, index) => index).sort((a, b) => area((found[b] as (typeof found)[number]).detection.bounds) - area((found[a] as (typeof found)[number]).detection.bounds));
     const embeddings = new Map<number, string>();
     for (const index of order.slice(0, MAX_EMBEDDED)) {

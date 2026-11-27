@@ -1,4 +1,3 @@
-"""Cut a growing reply into pieces that can be spoken while the model keeps writing."""
 
 from __future__ import annotations
 
@@ -12,12 +11,6 @@ RUN_ON = 200
 
 
 def next_chunk(buffer: str, first: bool) -> tuple[str, str] | None:
-    """The next piece worth speaking and what is left, or None to wait for more text.
-
-    A sentence is ready once whitespace follows its full stop, so "25.5" is not cut.
-    The first piece may also end at a comma: the wearer hears something sooner, and
-    a clause is a natural place to pause. A reply that never stops is cut at a space.
-    """
     for pattern in (_SENTENCE, _NEWLINE):
         found = pattern.match(buffer)
         if found and found.group(1).strip():

@@ -107,7 +107,6 @@ class ProfileTest(unittest.TestCase):
 
 
 class AskProfileTest(unittest.TestCase):
-    """`run.py` asks which profile to run when none is chosen: Enter is cpu, typing gpu is gpu, nothing to edit."""
 
     def setUp(self) -> None:
         self.saved = os.environ.pop("VR_PROFILE", None)
@@ -150,7 +149,7 @@ class AskProfileTest(unittest.TestCase):
         self.assertEqual(os.environ["VR_PROFILE"], "gpu")
 
     def test_nobody_to_ask_keeps_the_default(self) -> None:
-        self.assertEqual(self.ask(tty=False), [])  # a service or a pipe: no question, and cpu as before
+        self.assertEqual(self.ask(tty=False), [])
         self.assertNotIn("VR_PROFILE", os.environ)
         self.assertEqual(profiles.name(), "cpu")
 

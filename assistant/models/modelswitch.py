@@ -24,9 +24,9 @@ from .commands import _PLUGIN, _SWITCH, _heard
 from .wake import letters
 
 CONFIRM_FOR_S = 60
-MAX_READ = 5  # names read aloud
-MAX_SHOWN = 40  # names put on the screen
-SHOW_PAGE = "assistant"  # the menu page that prints what the assistant says, line breaks kept
+MAX_READ = 5
+MAX_SHOWN = 40
+SHOW_PAGE = "assistant"
 
 _MODEL = {"model", "models", "mohinh", "moden", "modun"}
 _LIST = {"nao", "nhung", "danhsach", "lietke", "list", "which", "available", "tracuu", "lookup", "whatmodels", "gi"}
@@ -35,7 +35,6 @@ _TO = {"sang", "thanh", "to", "qua", "bang", "la"}
 _STOP = {"de", "cho", "for", "nhe", "di", "voi", "with"}
 _YES = {"dung", "dungroi", "phai", "ok", "oke", "okay", "dongy", "duoc", "yes", "yeah", "confirm", "chinhxac", "u", "um", "uh"}
 _NO = {"khong", "huy", "thoi", "no", "cancel", "sai", "bo"}
-# "Hiện thông tin model", "model nào đang dùng": put the setup on the screen.
 _SHOW = {"hien", "hienthi", "xem", "show", "display", "tell"}
 _INFO = {"thongtin", "cauhinh", "trangthai", "info", "information", "status", "config", "configuration"}
 _ASSISTANT = {"trolyhino", "troly", "assistant", "hino"}
@@ -45,7 +44,6 @@ _FILLER = _MODEL | _LIST | _CHANGE | _TO | _STOP | _SHOW | _INFO | _ASSISTANT | 
     "co", "nhung", "what", "are", "there", "is", "do", "you", "have", "show", "me", "does", "an", "of", "any",
 }
 
-# What the wearer calls each stage; first one heard in the line wins.
 _STAGE_WORDS = {
     "code": _PLUGIN | {"code", "laptrinh", "coding", "viet", "write", "writing"},
     "agent": {"menu", "agent", "dieukhien"},
@@ -109,7 +107,6 @@ def _say(locale: str) -> dict[str, str]:
 
 
 def _stage(words: list[str]) -> str | None:
-    """The stage named first in the line, looking at each word and each two words run together."""
     plain = [letters(word) for word in words]
     for index, word in enumerate(plain):
         pair = word + plain[index + 1] if index + 1 < len(plain) else ""
@@ -120,7 +117,6 @@ def _stage(words: list[str]) -> str | None:
 
 
 def _out(reply: str, display: str | None = None, show: bool = False) -> dict[str, Any]:
-    """What `engine.talk` does with a result: speak `reply`; print `display` (the whole of it) and open its page when `show`."""
     out: dict[str, Any] = {"action": "none", "id": None, "reply": reply}
     if show:
         out["display"] = display or reply
@@ -138,7 +134,6 @@ def _model_of(name: str, say: dict[str, str]) -> str:
 
 
 def status(locale: str) -> str:
-    """The setup as lines for the screen: where each stage runs and which model it uses."""
     say = _say(locale)
     names = _STAGE_NAME["vi" if locale == "vi" else "en"]
     lines = [say["title"]]
@@ -154,7 +149,6 @@ def status(locale: str) -> str:
 
 
 def _spoken(model_id: str) -> str:
-    """The name without the maker's prefix: it is read aloud."""
     return model_id.split("/", 1)[-1]
 
 
@@ -163,9 +157,8 @@ def _read(ids: list[str]) -> str:
 
 
 def _search_words(words: list[str], stage_words: set[str]) -> list[str]:
-    """What is left of the line once the verbs, fillers and stage names are gone: parts of a model's name."""
     plain = [letters(word) for word in words]
-    pairs = {i for i in range(len(plain) - 1) if plain[i] + plain[i + 1] in stage_words}  # "trả lời" is "tra" "loi"
+    pairs = {i for i in range(len(plain) - 1) if plain[i] + plain[i + 1] in stage_words}
     kept = []
     for index, word in enumerate(plain):
         if not word or word in _FILLER or word in stage_words or index in pairs or index - 1 in pairs:
@@ -175,14 +168,12 @@ def _search_words(words: list[str], stage_words: set[str]) -> list[str]:
 
 
 def find(ids: list[str], wanted: list[str]) -> list[str]:
-    """Models whose id holds every word said, shortest first. Dots and dashes do not matter: 2.5 is 25."""
     plain = [(letters(item), item) for item in ids]
     hits = [item for flat, item in plain if all(word in flat for word in wanted)]
     return sorted(hits, key=lambda item: (len(item), item))
 
 
 def _listing(ids: list[str], stage_name: str, locale: str) -> str:
-    """The models on offer as lines for the screen, as many as fit; the voice reads only the first few."""
     say = _say(locale)
     lines = [say["list_title"].format(stage=stage_name, count=len(ids))]
     lines += [f"• {name}" for name in ids[:MAX_SHOWN]]
@@ -192,12 +183,6 @@ def _listing(ids: list[str], stage_name: str, locale: str) -> str:
 
 
 def command(heard: str, locale: str) -> dict[str, Any] | None:
-    """The voice command about models in `heard`, or None when it is an ordinary line.
-
-    The result is `{"action": "none", "id": None, "reply": ...}`: everything is done here and the
-    reply is only what to say. When there is something to look at it also holds `display` (all of
-    it, for the screen) and `open` (the menu page to open so it is seen); the voice reads only `reply`.
-    """
     words = heard.replace("-", " ").replace(",", " ").split()
     if not words:
         return None
@@ -207,7 +192,6 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
     stage_names = _STAGE_NAME["vi" if locale == "vi" else "en"]
 
     if _pending:
-        # "dùng" is also "đúng" once accents go, so an answer is a short line that is not itself a request.
         short_answer = len(words) <= 4 and not seen & _MODEL
         if time.monotonic() > _pending["until"]:
             _pending.clear()
@@ -221,13 +205,12 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
             _pending.clear()
             return _out(say["cancelled"])
         else:
-            _pending.clear()  # said something else: the question is dropped, and the line is looked at as usual
+            _pending.clear()
 
     stage = _stage(words)
     stage_words = set().union(*_STAGE_WORDS.values())
     about_models = bool(seen & _MODEL)
 
-    # What is set up now: "hiện thông tin model", "model nào đang dùng", "cho tôi xem cấu hình trợ lý".
     shows, asks_now = bool(seen & _SHOW), bool(seen & {"dang", "current", "currently", "now"})
     if (shows and (about_models or seen & _ASSISTANT) and (seen & _INFO or not seen & _LIST)) or (about_models and asks_now):
         return _out(say["status_spoken"], status(locale), show=True)
@@ -236,7 +219,6 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
         return None
     target = stage or "chat"
 
-    # Which model: "đổi model trả lời sang qwen 72b".
     if seen & _CHANGE and seen & _TO and not seen & _LIST:
         start = next((i for i, word in enumerate(plain) if word in _TO), len(words))
         said = []
@@ -249,7 +231,6 @@ def command(heard: str, locale: str) -> dict[str, Any] | None:
             return _out(say["which_model"].format(stage=stage_names[target]))
         return _ask_which(target, said, locale)
 
-    # What there is: "có những model nào", "model qwen nào".
     if seen & _LIST:
         wanted = _search_words(words, stage_words)
         try:
@@ -281,7 +262,6 @@ def _ask_which(stage: str, wanted: list[str], locale: str) -> dict[str, Any]:
         return _out(say["none_found"])
     _pending.update(stage=stage, id=hits[0], until=time.monotonic() + CONFIRM_FOR_S)
     asked = say["confirm"].format(stage=names[stage], name=_spoken(hits[0]))
-    # The full id is put on the screen: it is the thing to check before saying yes.
     return _out(asked, f"{asked}\n{hits[0]}", show=True)
 
 

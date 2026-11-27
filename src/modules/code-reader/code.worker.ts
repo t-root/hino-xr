@@ -2,11 +2,6 @@
 import type { WorkerInitPayload, WorkerRequest, WorkerResponse } from "@/core/workers/protocol";
 import { toCodeDetections, type RawCode } from "./mapping";
 
-/**
- * Reads QR codes and barcodes, off the main thread: bitmap in, boxes with the decoded text out.
- * The decoder is a plain script that sets the global `ZXingWASM`; its compiled core is fetched from the
- * plugin's own folder (`locateFile`), never from a CDN.
- */
 declare const ZXingWASM: {
   prepareZXingModule(options: { overrides: { locateFile: (path: string, prefix: string) => string }; fireImmediately: true }): Promise<unknown>;
   readBarcodes(image: ImageData, options: { tryHarder: boolean; maxNumberOfSymbols: number }): Promise<RawCode[]>;

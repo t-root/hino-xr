@@ -11,17 +11,16 @@ import ai
 from .tools import _sentences
 
 MAX_IMAGE = 3_000_000
-SPOKEN_CHARS = 190  # what is read aloud: `/api/voice/preview` takes 200
+SPOKEN_CHARS = 190
 SHOWN_CHARS = 1600
 TOKENS = 400
 
 
 class VisionError(Exception):
-    """Nothing could answer; the text is for the log, the page says its own line."""
+    pass
 
 
 def prompt(question: str, locale: str) -> str:
-    """What the picture model is told. It answers in the wearer's language."""
     language = "Vietnamese" if locale == "vi" else "English"
     return (
         "This is what the person sees in an AR headset: the app's interface (menus, logs, text) drawn over the picture from the camera "
@@ -34,7 +33,6 @@ def prompt(question: str, locale: str) -> str:
 
 
 def ask_screen(image: bytes, question: str, locale: str) -> dict[str, str]:
-    """The answer to a picture of the screen: `say` is short enough to be read aloud, `show` is all of it for the screen."""
     try:
         answer = ai.see("vision", image, prompt(question, locale), TOKENS)
     except ai.AIError as error:

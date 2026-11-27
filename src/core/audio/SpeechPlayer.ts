@@ -1,14 +1,5 @@
 import { encodeWav } from "./wav";
 
-/**
- * One loudspeaker, kept out of the duplicated stereo DOM (rules.md).
- *
- * The headset UI never mounts an <audio> tag. This element lives in Core and
- * is not inserted into either eye.
- *
- * A reply arrives as sentences while the model is still writing, so playback is
- * a queue: each piece starts as soon as the one before it ends.
- */
 export class SpeechPlayer {
   private readonly el: HTMLAudioElement;
   private objectUrl: string | null = null;
@@ -22,7 +13,6 @@ export class SpeechPlayer {
     this.el.preload = "auto";
   }
 
-  /** Call from the hold gesture so later playback is allowed on iOS. */
   unlock(): void {
     const url = URL.createObjectURL(encodeWav(new Float32Array(1), 16_000));
     this.el.src = url;
@@ -37,20 +27,17 @@ export class SpeechPlayer {
       });
   }
 
-  /** Plays after whatever is already queued. */
   enqueue(blob: Blob): void {
     this.queue.push(blob);
     if (!this.draining) void this.drain();
   }
 
-  /** Replaces whatever is playing and resolves when this one has ended. */
   async play(blob: Blob): Promise<void> {
     this.stop();
     this.enqueue(blob);
     await this.idle();
   }
 
-  /** Resolves when nothing is playing and nothing is waiting. */
   idle(): Promise<void> {
     if (!this.draining && this.queue.length === 0) return Promise.resolve();
     return new Promise<void>((resolve) => {
@@ -66,7 +53,6 @@ export class SpeechPlayer {
     try {
       this.el.load();
     } catch {
-      // jsdom and some WebViews throw if load() runs without a source.
     }
     if (this.objectUrl) {
       URL.revokeObjectURL(this.objectUrl);
@@ -111,8 +97,6 @@ export class SpeechPlayer {
       this.el.addEventListener("ended", done);
       this.el.addEventListener("error", done);
       this.el.play().catch((error: unknown) => {
-        // A piece cut off by stop() ends in an AbortError, which is not a block. A real block is
-        // the browser's autoplay rule: no tap on the page yet, so no sound is allowed.
         if (!(error instanceof DOMException && error.name === "AbortError")) console.warn("speech playback blocked", error);
         done();
       });

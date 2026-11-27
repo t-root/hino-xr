@@ -1,4 +1,3 @@
-"""Looking by voice: the scene-description and code-reader plugins, and the words that ask for them."""
 
 from __future__ import annotations
 

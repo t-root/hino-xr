@@ -1,4 +1,3 @@
-"""One configuration for every AI: a stage is an url, a key and a model, and one client serves them all."""
 
 from __future__ import annotations
 
@@ -77,7 +76,6 @@ class AITest(unittest.TestCase):
         os.environ.update(self.saved)
         ai.config.reset()
 
-    # the one configuration
 
     def test_by_default_every_stage_is_a_server_of_this_machine(self) -> None:
         for name in ("chat", "agent", "vision", "code", "stt", "plugin_chat"):
@@ -98,14 +96,14 @@ class AITest(unittest.TestCase):
         self.assertNotIn("plugin_chat", ai.config.ASSISTANT_STAGES)
         os.environ["VR_PLUGIN_CHAT_URL"] = self.url
         self.assertTrue(ai.stage("plugin_chat").external)
-        self.assertFalse(ai.stage("chat").external)  # the plugin moved; Hino did not
+        self.assertFalse(ai.stage("chat").external)
 
     def test_an_api_of_somebody_else_needs_only_an_url_a_key_and_a_model(self) -> None:
         os.environ.update(VR_CHAT_URL="https://api.example.com/v1/", VR_CHAT_KEY="sk-x", VR_CHAT_MODEL="big")
         found = ai.stage("chat")
         self.assertEqual((found.url, found.key, found.model, found.server), ("https://api.example.com/v1", "sk-x", "big", None))
         self.assertTrue(found.external)
-        for name in ("agent", "vision", "plugin_chat"):  # they follow chat, so one url moves them all
+        for name in ("agent", "vision", "plugin_chat"):
             self.assertEqual(ai.stage(name).url, "https://api.example.com/v1", name)
         self.assertFalse(ai.stage("code").external)
 
@@ -133,7 +131,6 @@ class AITest(unittest.TestCase):
         for server in spec["servers"].values():
             self.assertTrue(server["model"].startswith("assistant/weights/"))
 
-    # the one client
 
     def point(self, *names: str) -> None:
         for name in names:
@@ -175,7 +172,7 @@ class AITest(unittest.TestCase):
             self.assertIn(part, SEEN["raw"])
 
     def test_beam_size_is_sent_only_to_the_server_of_this_machine(self) -> None:
-        self.point("stt")  # an url of the wearer's own: whisper.cpp's own field would be rejected
+        self.point("stt")
         ai.transcribe(b"RIFFaudio", "vi", None, careful=True)
         self.assertNotIn(b"beam_size", SEEN["raw"])
 
@@ -196,16 +193,15 @@ class AITest(unittest.TestCase):
             ai.chat("chat", [{"role": "user", "content": "hi"}])
         self.assertIn("chat", str(caught.exception))
         with self.assertRaises(ai.AIError):
-            ai.speak("x")  # the voice has no url: it runs inside this process
+            ai.speak("x")
 
-    # the servers of this machine
 
     def test_the_call_word_has_its_own_stage(self) -> None:
         self.assertIn("stt_wake", ai.config.ASSISTANT_STAGES)
         self.assertEqual(ai.stage("stt_wake").kind, "stt")
         self.assertNotEqual(ai.stage("stt_wake").name, ai.stage("stt").name)
         os.environ["VR_STT_WAKE_URL"] = "http://127.0.0.1:1/v1"
-        self.assertEqual(ai.stage("stt_wake").url, "http://127.0.0.1:1/v1")  # a lighter model can be set for it alone
+        self.assertEqual(ai.stage("stt_wake").url, "http://127.0.0.1:1/v1")
         self.assertNotEqual(ai.stage("stt").url, "http://127.0.0.1:1/v1")
 
     def test_listening_asks_the_stage_that_fits_the_line(self) -> None:
@@ -248,7 +244,6 @@ class AITest(unittest.TestCase):
         self.assertEqual(command[command.index("--mmproj") + 1], str(mmproj))
 
     def test_a_server_that_is_not_downloaded_says_what_to_do(self) -> None:
-        # Whatever is on this machine: point the server at a file that is not there.
         keep = dict(ai.config.servers()["coder"])
         ai.config.servers()["coder"]["model"] = "assistant/weights/not-downloaded.gguf"
         try:
@@ -265,27 +260,27 @@ class AITest(unittest.TestCase):
         mumbled = {"segments": [{"avg_logprob": -1.4, "no_speech_prob": 0.05}]}
         noise = {"segments": [{"avg_logprob": -0.4, "no_speech_prob": 0.9}]}
         self.assertFalse(unsure(clear))
-        self.assertTrue(unsure(mumbled))  # made up from mumbling: low confidence
-        self.assertTrue(unsure(noise))  # a stretch it thinks is not speech at all
-        self.assertFalse(unsure({}))  # an answer that carries no scores is taken as written (someone else's API)
+        self.assertTrue(unsure(mumbled))
+        self.assertTrue(unsure(noise))
+        self.assertFalse(unsure({}))
 
     def test_a_stage_pointed_elsewhere_starts_no_server(self) -> None:
         for name in ("CHAT", "AGENT", "VISION", "PLUGIN_CHAT"):
             os.environ[f"VR_{name}_URL"] = "https://api.example.com/v1"
         self.assertFalse(ai.servers._wanted("llm"))
-        self.assertTrue(ai.servers._wanted(ai.stage("stt").server))  # listening is on this machine: only the answering moved
+        self.assertTrue(ai.servers._wanted(ai.stage("stt").server))
 
     def test_the_servers_of_the_profile_are_consistent(self) -> None:
         servers = ai.config.servers()
         ports = [server["port"] for server in servers.values()]
-        self.assertEqual(len(ports), len(set(ports)))  # two servers cannot listen on one port
-        self.assertTrue(servers["coder"]["lazy"])  # the code model is started when a plugin is written, not before
+        self.assertEqual(len(ports), len(set(ports)))
+        self.assertTrue(servers["coder"]["lazy"])
         for name, server in servers.items():
             if server.get("lazy"):
                 self.assertGreater(server["idle_s"], 0, name)
         groups = [server["group"] for server in servers.values() if server.get("group")]
         for group in set(groups):
-            self.assertGreater(groups.count(group), 1, group)  # a group of one is nothing to share
+            self.assertGreater(groups.count(group), 1, group)
 
 
 if __name__ == "__main__":

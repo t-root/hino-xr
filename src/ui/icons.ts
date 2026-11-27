@@ -1,7 +1,3 @@
-/**
- * The few pictures the interface uses in place of words: line icons drawn in the colour of the text around them
- * (`currentColor`), square-ended like everything else. Used where a word is wider than the key or button it is on.
- */
 const PATHS = {
   shift: '<path d="M9 18v-6H5l7-7 7 7h-4v6H9z"/>',
   backspace:

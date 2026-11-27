@@ -51,7 +51,6 @@ const writeNote = (node: HTMLElement, text: string): void => {
   if (text && node.textContent !== text) node.textContent = text;
 };
 
-/** Live `reply` still paints when the store has not copied it into `messages` yet. */
 const chatTurns = (assistant: AssistantSnapshot): ChatMessage[] => {
   const rows = assistant.messages.filter((item) => item.role !== "system");
   const reply = assistant.reply;
@@ -88,7 +87,6 @@ const paintChat = (root: HTMLElement, assistant: AssistantSnapshot): void => {
 
 type SettingsPanelProps = Readonly<{
   stereo: boolean;
-  /** Set while content on screen makes a second eye impossible to keep in sync. */
   monoReason: LocalizedText | null;
   onChange: (settings: Settings) => void;
   onToggleStereo: () => void;
@@ -99,12 +97,6 @@ type SettingsPanelProps = Readonly<{
   onAssistantPreview: (text: string) => void;
 }>;
 
-/**
- * The settings menu, centred in each eye.
- *
- * Open flag, centred entry, drag offset and which screen is up all live in the
- * shared store, so the copy in the other eye follows every touch (rules.md).
- */
 export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): (() => void) => {
   let menu: HTMLElement | null = null;
   let strip: HTMLElement | null = null;
@@ -480,7 +472,6 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
       });
       content.append(el("p", { className: "note", text: t("assistant.bargeInHint") }));
       content.append(el("p", { className: "note", text: t("assistant.who", { name: ASSISTANT_NAME }) }));
-      // The two lines the wearer writes come first: they were once far down a long page and nobody found them.
       const greeting = mountTextField(content, {
         label: t("assistant.greeting"),
         value: settings.assistant.greeting[locale],
@@ -513,7 +504,6 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
       patchers.push(() => {
         ack.sync({ value: settingsOf().assistant.ack[useLocaleStore.getState().locale] });
       });
-      // The other lines it says by itself: each is the wearer's to write, and an empty one is silence.
       for (const key of LINE_KEYS) {
         const field = mountTextField(content, {
           label: t(`assistant.line.${key}`),

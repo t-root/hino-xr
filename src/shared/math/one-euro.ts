@@ -1,14 +1,6 @@
-/**
- * 1€ filter (Casiez et al.). Chosen over a fixed low-pass because hand landmarks
- * need aggressive jitter removal while holding still but almost no lag during
- * fast pointer motion.
- */
 type OneEuroOptions = Readonly<{
-  /** Cutoff at zero speed, Hz. Lower removes more jitter but adds lag. */
   minCutoff: number;
-  /** Speed coefficient: higher reacts faster to quick movement. */
   beta: number;
-  /** Cutoff of the derivative filter, Hz. */
   derivativeCutoff: number;
 }>;
 
@@ -48,7 +40,6 @@ export class OneEuroFilter {
 
   constructor(private readonly options: OneEuroOptions = DEFAULT_ONE_EURO) {}
 
-  /** Returns the filtered value; `speedPerSecond` exposes the smoothed derivative. */
   filter(x: number, timestampMs: number): number {
     const previous = this.value.last;
     const dtSeconds =

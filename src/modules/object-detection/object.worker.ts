@@ -3,10 +3,6 @@ import { FilesetResolver, ObjectDetector } from "@mediapipe/tasks-vision";
 import type { WorkerInitPayload, WorkerRequest, WorkerResponse } from "@/core/workers/protocol";
 import { toObjectDetections, type RawDetection } from "./mapping";
 
-/**
- * Object detection, off the main thread: bitmap in, normalised detections out.
- * It knows nothing about the DOM, the camera, the renderer or the language.
- */
 let detector: ObjectDetector | null = null;
 let options: WorkerInitPayload | null = null;
 let lastTimestamp = 0;
@@ -25,13 +21,6 @@ const stringsOption = (payload: WorkerInitPayload, key: string): string[] => {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 };
 
-/**
- * CPU only. The model is the quantised (int8) EfficientDet-Lite0, which runs at a
- * usable rate on a phone's CPU. The GPU delegate loads it without complaint and then
- * answers wrongly: a photo of a cat and a dog came back as a boat at 0.11, and the
- * first frame took 26 seconds to compile. On the CPU the same photo gives dog 0.88 and
- * cat 0.80 in about 300 ms, so there is no GPU attempt to fall back from.
- */
 const createDetector = async (payload: WorkerInitPayload): Promise<ObjectDetector> => {
   const fileset = await FilesetResolver.forVisionTasks(payload.wasmBase);
   return ObjectDetector.createFromOptions(fileset, {
@@ -62,7 +51,6 @@ const infer = (request: Extract<WorkerRequest, { type: "infer" }>): void => {
   }
 
   try {
-    // MediaPipe video mode rejects a timestamp that does not move forward.
     const timestamp = Math.max(Math.round(request.timestampMs), lastTimestamp + 1);
     lastTimestamp = timestamp;
     const result = detector.detectForVideo(image, timestamp);

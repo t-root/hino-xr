@@ -6,22 +6,15 @@ import { loadInterfaceFont } from "./ui/font";
 import { applyTheme } from "./ui/theme";
 import { mountApp } from "./app/App";
 
-// Before anything else runs: a phone in a headset has no devtools, so whatever
-// fails during startup has to be readable inside the app itself.
 captureConsole();
 
-// A phone arrives with the server's key in the address: take it before any request is made.
 initAccessKey();
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element missing");
 
-// Keeps the CSS variables and the renderer reading the same colour tokens.
 applyTheme(loadSettings().theme);
 
-// The document is served in one language and read in another; hyphenation and
-// screen readers go by this attribute, not by what the file was written in.
 document.documentElement.lang = currentLocale();
 
-// Canvas labels are drawn once and kept, so the font has to be there before the first one is.
 void loadInterfaceFont().then(() => mountApp(container));

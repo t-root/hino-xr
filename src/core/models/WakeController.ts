@@ -6,40 +6,20 @@ import { useRuntimeStore } from "../state/RuntimeStore";
 import type { ModelBridge } from "./ModelBridge";
 import { ModelClient } from "./ModelClient";
 
-/** A call is a word or two; anything longer than this is conversation. */
 const CALL_MAX_MS = 5000;
-/** Words after the call that mean the question came with it. */
 const QUESTION_WORDS = 2;
-/** The level readout is refreshed this often, not on every audio block. */
 const LEVEL_EVERY_MS = 250;
-/** Speech sits around 0.05 to 0.2 of full scale; this puts a firm voice near the top of 0 to 99. */
 const LEVEL_SCALE = 500;
-/** After the assistant stops speaking, wait for the room to go quiet before listening again. */
 const TAIL_MS = 500;
-/** A line longer than this is not "stop": it is not worth asking the server. */
 const STOP_MAX_MS = 3000;
 
 type Mode =
-  /** Not listening for anything. */
   | "off"
-  /** Waiting for "system call". */
   | "system"
-  /** System is up; waiting for the assistant's name. */
   | "sleep"
-  /** Called; listening for the question, or for the next one. */
   | "awake"
-  /** A line was taken; the answer is on its way. */
   | "busy";
 
-/**
- * Decides what the microphone is for.
- *
- * Before the system runs it waits for "system call" and nothing else. Once the
- * system is up it waits for the assistant's name; the first thing said after
- * that is the question, and for a few seconds after each answer the next one
- * needs no name. Then it goes back to sleep. Hearing is the model server's job:
- * this only sends lines that are loud enough to be speech and acts on the verdict.
- */
 export class WakeController {
   private readonly client = new ModelClient();
   private readonly listener = new WakeListener((heard) => void this.onHeard(heard));
@@ -55,7 +35,6 @@ export class WakeController {
   private lastLevelMs = 0;
 
   constructor(private readonly bridge: ModelBridge) {
-    // Shown in the corner readout: the mode, and how loud the room is to the microphone.
     this.listener.onLevel = (level) => {
       const now = performance.now();
       if (now - this.lastLevelMs < LEVEL_EVERY_MS) return;
@@ -64,14 +43,12 @@ export class WakeController {
     };
   }
 
-  /** Opens the microphone and waits for "system call". Throws if there is no microphone. */
   async listenForSystemCall(onCall: () => void): Promise<void> {
     await this.listener.open();
     this.onSystemCall = onCall;
     this.enter("system");
   }
 
-  /** Debug: stands in for the wearer saying "system call". Returns false if the system is not waiting for it. */
   simulateSystemCall(): boolean {
     if (this.mode !== "system") return false;
     this.logger.info("system call simulated");
@@ -82,7 +59,6 @@ export class WakeController {
     return true;
   }
 
-  /** The system is up: from now on the assistant answers to its name. */
   async listenForAssistant(): Promise<void> {
     if (!this.assistantOn()) {
       this.enter("off");
@@ -96,11 +72,9 @@ export class WakeController {
     }
     this.watchAssistant();
     this.enter("sleep");
-    // The greeting may still be playing as the system comes up: do not hear it as the wearer.
     if (this.bridge.talking()) this.listener.setPaused(true);
   }
 
-  /** Settings changed: follow the assistant being switched on or off. */
   syncSettings(): void {
     if (this.mode === "system" || this.mode === "busy") return;
     if (!this.assistantOn()) {
@@ -145,7 +119,6 @@ export class WakeController {
     if (mode === "awake") this.openWindow();
   }
 
-  /** The wearer has `listenSeconds` to start speaking; a line in progress is let finish. */
   private openWindow(): void {
     this.windowTimer = setTimeout(() => {
       if (this.mode !== "awake") return;
@@ -158,17 +131,14 @@ export class WakeController {
     }, this.listenMs());
   }
 
-  /** The assistant speaking is not the wearer: stop hearing it, and resume once it is quiet. */
   private watchAssistant(): void {
     if (this.unsubscribe) return;
     this.unsubscribe = useRuntimeStore.subscribe((state, previous) => {
       const was = previous.assistant.state;
       const now = state.assistant.state;
       if (now === was || this.mode === "off" || this.mode === "system") return;
-      // Loading the model is not the assistant talking: the name must still be heard meanwhile.
       const talking = now === "speaking" || now === "generating";
       if (talking) {
-        // With "interrupt by voice" on the microphone stays open: the only thing listened for now is "stop".
         if (!this.bargeIn()) this.listener.setPaused(true);
         return;
       }
@@ -208,7 +178,6 @@ export class WakeController {
     return useRuntimeStore.getState().settings.assistant.bargeIn;
   }
 
-  /** The assistant is talking and the microphone heard a line: is it "stop"? Anything else is the assistant itself, or noise. */
   private async checkStop(heard: Heard): Promise<void> {
     this.checking = true;
     try {
@@ -246,7 +215,6 @@ export class WakeController {
       this.logger.info("name check", { heard: verdict.heard, matched: verdict.matched, wordsAfter: verdict.after });
       if (this.mode !== "sleep" || !verdict.matched || this.bridge.talking()) return;
       if (verdict.after >= QUESTION_WORDS) {
-        // "hino, what time is it": the question is already in this line.
         await this.answer(heard);
         return;
       }
@@ -255,7 +223,6 @@ export class WakeController {
       this.listener.setPaused(true);
       await this.bridge.acknowledge();
       if (this.mode === "awake") {
-        // The time to speak starts now, not while the acknowledgement was still playing.
         if (this.windowTimer !== null) clearTimeout(this.windowTimer);
         this.openWindow();
         this.listener.setPaused(false);
@@ -277,7 +244,6 @@ export class WakeController {
     }
   }
 
-  /** Sends the line to be understood and answered, then keeps listening for a follow-up. */
   private async answer(heard: Heard): Promise<void> {
     this.enter("busy");
     this.logger.info("sending the line to be answered", { ms: Math.round(heard.durationMs) });

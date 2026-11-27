@@ -6,11 +6,6 @@ import type { InteractiveRegistry } from "./InteractiveRegistry";
 
 const PRIORITY: Record<InteractiveTargetKind, number> = { palette: 0, ui: 1, detection: 2 };
 
-/**
- * Resolves a pointer to a target using the cyclops camera. Hit-testing per eye
- * would let the two views disagree about what is focused, so it is done once
- * from the head centre.
- */
 export class HitTestService {
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
@@ -21,7 +16,6 @@ export class HitTestService {
     private readonly mapper: CoordinateMapper,
   ) {}
 
-  /** `point` is in normalised image space; mirror/rotation are applied here. */
   hit(point: NormalizedPoint): HitResult | null {
     const targets = this.registry.pickables();
     if (targets.length === 0) return null;

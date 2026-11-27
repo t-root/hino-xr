@@ -1,16 +1,3 @@
-"""A model that works the menu by calling tools, and the fence around it.
-
-When the wearer says something the keyword commands do not recognise but that sounds like
-asking for a change ("nói chậm lại chút", "chạy cái nhận diện khuôn mặt đi"), a model is
-shown the controls and may call `change_setting` on them. It does not act: it names an id,
-an action and maybe a value, and `apply_action` decides whether that is allowed and what it
-becomes. The id can only be one the page sent, so a wrong guess cannot reach anything else.
-It is the `agent` stage of `ai/stages.json`: the same model as the answers unless that stage is pointed elsewhere.
-
-A small model (the 3B Qwen this was first tried with) named the wrong setting for plain questions and took 7 to 26
-seconds; an 8B one with tool calls is what this is meant for, and `sounds_like_a_request` still keeps plain questions
-away from it.
-"""
 
 from __future__ import annotations
 
@@ -23,15 +10,12 @@ import ai
 from .commands import _heard, _overlap
 from .controls import _RELATIVE_SHARE, _SAY, _label, _names, _show, _snap
 
-TIMEOUT_S = float(os.environ.get("VR_AGENT_TIMEOUT_S", "25"))  # how long the settings agent may take before the line is just answered
+TIMEOUT_S = float(os.environ.get("VR_AGENT_TIMEOUT_S", "25"))
 MAX_CALLS = 4
 MAX_CANDIDATES = 60
 
 ACTIONS = ("set", "increase", "decrease", "max", "min", "default", "on", "off", "toggle", "open", "close", "choose")
 
-# A line without any of these and without a setting's name in it is a plain question. Only words that mean "change it":
-# short everyday words ("cho", "làm", "to", "cao", "gấp", "tôi", "sáng") are left out, because the recogniser's
-# garbled lines are full of them, and each false match costs a ~2000-token prompt and the whole timeout on a CPU.
 _ASKS = {
     "tang", "giam", "dat", "chinh", "doi", "bat", "tat", "mo", "dong", "chay", "nhanh", "cham",
     "set", "increase", "decrease", "raise", "lower", "turn", "open", "close", "change",
@@ -43,7 +27,6 @@ Post = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 def sounds_like_a_request(heard: str, entries: list[dict[str, Any]], locale: str) -> bool:
-    """A cheap look before anything leaves the machine: a verb of changing, or a setting's name."""
     words = heard.replace("-", " ").split()
     if _heard(words) & _ASKS:
         return True
@@ -51,7 +34,6 @@ def sounds_like_a_request(heard: str, entries: list[dict[str, Any]], locale: str
 
 
 def plugin_entries(plugins: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Plugins as switches the model can be offered; their ids carry a prefix so they never clash."""
     return [
         {
             "id": f"plugin:{plugin['id']}",
@@ -67,12 +49,6 @@ def plugin_entries(plugins: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def apply_action(entry: dict[str, Any], action: str, value: Any, locale: str) -> dict[str, Any] | None:
-    """Turns a model's choice into the finished command, or None when it does not fit the control.
-
-    The model only picks an id, an action and maybe a value. What happens is decided here: the
-    action must suit the control's kind, a number is kept inside its range and on its step, an
-    option must be one that exists.
-    """
     say = _SAY["vi" if locale == "vi" else "en"]
     name = _label(entry, locale)
     kind = entry["kind"]
@@ -129,7 +105,6 @@ def apply_action(entry: dict[str, Any], action: str, value: Any, locale: str) ->
 
 
 def as_command(entry: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-    """A finished setting as the page is told it; a plugin switch is an enable or a disable."""
     if "plugin" in entry:
         return {"action": "enable" if result["value"] else "disable", "id": entry["plugin"], "reply": result["reply"]}
     return result
@@ -205,12 +180,8 @@ def plan(
     locale: str,
     post: Post | None = None,
 ) -> list[dict[str, Any]]:
-    """The commands the model chose for `heard`, already checked; empty when it chose none or could not.
-
-    `post` is the HTTP call, replaceable so this can be tested without the network.
-    """
     if os.environ.get("VR_AGENT", "on").strip().lower() in {"off", "0", "false", "no"}:
-        return []  # keyword commands still work; a line that is not one is simply answered
+        return []
     entries = [*controls, *plugin_entries(plugins)][:MAX_CANDIDATES]
     if not entries or not sounds_like_a_request(heard, entries, locale):
         return []
@@ -235,7 +206,7 @@ def plan(
         if function.get("name") != "change_setting":
             continue
         try:
-            call = json.loads(function.get("arguments") or "{}")  # a string, and the model may get it wrong
+            call = json.loads(function.get("arguments") or "{}")
         except ValueError:
             continue
         if not isinstance(call, dict):

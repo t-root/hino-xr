@@ -1,4 +1,3 @@
-"""A quiet or rumbling microphone is put right before Whisper reads it."""
 
 from __future__ import annotations
 

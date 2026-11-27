@@ -13,7 +13,6 @@ import type { Turn } from "../view/orientation";
 
 type DiagnosticsSnapshot = Readonly<{
   renderFps: number;
-  /** Frames per second the camera delivers, the hand tracker finishes and plugins report. */
   cameraFps: number;
   handFps: number;
   moduleFps: number;
@@ -22,18 +21,10 @@ type DiagnosticsSnapshot = Readonly<{
   handInferenceMs: number;
   moduleInferenceMs: Readonly<Record<string, number>>;
   detections: number;
-  /** What the microphone is doing (off, system, sleep, awake, busy) and how loud it hears, 0 to 99. */
   micMode: string;
   micLevel: number;
 }>;
 
-/**
- * The last gesture, kept as its parts rather than as a sentence.
- *
- * A sentence would have to be written when the gesture happens, which is long
- * before anyone reads it and possibly in a language the interface is no longer
- * in. The parts get put together at render time instead.
- */
 type LastGesture = Readonly<{
   type: string;
   hand: "left" | "right";
@@ -45,21 +36,15 @@ export type RuntimeUiState = {
   cameraError: LocalizedText | null;
   deviceLabel: string | null;
   handStatus: HandTrackingStatus;
-  /** Every registered plugin with its current on/off state, ready to list. */
   plugins: readonly PluginPaletteItem[];
   moduleStatuses: readonly ModuleStatus[];
   diagnostics: DiagnosticsSnapshot;
   capabilities: Capabilities | null;
   blockers: readonly CapabilityBlocker[];
   settings: Settings;
-  /**
-   * Quarter-turn the eyes are drawn at. Distinct from the saved setting so the
-   * sensors can follow gravity without writing localStorage on every snap.
-   */
   viewTurn: Turn;
   deviceGrants: DeviceGrants;
   lastEvent: LastGesture | null;
-  /** Live gesture figures, written only while the diagnostics panel is open. */
   handProbes: readonly HandProbe[];
   assistant: AssistantSnapshot;
 
@@ -92,10 +77,6 @@ const EMPTY_DIAGNOSTICS: DiagnosticsSnapshot = {
   micLevel: 0,
 };
 
-/**
- * UI-facing mirror of runtime state. The render loop never reads from here;
- * the DOM layer does, at its own pace, so rebuilding the menu cannot stall a frame.
- */
 export const useRuntimeStore = createStore<RuntimeUiState>((set) => ({
   cameraState: "idle",
   cameraError: null,
@@ -133,8 +114,6 @@ export const useRuntimeStore = createStore<RuntimeUiState>((set) => ({
   setViewTurn: (viewTurn) => set({ viewTurn }),
   setDeviceGrants: (deviceGrants) => set({ deviceGrants }),
   setLastEvent: (lastEvent) => set({ lastEvent }),
-  // Nothing changes while no hand is there, and re-rendering to say so ten
-  // times a second is worse than saying nothing.
   setHandProbes: (handProbes) =>
     set((state) =>
       handProbes.length === 0 && state.handProbes.length === 0 ? state : { handProbes },

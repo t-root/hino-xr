@@ -55,10 +55,6 @@ const GENERIC_SENSORS: Readonly<
   "ambient-light-sensor": "AmbientLightSensor",
 };
 
-/**
- * Permissions API names that do not match the feature id, or that have no
- * prompt other than `query`.
- */
 const QUERY_NAMES: Readonly<Partial<Record<DeviceFeatureId, string>>> = {
   "wake-lock": "screen-wake-lock",
   "ambient-light-sensor": "ambient-light-sensor",
@@ -87,19 +83,6 @@ const QUERY_NAMES: Readonly<Partial<Record<DeviceFeatureId, string>>> = {
   magnetometer: "magnetometer",
 };
 
-/**
- * Asks for every browser permission that can be granted from a tap.
- *
- * Constructors and `requestPermission` / `getUserMedia` / `readText` calls are
- * fired in this turn of the stack, before any `await` that would spend the
- * user gesture. Camera and microphone are opened only long enough to obtain
- * the grant, then the tracks are stopped: the real camera belongs to
- * `CameraController`. Coordinates, clipboard text and font lists are thrown
- * away.
- *
- * Pickers are never opened. A Bluetooth/USB/screen-share dialog is not a
- * permission prompt, and putting one on Start would block the session.
- */
 export class DeviceAccess {
   private grants: DeviceGrants = INITIAL_DEVICE_GRANTS;
   private wakeLock: WakeLockSentinel | null = null;
@@ -117,11 +100,6 @@ export class DeviceAccess {
     return this.grants;
   }
 
-  /**
-   * Must be called from the Start tap, and before `await`ing fullscreen or
-   * the camera: those consume the gesture on iOS, and a later prompt is
-   * silently denied.
-   */
   claimFromUserGesture(): Promise<DeviceGrants> {
     if (this.claimed) return Promise.resolve(this.grants);
     this.claimed = true;
@@ -135,7 +113,6 @@ export class DeviceAccess {
       );
     };
 
-    // Fired in this turn, not after a then: the gesture is still live.
     start("orientation", requestIosSensorPermission(globalCtor("DeviceOrientationEvent")));
     start("motion", requestIosSensorPermission(globalCtor("DeviceMotionEvent")));
     start("accelerometer", requestGenericSensor("accelerometer"));
@@ -188,7 +165,6 @@ export class DeviceAccess {
       try {
         await this.wakeLock.release();
       } catch {
-        // Releasing on teardown is polite, not required.
       }
     }
     this.wakeLock = null;
@@ -359,7 +335,6 @@ const requestClipboardRead = async (): Promise<DeviceGrant> => {
     return "granted";
   } catch (cause) {
     if (isDenied(cause)) return "denied";
-    // An empty or blocked clipboard is still a grant on some browsers.
     return queryNamed("clipboard-read");
   }
 };

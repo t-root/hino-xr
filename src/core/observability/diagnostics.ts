@@ -4,19 +4,12 @@ import type { EventBus } from "../events/EventBus";
 import type { RuntimeEvents } from "../events/events";
 
 export type Logger = Readonly<{
-  /** What happened, in the order it happened: shown in the headset's log, unlike `debug`. */
   info(message: string, context?: Record<string, unknown>): void;
   debug(message: string, context?: Record<string, unknown>): void;
   warn(message: string, context?: Record<string, unknown>): void;
   error(message: string, context?: Record<string, unknown>): void;
 }>;
 
-/**
- * Folds the context into the line itself. A console that prints `Object` next
- * to "failed to start" hides the one thing worth reading, and the `diagnostic`
- * event only ever carried the message, so the reason never reached the panel
- * either. Redacted on the way in, because this text is what leaves as telemetry.
- */
 const describe = (context?: Record<string, unknown>): string => {
   if (!context) return "";
   const parts = Object.entries(redactRecord(context)).map(

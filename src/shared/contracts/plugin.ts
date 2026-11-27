@@ -5,7 +5,6 @@ export type PluginPaletteItemState = "available" | ModuleState;
 
 export type PluginPaletteItem = Readonly<{
   id: string;
-  /** Straight from the manifest; whoever draws it picks the language. */
   title: LocalizedText;
   description: LocalizedText;
   state: PluginPaletteItemState;

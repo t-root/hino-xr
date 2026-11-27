@@ -12,14 +12,6 @@ type MediaPlayback = Readonly<{
   description: string;
 }>;
 
-/**
- * Routes any media source down the only path that keeps both eyes identical
- * (rules.md): readable pixels are decoded once and drawn per eye, and anything
- * whose pixels are off limits is shown in a single view.
- *
- * There is no third path, and never more than one player, so "the two eyes show
- * different frames" is not a state this runtime can reach.
- */
 export class MediaController {
   private readonly logger;
   private readonly video: VideoSurface;

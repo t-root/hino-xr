@@ -1,12 +1,3 @@
-"""Spoken commands that act on the headset instead of being answered by the model.
-
-Two families, both about plugins: switching them ("bật plugin bản đồ", "turn off
-the face detection plugin") and having the assistant write new ones ("tạo plugin
-đếm số người", then "duyệt plugin đếm người"). The page sends the plugins it has
-and whether each is on; the verdict names what was meant and what to say back.
-Whisper's spelling is close to what was said but rarely the same, so words are
-compared by sound-alike letters, accents removed, as the wake words are.
-"""
 
 from __future__ import annotations
 
@@ -72,12 +63,10 @@ _SAY: dict[str, dict[str, str]] = {
 
 
 def say_for(locale: str, key: str, **values: str) -> str:
-    """A fixed line in the wearer's language, also used for results that arrive after the command."""
     return _SAY["vi" if locale == "vi" else "en"][key].format(**values)
 
 
 def _heard(words: list[str]) -> set[str]:
-    """Each word and each pair of words run together, so "từ chối" is found as "tuchoi"."""
     plain = [letters(word) for word in words]
     return set(plain) | {a + b for a, b in zip(plain, plain[1:])}
 
@@ -96,7 +85,6 @@ def _action(words: list[str]) -> str | None:
 
 
 def _plugin_at(words: list[str]) -> tuple[int, int] | None:
-    """Where the word "plugin" is: (index of its first word, how many words it took)."""
     plain = [letters(word) for word in words]
     for index, word in enumerate(plain):
         if word in _PLUGIN:
@@ -123,18 +111,12 @@ def _score(words: list[str], name: str) -> float:
     return best
 
 
-# Words people use for the same thing: the plugin says "phát hiện", the wearer says "nhận diện".
 _SAME = {"nhandien": ("phat", "hien"), "dienhien": ("phat", "hien")}
 _SKIP = _ENABLE | _DISABLE | _PLUGIN | _CREATE | _REVISE | _APPROVE | _REJECT | {"cai", "cho", "minh", "giup", "hay", "vui", "long", "the", "please"}
 _WORD_MATCH = 0.85
 
 
 def _overlap(words: list[str], name: str) -> float:
-    """How much of the name was said, word by word, when it was not said whole.
-
-    "mở plugin nhận diện khuôn mặt" never equals "Phát hiện khuôn mặt", but two of
-    its four words are there, and that is more than any other plugin has.
-    """
     heard: list[str] = []
     plain = [letters(word) for word in words]
     index = 0
@@ -179,18 +161,6 @@ def plugin_command(
     locale: str,
     drafts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
-    """The plugin command in `heard`, or None when the line is an ordinary question.
-
-    `plugins` is `[{"id", "vi", "en", "enabled"}]`; `drafts` the same without `enabled`, for
-    plugins the assistant wrote that still wait to be approved. The result is
-    `{"action", "id", "reply", ...}` where action is one of:
-
-    - "enable" / "disable": switch a plugin the headset has;
-    - "create": write a new one; `description` says what it should do;
-    - "revise": change an installed one (`id`); `description` says what to change;
-    - "approve" / "reject": install or drop a draft;
-    - "none": a command that named nothing the headset has.
-    """
     words = heard.replace("-", " ").split()
     found = _plugin_at(words) if words else None
     if found is None:
@@ -202,7 +172,6 @@ def plugin_command(
     before = _heard(words[:at])
     after = words[at + took :]
 
-    # Changing a plugin that exists: "sửa plugin bản đồ, thêm nút…" (the verb comes before the word plugin).
     if before & _REVISE and not before & _CREATE:
         target = _best(words, plugins)
         if target is None:
@@ -217,7 +186,6 @@ def plugin_command(
             "reply": say["revise"].format(name=_name(target, locale)),
         }
 
-    # Writing a new plugin: the verb comes first, then what it should do.
     if before & _CREATE:
         if len(after) < _MIN_BRIEF:
             return {"action": "none", "id": None, "reply": say["brief"]}
@@ -254,7 +222,6 @@ def plugin_command(
 
 
 def parse_plugins(raw: Any) -> list[dict[str, Any]]:
-    """Keeps only well-formed entries; the page is trusted no further than that."""
     if not isinstance(raw, list):
         return []
     kept = []

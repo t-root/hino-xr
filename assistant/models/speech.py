@@ -1,10 +1,3 @@
-"""Speech in and speech out on Core. The web sends a WAV and plays a WAV.
-
-Listening is the `stt` stage of `ai/stages.json` (whisper.cpp on this machine, or any OpenAI-style
-`/audio/transcriptions`). Speaking is the `tts` stage: with an url it is an OpenAI-style `/audio/speech`; without one it is
-VieNeu-TTS v3 Turbo (ONNX, on the CPU) for Vietnamese, cloned from assistant/voices/hino.wav, and the machine's own SAPI
-voice for English.
-"""
 
 from __future__ import annotations
 
@@ -41,7 +34,6 @@ class Speech:
         return {"state": self.state, "error": self.error}
 
     def warm(self) -> None:
-        """Load the Vietnamese voice now, in the background, so the first greeting is not a minute late."""
         try:
             if ai.stage("tts").inprocess:
                 with self._tts_lock:
@@ -63,11 +55,6 @@ class Speech:
         prompt: str | None = None,
         careful: bool = False,
     ) -> str:
-        """Speech to text. `language` overrides the locale's; `prompt` hints at the words to expect.
-
-        `careful` searches more candidate sentences (beam search): slower, right more often. It is for what the
-        wearer says to the assistant; the short checks for the wake words stay quick.
-        """
         language = language or ("vi" if locale == "vi" else "en")
         try:
             heard = ai.transcribe(_pad_wav(_clean(_to_16k_mono(wav_bytes))), language, prompt, careful)
@@ -95,7 +82,6 @@ class Speech:
         return _sapi(spoken, locale, tuning)
 
     def _vieneu_vi(self, spoken: str, tuning: VoiceTuning) -> bytes:
-        """Windows ships no Vietnamese SAPI voice, so Vietnamese is VieNeu cloned from the assistant's own voice."""
         with self._tts_lock:
             if self._tts_vi is None:
                 self._tts_vi = _load_vieneu(voice_vi_dir(), voice_reference())
@@ -115,7 +101,6 @@ VOICE_NAME = "hino"
 
 
 def _to_16k_mono(wav_bytes: bytes) -> bytes:
-    """Whisper reads 16 kHz mono only. A phone's microphone is 44.1 or 48 kHz."""
     import numpy as np
 
     try:
@@ -150,13 +135,6 @@ EDGE_LEVEL = 0.02
 
 
 def _clean(wav_bytes: bytes) -> bytes:
-    """What a quiet or rumbling microphone gets wrong, put right before Whisper reads it.
-
-    Low rumble under about 80 Hz is taken out, the level is raised so the loudest sound reaches
-    about 70% of full scale (at most eight times: hiss is not made into speech), and
-    silence at both ends is trimmed to a quarter of a second so Whisper does not spend its
-    guesses on it. Audio that is not 16 kHz mono 16-bit passes through untouched.
-    """
     import numpy as np
 
     try:
@@ -169,7 +147,6 @@ def _clean(wav_bytes: bytes) -> bytes:
         return wav_bytes
     samples = np.frombuffer(frames, dtype="<i2").astype(np.float32) / 32768.0
     samples = samples - samples.mean()
-    # Rumble out: subtract a moving average about one period of HIGH_PASS_HZ long.
     window = max(2, STT_RATE // HIGH_PASS_HZ)
     padded = np.concatenate([np.full(window // 2, samples[0]), samples, np.full(window - window // 2, samples[-1])])
     running = np.cumsum(np.insert(padded, 0, 0.0))
@@ -192,16 +169,10 @@ def _clean(wav_bytes: bytes) -> bytes:
 
 VOICE_FRAME = 512
 VOICE_HOP = 256
-MIN_VOICED_FRAMES = 5  # about 80 ms of a voice: a short "hino" has 8 or more, noise has none
+MIN_VOICED_FRAMES = 5
 
 
 def has_voice(wav_bytes: bytes) -> bool:
-    """Is there a voice in this 16 kHz mono line, as opposed to noise, a click or a breath?
-
-    A voice has a pitch: within a frame, the sound repeats every 2.5 to 14 ms (400 to 70 Hz).
-    Noise does not, whatever its loudness. Frames are counted that are above the room's level
-    and repeat like that. Whatever is not 16-bit PCM passes, as it cannot be judged.
-    """
     import numpy as np
 
     try:
@@ -230,16 +201,10 @@ def has_voice(wav_bytes: bytes) -> bool:
 
 MIN_STT_SECONDS = 1.5
 LEAD_SECONDS = 0.35
-_HISS = 130  # about 0.4% of full scale: room noise, not silence
+_HISS = 130
 
 
 def _pad_wav(wav_bytes: bytes) -> bytes:
-    """Make a lone word long enough to be heard.
-
-    whisper.cpp answers nothing at all for audio under a second, and a bare "hino"
-    with dead silence around it is often taken for noise. A little room-like hiss
-    before and after, up to a second and a half, is read as the word it is.
-    """
     try:
         with wave.open(io.BytesIO(wav_bytes)) as clip:
             params = clip.getparams()
@@ -267,19 +232,17 @@ def _pad_wav(wav_bytes: bytes) -> bytes:
 
 
 def _load_vieneu(folder: Path, reference: Path) -> Any:
-    """VieNeu Turbo from files on disk only, with the assistant's voice enrolled from `reference`."""
     needed = [folder / "turbo" / "denoiser.onnx", folder / "codec" / "moss_audio_tokenizer_decode_full.onnx", reference]
     missing = [path for path in needed if not path.is_file()]
     if missing:
         raise FileNotFoundError(
             f"Vietnamese voice not found: {missing[0]}. Run run.py to download it (downloads.json) or set VR_VOICE_VI_PATH."
         )
-    os.environ["HF_HUB_OFFLINE"] = "1"  # every file is already here; never go looking for them elsewhere
+    os.environ["HF_HUB_OFFLINE"] = "1"
     from vieneu import Vieneu
     from vieneu._v3_turbo_engine import onnx_runtime_lite
 
     class _Engine(onnx_runtime_lite.OnnxV3LiteEngine):
-        """The package takes the audio codec from the Hub; this points it at the folder."""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, codec_dir=str(folder / "codec"), **kwargs)
@@ -296,11 +259,6 @@ def _load_vieneu(folder: Path, reference: Path) -> Any:
 
 
 def _shifted_wav(audio: Any, rate: int, tuning: VoiceTuning) -> bytes:
-    """Pitch and speed apart: slow or quicken the sound first, then play it back at a shifted rate.
-
-    Playing at `ratio` times the rate raises the pitch by `ratio` and shortens the sound by
-    the same, so the sound is first stretched by `speed / ratio` to leave only `speed`.
-    """
     import numpy as np
 
     samples = np.asarray(audio, dtype=np.float32)
@@ -348,7 +306,6 @@ def _sapi(spoken: str, locale: str, tuning: VoiceTuning) -> bytes:
 
 
 _LANGUAGE = {
-    # A bare "vi" or "en" also sits inside "Da-vi-d", so match whole tokens or the language name.
     "vi": re.compile(r"(?<![a-z])vi(?![a-z])|vietnam"),
     "en": re.compile(r"(?<![a-z])en(?![a-z])|english"),
 }

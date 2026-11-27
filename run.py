@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Start VR Core: install missing packages, free port 5173, run the server (gpu profile: and open its public tunnel address)."""
 
 from __future__ import annotations
 
@@ -35,7 +34,7 @@ PACKAGES = (
     "librosa",
     "soundfile",
 )
-CPU_PACKAGES = ("cryptography",)  # the self-signed certificate of the cpu profile; the gpu profile's HTTPS is the tunnel's
+CPU_PACKAGES = ("cryptography",)
 VIENEU = "vieneu==3.8.3"
 MIN_PYTHON = (3, 11)
 
@@ -88,7 +87,6 @@ def _ensure_packages() -> bool:
         cwd=ROOT,
     )
     if result.returncode == 0:
-        # Its own list of requirements names gradio, which is large and never used here.
         result = subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", VIENEU], cwd=ROOT)
     if result.returncode == 0 and _packages_ok():
         _say()
@@ -114,7 +112,6 @@ def _present(item: dict, dest: Path) -> bool:
 
 
 def _fetch(item: dict, dest: Path) -> None:
-    """curl (resumes a cut-off download), check the SHA-256, then put it in place, unpacking an archive."""
     part = dest.with_name(dest.name + ".part")
     part.parent.mkdir(parents=True, exist_ok=True)
     if not (part.is_file() and part.stat().st_size == item["bytes"]):
@@ -129,7 +126,6 @@ def _fetch(item: dict, dest: Path) -> None:
     shutil.rmtree(stage, ignore_errors=True)
     stage.mkdir(parents=True)
     if item.get("flat"):
-        # A zip of programs: its files go straight into `to`, next to the ones another zip put there.
         try:
             with zipfile.ZipFile(part) as archive:
                 if any(Path(name).is_absolute() or ".." in Path(name).parts for name in archive.namelist()):
@@ -143,7 +139,7 @@ def _fetch(item: dict, dest: Path) -> None:
             part.unlink(missing_ok=True)
         return
     try:
-        with tarfile.open(part) as archive:  # not tar.exe: Windows' one hangs on .bz2
+        with tarfile.open(part) as archive:
             if any(Path(m.name).is_absolute() or ".." in Path(m.name).parts for m in archive.getmembers()):
                 raise ValueError("goi tai ve co duong dan la")
             archive.extractall(stage)
@@ -157,7 +153,6 @@ def _fetch(item: dict, dest: Path) -> None:
 
 
 def _ensure_downloads(items: list | None = None) -> None:
-    """Every file in downloads.json that is not on disk yet. To fetch something else, add an entry there."""
     _say("Kiem tra cac file can tai...")
     sys.path.insert(0, str(ASSISTANT))
     try:
@@ -166,11 +161,11 @@ def _ensure_downloads(items: list | None = None) -> None:
         pass
     for item in json.loads(DOWNLOADS.read_text(encoding="utf-8"))["items"] if items is None else items:
         if not profiles.wanted(item):
-            continue  # an entry of the other profile: nothing to say about it
+            continue
         dest, name = ROOT / item["to"], item["what"]
         when = item.get("when")
         if when and os.environ.get(when["env"], "").strip().lower() != str(when["equals"]).lower():
-            continue  # only fetched when asked for (a big optional model): nothing to say about it
+            continue
         if os.environ.get(item.get("env", ""), "").strip():
             _say(f"  {name}: dung duong dan rieng ({item['env']}), khong tai.")
         elif _present(item, dest):
@@ -303,9 +298,6 @@ def _notes(killed: bool) -> None:
     _say()
 
 
-# ---- the public address -------------------------------------------------------------------------------------------
-# A rented server opens no port, so `cloudflared` (downloads.json) dials out to Cloudflare and gets back an
-# https://....trycloudflare.com address that reaches this page from anywhere. It is HTTPS, which the phone's camera needs,
 # so the server itself is plain HTTP on 127.0.0.1. The address is new at every start. `VR_TUNNEL=off` opens none.
 _tunnel: subprocess.Popen[bytes] | None = None
 
@@ -321,7 +313,7 @@ def _page_is_up() -> bool:
 def _show_address(address: str) -> None:
     sys.path.insert(0, str(ASSISTANT))
     import ai.config  # noqa: F401 - reads assistant/.env, which may fix the key (VR_ACCESS_TOKEN)
-    import access  # the key is the one the server asks for; it is on while there is a public address
+    import access
 
     suffix = "/?key=%s" % access.token() if access.enabled() else ""
     _say()
@@ -339,13 +331,12 @@ def _run_tunnel() -> None:
         _say(f"  tunnel   khong co {CLOUDFLARED.name} trong {CLOUDFLARED.parent}: chay lai run.py de tai.")
         return
     deadline = time.monotonic() + 120
-    while not _page_is_up():  # the server starts after this thread does
+    while not _page_is_up():
         if time.monotonic() > deadline:
             _say(f"  tunnel   trang khong mo cong {PORT}, nen khong mo tunnel.")
             return
         time.sleep(0.4)
     try:
-        # --no-autoupdate: the version is the one downloads.json pinned, not whatever is newest.
         _tunnel = subprocess.Popen(
             [str(CLOUDFLARED), "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"],
             stdout=subprocess.PIPE,

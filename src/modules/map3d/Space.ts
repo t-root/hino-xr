@@ -9,7 +9,6 @@ import { cHex } from "./palette";
 import type { LatLng } from "./SelectMap";
 import { h, type Words } from "./ui";
 
-/** Scene units per degree, as in the original. */
 const scale = 51000;
 const DEG = Math.PI / 180;
 
@@ -21,7 +20,6 @@ export type Building = {
 
 type Vec3 = { x: number; y: number; z: number };
 
-/** Where the original store started, before any area was chosen. */
 const DEFAULT_CENTER: readonly LatLng[] = [
   { lat: 40.8, lng: -73.95 },
   { lat: 40.83, lng: -73.88 },
@@ -39,7 +37,6 @@ const disposeTree = (root: THREE.Object3D): void => {
   });
 };
 
-/** What a building needs from the scene it stands in. */
 interface BuildingHost {
   readonly words: Words;
   setCameraControl(enabled: boolean): void;
@@ -52,30 +49,18 @@ interface BuildingHost {
   setBuildingPosition(id: number, value: Vec3): void;
 }
 
-/**
- * One extruded building: hover lights it up, a press selects it, and once selected one pointer (a mouse, one finger)
- * only resizes it — up and down is how tall, left and right is how wide, as with one hand. Moving it over the ground
- * takes a second hand (`Space.twoHand`), or Shift with the mouse. Two fingers still resize, wider when they spread
- * sideways and taller when they spread up and down.
- */
 class BuildingView {
   readonly group = new THREE.Group();
   readonly mesh: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
 
   private readonly edges: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   private readonly depth: number;
-  /**
-   * The middle of the footprint, in the city's coordinates. The outline is drawn around its own middle and the group
-   * stands there, so a building grows and shrinks evenly about itself. Scaled about the city's centre instead, every
-   * building would creep away from it (or towards it) as it widened.
-   */
   private readonly center: THREE.Vector3;
 
   private hovered = false;
   private selected = false;
   private interaction: "move" | "resize" | null = null;
   private moveOffset: THREE.Vector3 | null = null;
-  /** Where one pointer took hold of the size, and what the size was then. */
   private dragStart: { x: number; y: number; scale: Vec3 } | null = null;
   private readonly touchPoints = new Map<number, { x: number; y: number }>();
   private pinchStart: { spanX: number; spanY: number; scale: Vec3 } | null = null;
@@ -90,7 +75,6 @@ class BuildingView {
     private readonly host: BuildingHost,
   ) {
     this.depth = depth;
-    // The mesh is turned flat (x, y, z becomes x, z, -y), so the outline's y is the world's -z.
     const box = new THREE.Box2().setFromPoints(shape.getPoints());
     const middle = box.getCenter(new THREE.Vector2());
     this.center = new THREE.Vector3(middle.x, 0, -middle.y);
@@ -115,7 +99,6 @@ class BuildingView {
     return this.hovered || this.selected || this.interaction !== null;
   }
 
-  /** The three lines of the label, in the language the interface is in. */
   labelText(): readonly [string, string, string] {
     const words = this.host.words;
     const status = words.get(
@@ -130,7 +113,6 @@ class BuildingView {
     return [status, this.tags.name || words.get("urbanStructure"), words.get("editHint")];
   }
 
-  /** Where the label hangs: above the roof, in world space. */
   labelAnchor(target: THREE.Vector3): THREE.Vector3 {
     return this.mesh.localToWorld(target.set(0, 0, this.depth + 1.5));
   }
@@ -142,7 +124,6 @@ class BuildingView {
   }
 
   applyLook(): void {
-    // A selected building stays lit, as under the mouse, so it is plain which one the tools act on.
     const hovered = this.hovered || this.selected;
     const material = this.mesh.material;
     material.color.setHex(hovered ? cHex(185, 252, 255) : cHex(12, 152, 184));
@@ -180,7 +161,6 @@ class BuildingView {
       if (this.touchPoints.size === 2) this.beginPinch();
       else this.beginSize(event);
     } else {
-      // Shift is the mouse's second hand: it carries the building. Plain, the mouse is one hand: it resizes.
       if (event.shiftKey) this.beginMove(event);
       else this.beginSize(event);
       this.host.setCursor("grabbing");
@@ -227,7 +207,6 @@ class BuildingView {
     this.setInteraction("resize");
   }
 
-  /** One pointer: up and down sets the height, left and right the width, in the same drag. */
   private updateSize(event: PointerEvent): void {
     const start = this.dragStart;
     if (!start) return;
@@ -280,7 +259,6 @@ class BuildingView {
     }
   }
 
-  /** Hand tools: where the building stands and how big it is, set directly. */
   get position(): THREE.Vector3 {
     return this.group.position;
   }
@@ -305,18 +283,14 @@ class BuildingView {
   }
 }
 
-/** A house a hand worked this recently, ms, is still the one a second hand joining means. */
 const RECENT_HOUSE_MS = 1500;
 
-/** Which hand drags a held house: the one that is not on it, or the midpoint when neither can be told apart. */
 type HeldMover = "left" | "right" | "middle";
 
-/** A pinch that ends this close, px, to where it began is a tap, not a drag. */
 const HAND_TAP_PX = 12;
 
 type HandDrag = {
   pointerId: number;
-  /** What the hand took hold of: a house (its height and width change) or nothing (a tap there lets go of the house). */
   kind: "empty" | "house";
   view: SpaceView;
   startX: number;
@@ -325,7 +299,6 @@ type HandDrag = {
   startSize: Vec3 | null;
 };
 
-/** Where one building's label goes this frame; the same for every eye. */
 type LabelPlacement = Readonly<{
   id: number;
   transform: string;
@@ -333,18 +306,9 @@ type LabelPlacement = Readonly<{
   text: readonly [string, string, string];
 }>;
 
-/**
- * The original 3D stage, held once for every copy of the screen: one scene,
- * one camera, one set of buildings, and one WebGL canvas the frame is rendered
- * into. Each eye gets a `SpaceView` that copies that frame and places labels
- * from the same numbers, so the two eyes cannot show different moments
- * (rules.md: render once, draw twice).
- */
 export class SpaceCore implements BuildingHost {
   readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 8000);
-  /** Every eye's orbit controls turn about this one point. */
   readonly target = new THREE.Vector3();
-  /** The one rendered frame, shown in every eye. */
   readonly mirror: CanvasMirror;
 
   private readonly renderer: THREE.WebGLRenderer;
@@ -364,7 +328,6 @@ export class SpaceCore implements BuildingHost {
   private readonly buildingScales = new Map<number, Vec3>();
   private readonly buildingPositions = new Map<number, Vec3>();
   private buildings: BuildingView[] = [];
-  /** Mesh to building, outside `userData`: three clones that as JSON on export. */
   private byMesh = new WeakMap<THREE.Object3D, BuildingView>();
   private roads: OsmElement[] = [];
   private readonly roadsGroup = Object.assign(new THREE.Group(), { visible: false });
@@ -376,17 +339,12 @@ export class SpaceCore implements BuildingHost {
   private controlsEnabled = true;
   private cursor = "default";
 
-  /** What a hand's pinch-and-drag does; the same for every eye. */
-
   private hand: HandDrag | null = null;
-  /** A second hand joined while the first was pinching: that pinch is not a tap. */
   private handJoined = false;
-  /** The house a hand last worked and when: a second hand closing right after is meant for that house, not the city. */
   private lastWorked: { building: BuildingView; at: number } | null = null;
   private readonly captures = new Map<number, { building: BuildingView; view: SpaceView }>();
   private hoveredView: BuildingView | null = null;
   private downAt: { x: number; y: number } | null = null;
-  /** The eye whose element the event being handled arrived on. */
   private eventView: SpaceView | null = null;
 
   constructor(readonly words: Words) {
@@ -407,8 +365,6 @@ export class SpaceCore implements BuildingHost {
     return this.buildings.length;
   }
 
-  // ---- copies ----
-
   createView(words: Words): SpaceView {
     const view = new SpaceView(this, words);
     this.configure(view.controls);
@@ -423,8 +379,6 @@ export class SpaceCore implements BuildingHost {
     view.dispose();
   }
 
-  // ---- what the app drives ----
-
   setCenter(center: readonly LatLng[]): void {
     this.center = center;
     this.applyCenter();
@@ -437,7 +391,6 @@ export class SpaceCore implements BuildingHost {
     this.frameCity();
   }
 
-  /** Puts the loaded city in the middle of the view, whatever part of the box the buildings fill. */
   private frameCity(): void {
     if (this.buildings.length === 0) return;
     const box = new THREE.Box3();
@@ -458,13 +411,10 @@ export class SpaceCore implements BuildingHost {
   setShowPlatform(show: boolean): void {
     if (this.showPlatform === show) return;
     this.showPlatform = show;
-    // The roads are fetched as soon as an area is drawn, so they are ready for the city, but the city is
-    // not on screen while the map is: drawn then, they show through under it.
     this.roadsGroup.visible = show;
     this.rebuildPlatform();
   }
 
-  /** Rendering rides Core's one clock, so it lands in the same frame as everything else. */
   setRunning(running: boolean): void {
     if (running === (this.stopFrame !== null)) return;
     if (running) {
@@ -495,8 +445,6 @@ export class SpaceCore implements BuildingHost {
     this.renderer.dispose();
     this.renderer.forceContextLoss();
   }
-
-  // ---- BuildingHost ----
 
   setCameraControl(enabled: boolean): void {
     this.controlsEnabled = enabled;
@@ -542,8 +490,6 @@ export class SpaceCore implements BuildingHost {
     this.buildingPositions.set(id, value);
   }
 
-  // ---- pointer routing (what react-three-fiber did), from whichever eye ----
-
   pointerDown(event: PointerEvent, view: SpaceView): void {
     this.eventView = view;
     this.downAt = { x: event.clientX, y: event.clientY };
@@ -571,18 +517,9 @@ export class SpaceCore implements BuildingHost {
     this.eventView = captured?.view ?? view;
     const building = captured?.building ?? this.pick(event, view);
     building?.onPointerUp(event);
-    // The original left the camera locked when a press that selected a
-    // building was released off it; nothing is held any more, so let go.
     if (this.captures.size === 0) this.setCameraControl(true);
   }
 
-  // ---- a hand: what it does depends on what it took hold of ----
-
-  /**
-   * One hand does two things only. Pinching a house chooses it, and dragging sets its height (up and down) and its width
-   * (left and right). Pinching where there is no house and letting go without dragging lets go of the chosen house.
-   * Nothing is moved by one hand: carrying a house takes two (`twoHand`).
-   */
   handDown(event: PointerEvent, view: SpaceView): void {
     if (this.hand) return;
     this.eventView = view;
@@ -608,7 +545,6 @@ export class SpaceCore implements BuildingHost {
     if (drag.building) this.lastWorked = { building: drag.building, at: performance.now() };
     const { height } = drag.view.size();
     const h = Math.max(height, 1);
-    // One hand on a house: up and down is how tall, left and right is how wide, in the same drag.
     if (!drag.building || !drag.startSize) return;
     const moved = toLocalDelta(drag.view.canvas, event.clientX - drag.startX, event.clientY - drag.startY);
     const up = -moved.y / h;
@@ -621,8 +557,6 @@ export class SpaceCore implements BuildingHost {
     const drag = this.hand;
     if (drag?.pointerId !== event.pointerId) return;
     this.hand = null;
-    // A tap on empty ground lets go of the house, as a click does with a mouse. Not when a second hand joined: that
-    // pinch was one of the two carrying a house, and the house stays chosen.
     const moved = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
     if (drag.kind === "empty" && !this.handJoined && moved <= HAND_TAP_PX) this.select(null);
   }
@@ -632,7 +566,6 @@ export class SpaceCore implements BuildingHost {
     return this.buildings.find((building) => building.id === this.selectedBuilding) ?? null;
   }
 
-  /** Turns the one shared camera about the target; the angle is kept clear of straight up and the ground. */
   private orbitBy(yaw: number, pitch: number): void {
     const offset = this.camera.position.clone().sub(this.target);
     const spherical = new THREE.Spherical().setFromVector3(offset);
@@ -643,25 +576,14 @@ export class SpaceCore implements BuildingHost {
     this.camera.lookAt(this.target);
   }
 
-  /** The house two hands are holding, and where it stands against where their midpoint lands on the ground. */
   private held: { building: BuildingView; offset: THREE.Vector3; mover: HeldMover } | null = null;
 
-  /**
-   * Two hands pinching, and what they mean depends on what is between them. Over a house they carry that house
-   * across the ground. Over anything else, spreading them zooms the city in, closing them zooms it out, turning
-   * them turns the city about its centre, and moving both up or down tilts the view. What is between the hands is
-   * decided when they close and kept until they open. Recognised once in Core; this only says what it means here.
-   */
   twoHand(step: TwoHandDomDetail, view: SpaceView): void {
     if (step.phase === "start") {
       this.handJoined = true;
       this.eventView = view;
-      // The house between the hands; failing that, the one a hand was working an instant ago. Closing the second
-      // hand while the first holds a house is how a house is carried, and must never turn the city.
       const recent = this.lastWorked && performance.now() - this.lastWorked.at < RECENT_HOUSE_MS ? this.lastWorked.building : null;
       const at = (point: { x: number; y: number }) => ({ clientX: point.x, clientY: point.y });
-      // One hand holds a house and the other is free: the free hand is the one that drags it, one to one. A house
-      // is carried by the midpoint only when that is all there is to go by (both hands on it, or neither).
       const underLeft = this.pick(at(step.hands.left), view);
       const underRight = this.pick(at(step.hands.right), view);
       let mover: HeldMover = "middle";
@@ -693,7 +615,6 @@ export class SpaceCore implements BuildingHost {
       return;
     }
     if (step.scale !== 1) this.zoomBy(1 / step.scale);
-    // Both hands going up or down tilts the view: up and down of the picture, not of the screen.
     this.orbitBy(-step.rotation, toLocalDelta(view.canvas, step.pan.x, step.pan.y).y * Math.PI);
   }
 
@@ -708,7 +629,6 @@ export class SpaceCore implements BuildingHost {
     if (this.captures.size === 0) this.setHovered(null);
   }
 
-  /** `onPointerMissed`: a click (not a drag) that hit no building deselects. */
   click(event: MouseEvent, view: SpaceView): void {
     const start = this.downAt;
     const moved = start ? Math.hypot(event.clientX - start.x, event.clientY - start.y) : 0;
@@ -716,8 +636,6 @@ export class SpaceCore implements BuildingHost {
   }
 
   private aim(event: { clientX: number; clientY: number }, view: SpaceView): void {
-    // In the canvas's own axes: the interface may be turned a quarter, and the screen point then is not where the
-    // canvas's own picture is.
     const point = toLocalPoint(view.canvas, event.clientX, event.clientY);
     const x = (point.x / Math.max(view.canvas.offsetWidth, 1)) * 2 - 1;
     const y = -(point.y / Math.max(view.canvas.offsetHeight, 1)) * 2 + 1;
@@ -740,8 +658,6 @@ export class SpaceCore implements BuildingHost {
     this.hoveredView = building;
     building?.onPointerOver();
   }
-
-  // ---- scene ----
 
   private configure(controls: OrbitControls): void {
     controls.target = this.target;
@@ -818,7 +734,6 @@ export class SpaceCore implements BuildingHost {
           this,
         );
       } catch {
-        // A broken OSM outline is skipped rather than allowed to stop the city.
         return;
       }
       view.setSelected(this.selectedBuilding === id);
@@ -833,15 +748,11 @@ export class SpaceCore implements BuildingHost {
     window.clearTimeout(this.roadsTimer);
     this.roadsAbort?.abort();
     this.roadsAbort = null;
-    // The original fetched roads for every intermediate box while one was being
-    // drawn; waiting for the pointer to rest asks once instead.
     this.roadsTimer = window.setTimeout(() => {
       const [north, south] = this.center;
       if (!north || !south) return;
       const controller = new AbortController();
       this.roadsAbort = controller;
-      // The floor ring is wider than the drawn box (its circumscribed circle), so roads are
-      // asked for the ring's whole square: otherwise they stop at the box and the city looks framed.
       const { refLat, refLng, radius } = this.reference();
       const reach = radius * 2;
       const dLat = reach / scale;
@@ -890,7 +801,6 @@ export class SpaceCore implements BuildingHost {
     const basic = (r: number, g: number, b: number, opacity: number) =>
       new THREE.MeshBasicMaterial({ color: cHex(r, g, b), transparent: true, opacity, side: THREE.DoubleSide });
 
-    // HoloFloor
     const floor = new THREE.Group();
     floor.rotation.x = -Math.PI / 2;
     for (const fraction of [0.28, 0.48, 0.7, 0.93]) {
@@ -907,7 +817,6 @@ export class SpaceCore implements BuildingHost {
     this.scene.add(floor);
     this.floor = { group: floor, scan };
 
-    // HoloAtmosphere
     const atmosphere = new THREE.Group();
     const outer = new THREE.Mesh(
       new THREE.TorusGeometry(radius * 0.62, 0.025, 8, 80),
@@ -930,7 +839,6 @@ export class SpaceCore implements BuildingHost {
   private readonly labelPoint = new THREE.Vector3();
   private readonly viewPoint = new THREE.Vector3();
 
-  /** drei's `<Html center distanceFactor={12}>`: a DOM label pinned to a 3D point. */
   private placeLabels(width: number, height: number): LabelPlacement[] {
     const placements: LabelPlacement[] = [];
     const scaleFov = 2 * Math.tan((this.camera.fov * DEG) / 2);
@@ -976,7 +884,6 @@ export class SpaceCore implements BuildingHost {
     this.camera.updateMatrixWorld();
     const labels = this.placeLabels(width, height);
     this.renderer.render(this.scene, this.camera);
-    // Copied in the same task as the render, while the drawing buffer is valid.
     this.mirror.present();
     for (const view of this.views) view.placeLabels(labels);
   };
@@ -984,11 +891,6 @@ export class SpaceCore implements BuildingHost {
 
 type LabelNodes = { anchor: HTMLDivElement; lines: [HTMLElement, HTMLElement, HTMLElement] };
 
-/**
- * One eye's copy of the 3D stage: readouts, the frame copied from `SpaceCore`,
- * labels where the core placed them, and orbit controls that all turn the one
- * shared camera. Pointer events go to the core, which owns every decision.
- */
 export class SpaceView {
   readonly root: HTMLDivElement;
   readonly canvas: HTMLCanvasElement;
@@ -1010,8 +912,6 @@ export class SpaceView {
     this.root = h("div", "hologram-stage", vignette, this.wrap);
     words.bind(() => this.renderReadout());
 
-    // Registered before the orbit controls: a press on a building has to switch
-    // them off before they see the same press, as in the original.
     this.wrap.addEventListener("pointerdown", this.onDown);
     this.wrap.addEventListener("pointermove", this.onMove);
     this.wrap.addEventListener("pointerup", this.onUp);
@@ -1020,8 +920,6 @@ export class SpaceView {
     this.wrap.addEventListener("click", this.onClick);
     this.wrap.addEventListener("twohand", this.onTwoHand);
     this.controls = new OrbitControls(core.camera, this.wrap);
-    // The hand is a pointer the orbit controls cannot hold (it cannot be captured), so the
-    // hand's events are worked here, first, and kept from reaching them.
     this.wrap.setAttribute("data-hand-target", "");
     this.wrap.setAttribute("data-hand-plain", "");
   }
@@ -1031,14 +929,12 @@ export class SpaceView {
   }
 
   renderReadout(): void {
-    // No readout is drawn any more: the 3D view carries the picture and the tools, nothing else.
   }
 
   capture(pointerId: number): void {
     try {
       this.wrap.setPointerCapture(pointerId);
     } catch {
-      // The pointer is already gone; routing through the core still holds.
     }
   }
 
@@ -1046,7 +942,6 @@ export class SpaceView {
     if (this.wrap.hasPointerCapture?.(pointerId)) this.wrap.releasePointerCapture(pointerId);
   }
 
-  /** Puts the labels where the core placed them for this frame. */
   placeLabels(placements: readonly LabelPlacement[]): void {
     const shown = new Set<number>();
     for (const placement of placements) {
@@ -1112,7 +1007,6 @@ export class SpaceView {
     this.core.pointerUp(event, this);
   };
   private readonly onTwoHand = (event: Event) => {
-    // Taken here, so Core does not also send it on as a mouse wheel and zoom twice.
     event.preventDefault();
     this.core.twoHand((event as CustomEvent<TwoHandDomDetail>).detail, this);
   };

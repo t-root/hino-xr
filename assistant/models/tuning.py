@@ -1,8 +1,3 @@
-"""How the assistant sounds. The wearer sets these in the menu.
-
-Ranges and defaults are written once, in src/shared/voice.json, and read by the
-web as well.
-"""
 
 from __future__ import annotations
 

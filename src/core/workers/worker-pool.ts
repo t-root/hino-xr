@@ -6,10 +6,6 @@ type Pending = {
   readonly reject: (error: Error) => void;
 };
 
-/**
- * One worker per module with a request queue depth of one. Inference never runs
- * on the main thread, and a stalled model can only ever block its own worker.
- */
 export class InferenceWorkerClient {
   private readonly pending = new Map<number, Pending>();
   private requestCounter = 0;
@@ -38,7 +34,6 @@ export class InferenceWorkerClient {
     return this.readyPromise;
   }
 
-  /** Transfers ownership of `image`; the caller must not use it afterwards. */
   infer(
     image: ImageBitmap,
     frame: { frameId: number; timestampMs: number; rotationDeg: 0 | 90 | 180 | 270; mirrored: boolean },

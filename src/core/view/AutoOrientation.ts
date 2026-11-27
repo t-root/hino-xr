@@ -12,14 +12,6 @@ const MOTION_STALE_MS = 220;
 
 type AutoOrientationHost = Pick<EventTarget, "addEventListener" | "removeEventListener">;
 
-/**
- * Turns gravity into the same quarter-turns the rotate button uses.
- *
- * A headset nods and rolls. Following every degree would spin the menu while
- * the wearer is only looking around, so readings have to leave the current
- * quarter by a wide margin and stay there for a moment before anything moves.
- * Looking up or down is ignored: gravity then leaves the screen plane.
- */
 export class AutoOrientation {
   private enabled = false;
   private current: Turn;

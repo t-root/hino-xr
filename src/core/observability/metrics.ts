@@ -18,7 +18,6 @@ const percentile = (sorted: readonly number[], p: number): number => {
   return sorted[index] ?? 0;
 };
 
-/** In-memory, aggregate-only metrics: no labels, no payloads, no PII. */
 export class RuntimeMetrics implements Metrics {
   private readonly counters = new Map<string, number>();
   private readonly samples = new Map<string, number[]>();

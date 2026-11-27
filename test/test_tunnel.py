@@ -1,4 +1,3 @@
-"""The public address of the gpu profile: `run.py` opens a Cloudflare quick tunnel so a rented server that opens no port can still be reached."""
 
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ spec.loader.exec_module(run)
 class TunnelTest(unittest.TestCase):
     def setUp(self) -> None:
         self.saved = {key: os.environ.get(key) for key in ("VR_TUNNEL", "VR_PROFILE")}
-        os.environ["VR_PROFILE"] = "gpu"  # the tunnel belongs to the gpu profile
+        os.environ["VR_PROFILE"] = "gpu"
 
     def tearDown(self) -> None:
         for key, value in self.saved.items():
@@ -55,11 +54,11 @@ class TunnelTest(unittest.TestCase):
         self.assertEqual(ROOT / item["to"], run.CLOUDFLARED)
         self.assertRegex(item["sha256"], r"^[0-9a-f]{64}$")
         self.assertGreater(item["bytes"], 1_000_000)
-        self.assertNotIn("/latest/", item["url"])  # a version, not whatever is newest
+        self.assertNotIn("/latest/", item["url"])
 
     def test_the_gpu_server_listens_on_this_machine_only_and_speaks_plain_http(self) -> None:
         self.assertEqual(profiles.host(), "127.0.0.1")
-        self.assertFalse(profiles.https())  # the tunnel is the HTTPS; no certificate to trust on the phone
+        self.assertFalse(profiles.https())
 
     def test_the_cpu_server_listens_on_the_network_with_a_certificate(self) -> None:
         os.environ["VR_PROFILE"] = "cpu"

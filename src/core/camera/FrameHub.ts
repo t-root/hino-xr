@@ -16,13 +16,6 @@ type FrameHubOptions = Readonly<{
   metrics: Metrics;
 }>;
 
-/**
- * Single source of frames. It samples the camera at display rate, then hands
- * downscaled `ImageBitmap`s to the consumers whose quota is due.
- *
- * Ownership rule: a consumer owns the bitmap it receives and must `close()` it
- * or transfer it to a worker that does. The hub never reuses a bitmap.
- */
 export class FrameHub {
   private readonly scheduler = new FrameScheduler();
   private readonly registrations = new Map<string, Registration>();
@@ -184,7 +177,6 @@ type VideoWithFrameCallback = HTMLVideoElement & {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
-/** Contain-fit that keeps the aspect ratio and never upscales. */
 const fitWithin = (
   width: number,
   height: number,

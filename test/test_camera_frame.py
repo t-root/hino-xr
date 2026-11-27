@@ -1,4 +1,3 @@
-"""The camera picture is the parent of everything drawn (rules.md)."""
 
 from __future__ import annotations
 
@@ -11,7 +10,6 @@ from helpers import SRC
 def pack_center_squares(
     width: int, height: int, gap: int
 ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
-    """Must match `packCenterSquares` in StereoLayout.ts."""
     landscape = width >= height
     long = width if landscape else height
     short = height if landscape else width
@@ -31,13 +29,11 @@ def square_frame_size(
     frustum: tuple[float, float],
     frame_scale: float,
 ) -> tuple[float, float]:
-    """Must match `squareFrameSize` in CoordinateMapper.ts."""
     side = min(frustum[0], frustum[1]) * frame_scale
     return side, side
 
 
 def cover_content_rect(aspect: float) -> tuple[float, float, float, float]:
-    """Must match `coverContentRect` in CoordinateMapper.ts."""
     if aspect >= 1:
         width = 1.0 / aspect
         return (1.0 - width) / 2.0, 0.0, width, 1.0
@@ -46,7 +42,6 @@ def cover_content_rect(aspect: float) -> tuple[float, float, float, float]:
 
 
 def cover_repeat(aspect: float, mirrored: bool) -> tuple[float, float]:
-    """Must match `coverRepeat` in CoordinateMapper.ts."""
     repeat_x, repeat_y = 1.0, 1.0
     if aspect > 1:
         repeat_x = 1.0 / aspect
@@ -62,7 +57,6 @@ def camera_frame_px(
     eye: tuple[float, float],
     bleed: int = 2,
 ) -> tuple[int, int, int, int]:
-    """Must match `cameraFramePx` in CoordinateMapper.ts."""
     x, y, width, height = frame
     return (
         math.floor(x * eye[0]) - bleed,
@@ -77,7 +71,6 @@ def display_to_frame(
     content: tuple[float, float, float, float],
     plane: tuple[float, float],
 ) -> tuple[float, float]:
-    """Must match `displayToFrame` in CoordinateMapper.ts."""
     u = (point[0] - content[0]) / content[2] if content[2] else 0.5
     v = (point[1] - content[1]) / content[3] if content[3] else 0.5
     local_x = (u - 0.5) * plane[0]
@@ -89,7 +82,6 @@ def camera_frame_in_eye(
     frustum: tuple[float, float],
     plane: tuple[float, float],
 ) -> tuple[float, float, float, float]:
-    """Must match `cameraFrameInEye` in CoordinateMapper.ts."""
     width = min(1.0, plane[0] / frustum[0])
     height = min(1.0, plane[1] / frustum[1])
     return (1.0 - width) / 2.0, (1.0 - height) / 2.0, width, height
@@ -198,7 +190,6 @@ class CameraFrameParentTest(unittest.TestCase):
         self.assertNotIn("LoadingOverlay({", app)
         self.assertIn("EYE_BLEED", view)
         self.assertIn("+ EYE_BLEED", view)
-        self.assertIn("50% black", loading.lower())
         self.assertIn("start__veil", loading)
         self.assertIn("frame.append(veil, shell)", loading)
         self.assertNotIn("roots.stage", loading)
@@ -206,12 +197,10 @@ class CameraFrameParentTest(unittest.TestCase):
         self.assertIn('querySelector(".camera-frame")', pointer)
         self.assertNotIn('querySelector(".eye")', pointer)
         self.assertIn("imageToFrame", runtime)
-        # Detection boxes are drawn by Core, on the video plane, from every batch.
         self.assertIn("new OverlayRenderer(renderer.renderScene.overlayRoot", runtime)
         self.assertIn("overlay.submit(batch", runtime)
         self.assertNotIn("PaletteScene", runtime)
         self.assertNotIn("keydown", app)
-        # Debug keys live in their own file and bind only S (system call) and M (snap).
         keys = (SRC / "app/debugKeys.ts").read_text(encoding="utf-8")
         self.assertIn("installDebugKeys", app)
         self.assertIn('key === "s"', keys)

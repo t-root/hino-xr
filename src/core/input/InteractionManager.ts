@@ -13,7 +13,6 @@ import type { InteractiveRegistry } from "./InteractiveRegistry";
 import { SnapGestureRecognizer, snapFeatures, type SnapState } from "./SnapGestureRecognizer";
 import { TwoHandGesture } from "./TwoHandGesture";
 
-/** What the cursor should look like for a hand in this state. */
 const phaseOf = (state: GestureState, hovering: boolean): CursorPhase => {
   if (state === "dragging") return "dragging";
   if (state === "pinching") return "pinching";
@@ -26,59 +25,29 @@ type HandRuntime = {
   readonly snap: SnapGestureRecognizer;
   pointer: HandPointer | null;
   hoveredTargetId: string | null;
-  /** What the hit-test found this frame, before any dwell or capture rule. */
   lastTargetId: string | null;
   lastFrameMs: number;
   closestRatio: number;
   closestAtMs: number;
 };
 
-/**
- * What one hand is doing right now, in numbers, for the diagnostics panel.
- *
- * A gesture that does not fire looks the same as a hand the tracker never saw,
- * and neither leaves anything behind to read afterwards. These are the figures
- * that tell the two apart, so "it does not work" can be answered with how close
- * the fingers actually came and what they were pointing at.
- */
 export type HandProbe = Readonly<{
   hand: Handedness;
   state: GestureState;
-  /** Gap between thumb and index tips, as a share of hand size. */
   pinchRatio: number;
-  /** The smallest that gap has been in the last second. */
   closestRatio: number;
-  /** A pinch starts below this. */
   enterRatio: number;
-  /** A pinch lets go above this, right now. */
   exitRatio: number;
-  /** What the hand is pointing at, in words; null when it is over nothing. */
   target: string | null;
   snapState: SnapState;
   thumbMiddleRatio: number;
   middleCurlRatio: number;
 }>;
 
-/**
- * Wheel pixels for each unit of ln(scale). The map zooms one level (a doubling) per 60 px of wheel,
- * so a doubling of the distance between the hands is 60 px: 60 / ln 2.
- */
 const WHEEL_PX_PER_E = 86.6;
 
-/** How far back `closestRatio` looks: long enough to catch an attempt, ms. */
 const CLOSEST_WINDOW_MS = 1000;
 
-/**
- * Owns every gesture a hand can make, and pointer routing with it: hit-testing,
- * capture during a drag, hover bookkeeping, and the single-owner rule that
- * stops two hands from driving one target.
- *
- * Recognition lives here rather than at each place that wants a gesture, so
- * there is one answer to "was that a click, a drag or a snap" and everything
- * downstream reads the same one off the bus. Interaction itself goes through
- * here rather than through the bus so ordering and capture are guaranteed; the
- * bus only mirrors what happened.
- */
 export class InteractionManager {
   private readonly hands = new Map<Handedness, HandRuntime>();
   private readonly ownerByTarget = new Map<string, Handedness>();
@@ -99,7 +68,6 @@ export class InteractionManager {
     settings: GestureSettings,
     snapSettings: SnapSettings,
     snapEnabled: boolean,
-    /** The interface, when there is one. Absent in tests and headless runs. */
     private readonly surface: PointerSurface | null = null,
   ) {
     this.settings = settings;
@@ -131,7 +99,6 @@ export class InteractionManager {
     return this.selectedTargetId;
   }
 
-  /** Live figures for every tracked hand; read by the diagnostics panel. */
   probes(): readonly HandProbe[] {
     const probes: HandProbe[] = [];
     for (const [hand, runtime] of this.hands) {
@@ -153,19 +120,16 @@ export class InteractionManager {
     return probes;
   }
 
-  /** What a target is called, in words. Falls back to its id for scene targets. */
   describeTarget(targetId: string | null): string | null {
     if (!targetId) return null;
     return this.surface?.describe(targetId) ?? targetId;
   }
 
-  /** True while the hand holds something; snap detection ignores busy hands. */
   isHandBusy(hand: Handedness): boolean {
     const state = this.hands.get(hand)?.machine.currentState;
     return state === "pinching" || state === "dragging";
   }
 
-  /** Feeds the latest landmark result; called at hand tracking rate. */
   ingest(hands: readonly HandFrame[]): void {
     const pointers: HandPointer[] = [];
     for (const frame of hands) {
@@ -175,9 +139,6 @@ export class InteractionManager {
       runtime.pointer = pointer;
       if (!pointer) continue;
       pointers.push(pointer);
-      // Read at tracking rate, not at render rate: a snap is over in about
-      // thirty milliseconds, so sampling it once per drawn frame would be
-      // sampling a movement that has already finished.
       this.detectSnap(runtime, frame, pointer);
     }
     this.bus.emit("hand.tracked", { pointers, hands });
@@ -192,8 +153,6 @@ export class InteractionManager {
       features,
       busy: this.isHandBusy(frame.hand),
     });
-    // What the snap is looking at, a few times a second while the thumb is near the middle finger: with these
-    // numbers from the real hand the thresholds can be set from facts. Read them in the log panel.
     if (features.thumbMiddle < 1.2 && frame.timestampMs - this.lastSnapLogMs > 250) {
       this.lastSnapLogMs = frame.timestampMs;
       this.snapLog.info("pose", {
@@ -204,12 +163,9 @@ export class InteractionManager {
         middleWrist: Number(features.middleWrist.toFixed(2)),
       });
     }
-    // Announced like any other gesture rather than wired to one caller: a snap
-    // aims at nothing in particular, so whoever wants it listens for it.
     if (snapped) this.dispatch(runtime, [{ type: "snap", hand: pointer.hand, pointer }], frame.timestampMs);
   }
 
-  /** Called once per rendered frame so interaction latency tracks the display. */
   update(nowMs: number): void {
     const visuals: CursorVisual[] = [];
     const live: Record<Handedness, HandPointer | null> = { left: null, right: null };
@@ -243,7 +199,6 @@ export class InteractionManager {
         hand,
         point: this.mapperDisplay({ x: pointer.position.x, y: pointer.position.y }),
         phase: phaseOf(runtime.machine.currentState, runtime.hoveredTargetId !== null),
-        // The pip fills for a pinch held, and for the menu gesture (thumb on middle finger) held.
         holdProgress: Math.max(runtime.machine.holdProgress(nowMs), runtime.snap.progress()),
         confidence: pointer.confidence,
       });
@@ -255,11 +210,6 @@ export class InteractionManager {
     if (step) this.handleTwoHand(step, nowMs, live);
   }
 
-  /**
-   * Both hands pinching is its own gesture, so each hand's own press is given up when it starts:
-   * two hands holding one picture must not also drag it twice. What it means goes out as a mouse
-   * wheel (zoom, for anything that zooms for a wheel) and as the `twohand` event for the rest.
-   */
   private handleTwoHand(step: TwoHandEvent, nowMs: number, live: Record<Handedness, HandPointer | null>): void {
     if (step.phase === "start") {
       for (const [hand, runtime] of this.hands) {
@@ -267,7 +217,6 @@ export class InteractionManager {
       }
     }
     this.bus.emit("twohand", step);
-    // Offered whole to what is under the hands; only a widget that ignores it gets the wheel.
     if (this.surface?.twoHand?.(step)) return;
     if (step.phase !== "move" || step.scale === 1) return;
     const deltaY = -Math.log(step.scale) * WHEEL_PX_PER_E;
@@ -276,15 +225,12 @@ export class InteractionManager {
 
   private resolveTarget(hand: Handedness, pointer: HandPointer, captured: string | null): string | null {
     if (captured) return captured;
-    // The interface is drawn over the scene, so it is also pressed before the
-    // scene: what covers a thing is what the hand reaches first.
     const targetId =
       this.surface?.hit(pointer.position) ??
       this.hitTest.hit({ x: pointer.position.x, y: pointer.position.y })?.targetId ??
       null;
     if (!targetId) return null;
     const owner = this.ownerByTarget.get(targetId);
-    // One hand owns a target at a time; the other hand simply sees no target.
     if (owner && owner !== hand) return null;
     return targetId;
   }
@@ -309,8 +255,6 @@ export class InteractionManager {
           break;
         case "select":
           this.selectedTargetId = event.targetId ?? null;
-          // The press landed. Said at the hand that made it, because a press
-          // that did nothing and a press that worked otherwise look the same.
           this.cursors.flash(event.hand, nowMs);
           break;
         case "snap":
@@ -328,7 +272,6 @@ export class InteractionManager {
           break;
       }
 
-      // A disabled or vanished target must never receive an activation.
       if (onSurface) this.surface?.handle(event);
       else if (target && target.enabled) target.onEvent?.(event);
       this.bus.emit("gesture", event);

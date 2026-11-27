@@ -13,14 +13,6 @@ export const DEFAULT_CAMERA_REQUEST: CameraRequest = {
   fps: 30,
 };
 
-/**
- * Sole owner of the camera `MediaStream`. Modules never call `getUserMedia`
- * for video; they receive frames through the `FrameHub`. The microphone used
- * while talking to the assistant is opened separately, only for that hold.
- *
- * The stream is always the widest world-facing camera the phone will give, at
- * that camera's minimum zoom. Lens sliders never change this request.
- */
 export class CameraController {
   private readonly logger;
   private source: CameraSource | null = null;
@@ -100,10 +92,6 @@ export class CameraController {
     this.bus.emit("camera.state", { state: "stopped" });
   }
 
-  /**
-   * Open the rear camera, then swap onto the widest labelled one if the
-   * browser first handed over a telephoto.
-   */
   private async openWidest(request: CameraRequest): Promise<MediaStream> {
     const first = await openStream(request, request.deviceId);
     if (request.deviceId) return first;
@@ -139,7 +127,6 @@ const waitForMetadata = (video: HTMLVideoElement): Promise<void> =>
     ? Promise.resolve()
     : new Promise((resolve) => video.addEventListener("loadedmetadata", () => resolve(), { once: true }));
 
-/** Pulls the lens out to its widest zoom when the phone exposes that control. */
 const widenView = (track: MediaStreamTrack | undefined): void => {
   if (!track?.getCapabilities) return;
   const zoom = track.getCapabilities().zoom;
@@ -148,13 +135,6 @@ const widenView = (track: MediaStreamTrack | undefined): void => {
   void track.applyConstraints({ advanced: [{ zoom: min }] }).catch(() => undefined);
 };
 
-/**
- * Turns whatever `getUserMedia` rejected with into something worth reading.
- *
- * The browser's own wording is short, technical and in the browser's language,
- * and the difference between "denied", "already in use" and "no such camera" is
- * the whole difference between what the person should do next.
- */
 const normaliseCameraError = (cause: unknown): Error => {
   if (!(cause instanceof Error)) return new LocalizedError(message("camera.error.failed"));
   switch (cause.name) {

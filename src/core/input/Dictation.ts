@@ -3,10 +3,6 @@ import { ModelClient } from "../models/ModelClient";
 import { useKeyboardStore } from "../state/KeyboardStore";
 import { typeDictation } from "./keyboardInput";
 
-/**
- * The on-screen keyboard's microphone key: press, say it, press again, and the words are typed into the box.
- * It is a faster way to fill a box than a keyboard held in the air, above all for a whole sentence.
- */
 export class Dictation {
   private readonly capture = new VoiceCapture();
   private readonly client = new ModelClient();
@@ -33,13 +29,11 @@ export class Dictation {
     try {
       typeDictation(await this.client.dictate(recording.blob, keyboard.lang));
     } catch {
-      // The server is away or heard nothing: nothing is typed, and the key is free again.
     } finally {
       useKeyboardStore.getState().setTranscribing(false);
     }
   }
 
-  /** The keyboard went away mid-recording. */
   cancel(): void {
     this.clearLimit();
     this.capture.abort();

@@ -1,7 +1,6 @@
 import { withAccessKey } from "@/core/auth/accessKey";
 import { ENV } from "@/env";
 
-/** A person the headset knows, as the model server keeps them. */
 export type Person = Readonly<{
   id: string;
   name: string;
@@ -19,7 +18,6 @@ const failure = async (response: Response): Promise<Error> => {
     const body = (await response.json()) as { detail?: unknown };
     if (typeof body.detail === "string") return new Error(body.detail);
   } catch {
-    // Not JSON: the status is all there is.
   }
   return new Error(`server answered ${response.status}`);
 };
@@ -41,7 +39,6 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-/** The people kept on this computer, with the numbers of their faces. */
 export const listPeople = async (): Promise<readonly Person[]> =>
   ((await (await send(base())).json()) as { people: Person[] }).people;
 

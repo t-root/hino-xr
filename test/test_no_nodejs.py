@@ -1,4 +1,3 @@
-"""The project never uses Node.js, npm, or node_modules."""
 
 from __future__ import annotations
 

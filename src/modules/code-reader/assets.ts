@@ -7,8 +7,6 @@ const urlOf = (file: string): string => {
   return pluginModelUrl(codeReaderManifest.id, file);
 };
 
-/** The decoder's compiled core. */
 export const READER_WASM_URL = urlOf("zxing_reader.wasm");
 
-/** The decoder's script: a plain script, so a classic worker loads it with `importScripts`. */
 export const READER_SCRIPT_URL = urlOf("zxing-reader.iife.js");

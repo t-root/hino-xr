@@ -3,13 +3,6 @@ import { TEXTURE_NEUTRAL_TINT, voidHex } from "@/ui/theme";
 import { coverRepeat, type CoordinateMapper } from "./CoordinateMapper";
 import { RENDER_ORDER } from "./RenderScene";
 
-/**
- * The camera image as a single shared texture on a plane. Mirroring is applied
- * through texture UVs, never by flipping the mesh, so overlay text stays legible.
- *
- * k1/k2 bow the four edges of this square only. The mesh stays put, so the
- * picture does not slide away from the DOM frame.
- */
 export class VideoLayer {
   readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private texture: THREE.VideoTexture | null = null;
@@ -49,7 +42,6 @@ export class VideoLayer {
     this.mesh.name = "video-plane";
   }
 
-  /** Barrel coefficients. 0 leaves the picture flat; the square does not move. */
   setBarrel(k1: number, k2: number): void {
     this.barrel.uK1.value = k1;
     this.barrel.uK2.value = k2;
@@ -70,7 +62,6 @@ export class VideoLayer {
     this.applyOrientation(mirrored, rotationDeg);
   }
 
-  /** Updates an already-attached texture when the interface turns. */
   setOrientation(mirrored: boolean, rotationDeg: number): void {
     if (!this.texture) return;
     this.applyOrientation(mirrored, rotationDeg);
@@ -89,7 +80,6 @@ export class VideoLayer {
     this.mesh.material.color.setHex(voidHex());
   }
 
-  /** Re-fits the square plane and cover-crops the image onto it. */
   syncSize(): void {
     const { width, height } = this.mapper.videoPlaneSize();
     this.mesh.scale.set(width, height, 1);

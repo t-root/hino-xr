@@ -1,4 +1,3 @@
-"""A plugin is a folder; Core does not name plugins except for grants."""
 
 from __future__ import annotations
 
@@ -43,8 +42,6 @@ class PluginDiscoveryTest(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_the_plugin_rules_cover_sync_and_the_plugin_folder(self) -> None:
-        # src/modules/PLUGIN_RULES.md is the one file of rules for writing a plugin (the assistant reads it too);
-        # rules.md at the root keeps Core's rules and points to it.
         plugin_rules = (SRC / "modules" / "PLUGIN_RULES.md").read_text(encoding="utf-8")
         for needle in ("@/core/sync", "SharedState", "CanvasMirror", "frameClock", "models/", "vendor.json"):
             self.assertIn(needle, plugin_rules)
@@ -57,7 +54,7 @@ class PluginDiscoveryTest(unittest.TestCase):
         for folder in ("map3d", "face-recognition", "scene-description", "code-reader"):
             self.assertTrue((SRC / "modules" / folder / "NOTES.md").is_file(), folder)
         core_rules = (SRC.parent / "rules.md").read_text(encoding="utf-8")
-        self.assertNotIn("MATCH_THRESHOLD", core_rules)  # the face plugin's thresholds are the face plugin's
+        self.assertNotIn("MATCH_THRESHOLD", core_rules)
         self.assertNotIn("Space.handDown", core_rules)
 
     def test_plugins_do_not_reach_into_each_other(self) -> None:
@@ -71,7 +68,6 @@ class PluginDiscoveryTest(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_core_vendor_lists_only_what_core_runs_on(self) -> None:
-        # A library one plugin uses goes in that plugin's own vendor.json.
         core_dirs = [SRC / name for name in ("core", "ui", "shared", "app", "i18n")]
         core_text = "\n".join(path.read_text(encoding="utf-8") for d in core_dirs for path in walk(d))
         specs = json.loads((SRC.parent / "vendor.json").read_text(encoding="utf-8"))
@@ -127,7 +123,6 @@ class PluginDiscoveryTest(unittest.TestCase):
         catalog = (ASSISTANT / "models/catalog.py").read_text(encoding="utf-8")
         config = (SRC / "core/config.ts").read_text(encoding="utf-8")
         self.assertIn("models.json", frontend)
-        # A plugin has no weights of its own on the server: the AI it may ask is the `plugin_chat` stage.
         self.assertNotIn("slots", catalog)
         self.assertNotRegex(frontend, r"efficientdet|blaze_face|face-detection|person-detection")
         self.assertNotRegex(catalog, r"face-detection|person-detection")

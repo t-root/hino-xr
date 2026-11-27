@@ -1,4 +1,3 @@
-"""The people the headset knows by face: kept in a file, checked on the way in, and said by voice."""
 
 from __future__ import annotations
 

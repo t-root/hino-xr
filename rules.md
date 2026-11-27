@@ -18,7 +18,7 @@ Bản đồ nhanh:
 |---|---|
 | Giao diện, render hai mắt, lõi trình duyệt | `src/core`, `src/ui`, `src/shared` |
 | Plugin (mỗi plugin một thư mục) | `src/modules/<id>/`; quy tắc `src/modules/PLUGIN_RULES.md` |
-| Danh sách plugin | tự dựng: `src/modules/plugins.generated.ts` (không trong git) |
+| Danh sách plugin | các thư mục `src/modules/*/plugin.ts`; trang nhận qua `/__build` |
 | Cấu hình mọi AI (khâu, máy chủ, model) | `assistant/ai/stages.cpu.json` hoặc `stages.gpu.json` (`VR_PROFILE`, mặc định `cpu`), ghi đè bằng `assistant/.env` |
 | Client AI duy nhất, máy chủ llama.cpp/whisper.cpp | `assistant/ai/client.py`, `servers.py` |
 | Giọng nói, lệnh, viết plugin, ảnh chụp | `assistant/models/` |
@@ -122,9 +122,11 @@ Quy tắc **viết** một plugin (thư mục, import, chữ, màu, CSS, hai m�
 (`pluginsmith.rules`, G12), người viết tay cũng vậy. Sửa quy tắc plugin thì sửa file đó, không chép sang đây. Dưới đây chỉ là
 phần của Core đứng sau các quy tắc ấy.
 
-**B5.** Core không nêu tên plugin. Danh sách plugin do Python tự dựng từ các thư mục (`frontend.plugin_index` viết
-`src/modules/plugins.generated.ts` ở mỗi lần dựng, không đưa vào git); chỗ duy nhất còn viết id plugin là phần cấp quyền trong
-`src/core/modules/permissions.ts`. Thêm plugin là thêm một thư mục, không sửa file nào ngoài nó.
+**B5.** Core không nêu tên plugin. Mỗi thư mục `src/modules/<id>/plugin.ts` là một plugin, được dựng thành file riêng
+`/live/<id>.js` (`frontend.build_live`); trang đang mở tự nạp, nạp lại khi file đổi và gỡ khi thư mục mất (`LivePlugins.ts`),
+không cần khởi động lại server hay tải lại trang. Phần `@/...` mà plugin import không được chép vào plugin: import map của trang
+đưa nó về `/host/...`, dựng cùng `app.js`, nên plugin và app dùng chung một bản mô-đun. Chỉ import tên, không import default.
+Chỗ duy nhất còn viết id plugin là phần cấp quyền trong `src/core/modules/permissions.ts`. Thêm plugin là thêm một thư mục.
 
 **B6.** Quyền không tự cấp được. Ngoài `camera-frame`, mọi quyền (`network`, `snapshot`, `screen`) phải ghi tay trong
 `permissions.ts`; chưa ghi thì Core chặn plugin trước khi tải. Ngoại lệ duy nhất là plugin do trợ lý viết (id `ai-`, G2).

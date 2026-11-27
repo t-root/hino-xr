@@ -120,7 +120,6 @@ def enabled() -> bool:
 
 
 def _get_json(url: str) -> Any:
-    """One GET that answers JSON. Replaceable so the commands can be tested without the internet."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
         return json.loads(response.read())
@@ -134,11 +133,7 @@ def _out(reply: str, display: str | None = None) -> dict[str, Any]:
     return out
 
 
-# --- timer -------------------------------------------------------------------------
-
-
 def _digit(plain: list[str], words: list[str], index: int) -> int | None:
-    """The value of a number word at `index`, or None. "sau" is "after" and "sáu" is six, and only the accent tells them apart."""
     word = plain[index]
     if word == "sau" and words[index].lower().strip(".,!?") != "sáu":
         return None
@@ -146,11 +141,10 @@ def _digit(plain: list[str], words: list[str], index: int) -> int | None:
 
 
 def _number_at(plain: list[str], words: list[str], start: int) -> tuple[int, int] | None:
-    """A number written in digits or in words that begins at `start`: (value, words used)."""
     word = plain[start]
     if word.isdigit():
         return int(word), 1
-    if word == "muoi":  # "mười", "mười lăm"
+    if word == "muoi":
         if start + 1 < len(plain):
             ones = _digit(plain, words, start + 1)
             if ones is not None and ones < 10:
@@ -159,7 +153,7 @@ def _number_at(plain: list[str], words: list[str], start: int) -> tuple[int, int
     value = _digit(plain, words, start)
     if value is None:
         return None
-    if value < 10 and start + 1 < len(plain) and plain[start + 1] == "muoi":  # "hai mươi", "hai mươi lăm"
+    if value < 10 and start + 1 < len(plain) and plain[start + 1] == "muoi":
         tens = value * 10
         if start + 2 < len(plain):
             ones = _digit(plain, words, start + 2)
@@ -170,7 +164,6 @@ def _number_at(plain: list[str], words: list[str], start: int) -> tuple[int, int
 
 
 def duration(words: list[str]) -> tuple[int, set[int]] | None:
-    """Seconds said in the line and the positions of the words that said them, or None."""
     plain = [letters(word) for word in words]
     total, used, index = 0, set(), 0
     while index < len(plain):
@@ -181,7 +174,7 @@ def duration(words: list[str]) -> tuple[int, set[int]] | None:
             seconds = value * _UNIT[plain[unit_at]]
             used |= set(range(index, unit_at + 1))
             index = unit_at + 1
-            if index < len(plain) and plain[index] == "ruoi":  # "một tiếng rưỡi"
+            if index < len(plain) and plain[index] == "ruoi":
                 seconds += _UNIT[plain[unit_at]] // 2
                 used.add(index)
                 index += 1
@@ -224,11 +217,7 @@ def _timer(words: list[str], locale: str) -> dict[str, Any]:
     return {"action": "timer", "id": None, "reply": reply, "value": {"seconds": seconds, "say": done}}
 
 
-# --- weather -----------------------------------------------------------------------
-
-
 def _after(words: list[str], markers: set[str], stop: set[str]) -> str:
-    """The words after the first marker, up to the first stop word: "thời tiết ở Đà Nẵng hôm nay" gives "Đà Nẵng"."""
     plain = [letters(word) for word in words]
     for index, word in enumerate(plain):
         if word in markers:
@@ -258,7 +247,6 @@ def _weather(words: list[str], locale: str, here: tuple[float, float] | None = N
                 return _out(say["weather_none"].format(place=place))
             spot = found[0]
         else:
-            # No city said: where the device is. Only these two numbers (already rounded by the page) are sent.
             assert here is not None
             spot = {"latitude": here[0], "longitude": here[1], "name": say["here"]}
         forecast = urllib.parse.urlencode(
@@ -294,9 +282,6 @@ def _weather(words: list[str], locale: str, here: tuple[float, float] | None = N
     return _out(spoken, "\n".join(lines))
 
 
-# --- look-up -----------------------------------------------------------------------
-
-
 def _lookup(words: list[str], locale: str) -> dict[str, Any]:
     say = _say(locale)
     plain = [letters(word) for word in words]
@@ -323,7 +308,6 @@ def _lookup(words: list[str], locale: str) -> dict[str, Any]:
 
 
 def _sentences(text: str, limit: int) -> str:
-    """As many whole sentences as fit: this is read aloud, so it ends where a sentence ends."""
     out = ""
     for part in text.replace("? ", "?|").replace("! ", "!|").replace(". ", ".|").split("|"):
         if out and len(out) + len(part) + 1 > limit:
@@ -333,7 +317,6 @@ def _sentences(text: str, limit: int) -> str:
 
 
 def command(heard: str, locale: str, here: tuple[float, float] | None = None) -> dict[str, Any] | None:
-    """The tool the line asks for, or None when it is an ordinary line. `here` is where the device is, for the weather."""
     words = heard.replace("-", " ").replace(",", " ").split()
     if not words:
         return None

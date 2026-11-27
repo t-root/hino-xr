@@ -1,20 +1,3 @@
-"""The assistant writing a plugin of its own, and the gate it has to pass.
-
-A spoken request ("tạo plugin đếm số người") becomes a draft in `plugins-pending/`:
-a folder shaped like any other plugin, checked and compiled but not installed.
-Nothing the model wrote runs until the wearer approves it. A plugin the assistant
-wrote (id `ai-…`) may hold every permission a plugin can ask for; `permissions.ts` grants
-them by that prefix.
-
-The same gate serves changes to a plugin that exists ("sửa plugin bản đồ: …"): the model
-sees the plugin's files, the changed ones wait in `plugins-pending/<id>--edit/`, and
-approving them backs up the originals to `plugins-backup/`, writes them, builds and rolls
-back if the build fails.
-
-The checks here are a net for honest mistakes, not a sandbox. Generated code is
-still code: that is why a human approves it, and why the draft folder is plain
-files that can be read first.
-"""
 
 from __future__ import annotations
 
@@ -41,8 +24,6 @@ MAX_CODE = 9000
 ATTEMPTS = 3
 
 PERMISSIONS = ("camera-frame", "network", "screen", "snapshot")
-# What no plugin has a reason to do: run text as code, climb out through prototypes, load a script, start another
-# worker's life. Network, page, storage and timers are open: the plugin was granted them.
 FORBIDDEN = re.compile(
     r"\b(eval|Function|ServiceWorker|SharedWorker|Reflect|Proxy|prototype|__proto__|require)\b"
     r"|\.constructor\b|\bprocess\s*\.|import\.meta|import\s*\(|<script",
@@ -54,10 +35,7 @@ _lock = threading.Lock()
 
 
 class DraftError(Exception):
-    """Something that stopped the draft; its text is for logs, the wearer hears a fixed line."""
-
-
-# --- drafts on disk ----------------------------------------------------------------
+    pass
 
 
 def pending() -> list[dict[str, str]]:
@@ -94,8 +72,6 @@ def _unique_id(raw: str) -> str:
         number += 1
     return candidate
 
-
-# --- asking a model ----------------------------------------------------------------
 
 _SYSTEM = """You write one small plugin for an AR headset, in TypeScript. Reply in exactly this format and nothing else:
 
@@ -198,7 +174,6 @@ def _parse(reply: str) -> tuple[dict[str, Any], str]:
 
 
 def check_code(code: str) -> None:
-    """Raises ValueError saying what is wrong, in words a model can act on."""
     if len(code) > MAX_CODE:
         raise ValueError(f"file is too long ({len(code)} chars, limit {MAX_CODE})")
     bare = re.sub(r"//[^\n]*|/\*.*?\*/", "", code, flags=re.S)
@@ -258,7 +233,6 @@ def _esbuild() -> Path:
 
 
 def compile_check(folder: Path) -> None:
-    """Bundles the draft's entry once, discarding the output: catches syntax mistakes."""
     import frontend
 
     out = folder / ".check.js"
@@ -275,15 +249,12 @@ def compile_check(folder: Path) -> None:
 
 
 def draft(description: str, locale: str) -> dict[str, str]:
-    """Has a model write the plugin, checks it, and leaves it in `plugins-pending/`."""
     request = f"Write a plugin that does this: {description.strip()[:400]}"
     last = ""
     for _ in range(ATTEMPTS):
         prompt = f"{request}\n\nExample of the file shape:\n```ts\n{_EXAMPLE}```"
         if last:
             prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
-        # The model is asked with no lock held: that takes minutes, and approving or rejecting another
-        # plugin must not wait for it. The lock covers only the files this draft puts on disk.
         reply = _complete(with_rules(_SYSTEM), prompt)
         with _lock:
             folder: Path | None = None
@@ -304,9 +275,6 @@ def draft(description: str, locale: str) -> dict[str, str]:
     raise DraftError(f"could not produce a valid plugin: {last}")
 
 
-# --- approving, rejecting ----------------------------------------------------------
-
-
 def _pending_folder(plugin_id: str) -> Path | None:
     if not ID_OK.match(plugin_id):
         return None
@@ -323,8 +291,7 @@ def reject(plugin_id: str) -> bool:
 
 
 def approve(plugin_id: str) -> None:
-    """Installs a draft into `src/modules/` and rebuilds the app, which finds the new folder."""
-    with _lock:  # one install at a time, and not while a draft is putting its files down
+    with _lock:
         _approve(plugin_id)
 
 
@@ -342,30 +309,25 @@ def _approve(plugin_id: str) -> None:
     target = MODULES / plugin_id
     if target.exists():
         raise DraftError("a plugin with that id already exists")
-    # The folder is the whole install: the build finds it (`frontend.plugin_index`), no other file is touched.
     shutil.move(str(folder), str(target))
-    try:
-        import frontend
+    import frontend
 
+    try:
         frontend.bundle(_esbuild())
     except Exception as error:  # noqa: BLE001 — put everything back whatever broke
         shutil.move(str(target), str(folder))
-        frontend.write_plugin_index()
+        (frontend.LIVE / f"{plugin_id}.js").unlink(missing_ok=True)
         raise DraftError(f"build failed: {error}") from error
 
 
-# --- changing a plugin that exists ---------------------------------------------------
-
 EDITABLE = {".ts", ".json", ".css"}
-# Downloads and pinned packages are not for a model to rewrite.
 LOCKED = {"models.json", "vendor.json"}
-MAX_SOURCE = 28000  # characters of a plugin's files; the code model's window (16k tokens) also holds the rules and the answer
+MAX_SOURCE = 28000
 
 RULES = MODULES / "PLUGIN_RULES.md"
 
 
 def rules() -> str:
-    """The plugin rules, read at every use so an edit to the file applies to the next plugin without a restart."""
     try:
         return RULES.read_text(encoding="utf-8").strip()
     except OSError as error:
@@ -414,7 +376,6 @@ def _parse_files(reply: str, known: set[str]) -> dict[str, str]:
 
 
 def revise(plugin_id: str, request: str, locale: str) -> dict[str, str]:
-    """Has a model change an installed plugin and stages the result for approval; nothing is touched yet."""
     target = MODULES / plugin_id
     if not ID_OK.match(plugin_id) or not (target / "plugin.ts").is_file():
         raise DraftError("no such plugin")
@@ -425,7 +386,7 @@ def revise(plugin_id: str, request: str, locale: str) -> dict[str, str]:
         prompt = f"Request: {request.strip()[:600]}\n\nThe plugin's files:\n\n{listing}"
         if last:
             prompt += f"\n\nYour previous attempt was rejected: {last}\nFix exactly that and answer again in the format."
-        reply = _complete(with_rules(_REVISE_SYSTEM), prompt)  # no lock held while the model writes
+        reply = _complete(with_rules(_REVISE_SYSTEM), prompt)
         with _lock:
             check = PENDING / f"_check-{plugin_id}"
             try:
@@ -451,7 +412,6 @@ def revise(plugin_id: str, request: str, locale: str) -> dict[str, str]:
                 json.dumps({"target": plugin_id, "files": sorted(changed), "request": request.strip()[:600]}, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
-            # Listed under the plugin's own name (see `pending`).
             shutil.copyfile(target / "text.json", folder / "text.json") if "text.json" not in changed else None
             names = json.loads((target / "text.json").read_text(encoding="utf-8"))["displayName"]
         return {"id": folder.name, "name": names["vi" if locale == "vi" else "en"] + (" (bản sửa)" if locale == "vi" else " (edit)")}

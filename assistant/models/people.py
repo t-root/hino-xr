@@ -1,10 +1,3 @@
-"""People the headset knows by face: a name, a year of birth, a note, and what their face looks like.
-
-What a face looks like is a short list of numbers the page works out (an embedding): two photos of one person
-give lists that are close, photos of two people give lists that are far apart. The page does the matching; this
-only keeps the lists, with the person's details, in one file on this computer so nothing is lost when the page
-is closed. No picture of a face is ever sent or stored.
-"""
 
 from __future__ import annotations
 
@@ -22,14 +15,13 @@ DATA_FILE = Path(__file__).resolve().parents[1] / "data" / "people.json"
 MAX_NAME = 80
 MAX_INFO = 400
 MIN_YEAR = 1900
-#: Samples of one face kept for one person, newest last: more angles and lighting make it recognised more often.
 MAX_SAMPLES = 12
 MIN_DIMENSIONS = 16
 MAX_DIMENSIONS = 1024
 
 
 class PersonError(ValueError):
-    """What was given is not a usable person; the message says why, for a log and a test."""
+    pass
 
 
 def _year(value: Any) -> int | None:
@@ -78,7 +70,6 @@ class People:
 
     def _write(self, people: list[dict[str, Any]]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        # Written beside and moved over, so a crash half way never leaves a half-written file.
         handle, name = tempfile.mkstemp(dir=self._path.parent, suffix=".tmp")
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as out:
@@ -110,7 +101,6 @@ class People:
         return person
 
     def update(self, person_id: str, **fields: Any) -> dict[str, Any]:
-        """Changes the details named; a field left out stays as it was, and `year=None` clears the year."""
         with self._lock:
             people = self._read()
             person = next((item for item in people if item.get("id") == person_id), None)

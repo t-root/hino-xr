@@ -1,4 +1,3 @@
-"""Notes and things to do by voice, kept in a file on this computer."""
 
 from __future__ import annotations
 
@@ -48,10 +47,10 @@ class NotesTest(unittest.TestCase):
             self.say(f"ghi nhớ việc thứ {n}")
         out = self.say("đọc ghi chú")
         self.assertEqual(out["open"], "assistant")
-        self.assertEqual(out["display"].count("\n"), 6)  # a title and six lines
+        self.assertEqual(out["display"].count("\n"), 6)
         self.assertIn("Số 1:", out["reply"])
         self.assertIn("mình đã hiện trên màn hình", out["reply"])
-        self.assertLessEqual(len(out["reply"]), 200)  # it is read aloud through a line of at most 200 characters
+        self.assertLessEqual(len(out["reply"]), 200)
 
     def test_an_empty_list_says_so(self) -> None:
         self.assertEqual(self.say("việc cần làm")["reply"], "Bạn chưa có ghi chú nào.")
@@ -61,7 +60,7 @@ class NotesTest(unittest.TestCase):
         self.say("ghi nhớ mua sữa")
         self.say("ghi nhớ gọi mẹ")
         self.assertIn("Đã đánh dấu xong: gọi mẹ", self.say("xong việc số 2")["reply"])
-        self.assertIn("đã xong rồi", self.say("xong việc số hai")["reply"])  # "hai" in words counts too
+        self.assertIn("đã xong rồi", self.say("xong việc số hai")["reply"])
         self.assertTrue(notes.load()[1]["done"])
         self.assertIn("[xong] gọi mẹ", self.say("xem ghi chú")["display"])
 
@@ -77,7 +76,7 @@ class NotesTest(unittest.TestCase):
         self.say("ghi nhớ một")
         self.say("ghi nhớ hai")
         self.assertIn("xóa hết 2 ghi chú", self.say("xóa hết ghi chú")["reply"])
-        self.assertEqual(len(notes.load()), 2)  # nothing yet
+        self.assertEqual(len(notes.load()), 2)
         self.assertEqual(self.say("đúng rồi")["reply"], "Đã xóa hết ghi chú.")
         self.assertEqual(notes.load(), [])
 
@@ -87,7 +86,7 @@ class NotesTest(unittest.TestCase):
         self.assertIn("giữ nguyên", self.say("không")["reply"])
         self.say("xóa hết ghi chú")
         self.assertIsNone(self.say("mấy giờ rồi"))
-        self.assertIsNone(self.say("đúng rồi"))  # the question was dropped
+        self.assertIsNone(self.say("đúng rồi"))
         self.assertEqual(len(notes.load()), 1)
 
     def test_ordinary_talk_is_not_a_note(self) -> None:

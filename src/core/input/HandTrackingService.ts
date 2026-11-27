@@ -10,11 +10,6 @@ import type { Metrics } from "../observability/metrics";
 
 export type HandTrackingStatus = "idle" | "loading" | "ready" | "failed" | "unsupported";
 
-/**
- * Hand landmarks are Core input, not a plugin: they arrive through the shared
- * FrameHub quota like every other consumer, and the result is published on the
- * bus for the interaction layer.
- */
 export class HandTrackingService {
   private landmarker: HandLandmarker | null = null;
   private status: HandTrackingStatus = "idle";
@@ -54,7 +49,6 @@ export class HandTrackingService {
     return this.status;
   }
 
-  /** Frame consumer registered with the hub; owns and closes each bitmap. */
   createConsumer(preferredFps: number): FrameConsumer {
     return {
       id: "core.hand-tracking",
@@ -70,7 +64,6 @@ export class HandTrackingService {
       packet.image.close();
       return;
     }
-    // MediaPipe requires strictly increasing timestamps in VIDEO mode.
     const timestamp = Math.max(Math.round(packet.timestampMs), this.lastTimestampMs + 1);
     this.lastTimestampMs = timestamp;
 
@@ -105,8 +98,6 @@ const toHandFrames = (result: LandmarkerResult, packet: FramePacket): readonly H
     const landmarks = result.landmarks[index];
     if (!landmarks || landmarks.length === 0) continue;
     const category = result.handedness[index]?.[0];
-    // MediaPipe labels handedness as if the image were mirrored, so a
-    // non-mirrored (rear camera) frame reports the opposite hand.
     const reported = category?.categoryName === "Left" ? "left" : "right";
     const hand: Handedness = packet.mirrored ? reported : reported === "left" ? "right" : "left";
     frames.push({

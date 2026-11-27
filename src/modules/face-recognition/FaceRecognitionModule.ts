@@ -13,14 +13,10 @@ import { addSample, createPerson, listPeople, removePerson, updatePerson, type P
 import { mountFaceScreen } from "./screen";
 import text from "./text.json";
 
-/** Lower than a person detector's: a face half turned away still scores well below one straight on. */
 const MIN_CONFIDENCE = 0.4;
 const MAX_RESULTS = 8;
-/** A face that matched a person and is not matched for a moment (blink, turn) keeps the name for this long, ms. */
 const STICKY_MS = 1500;
-/** The face the wearer means is the biggest one seen in the last few seconds, ms. */
 const FOCUS_MS = 3000;
-/** What was said about a stranger so far is kept this long for the next sentence, ms. */
 const DRAFT_MS = 90_000;
 const INFO_IN_LABEL = 36;
 
@@ -49,18 +45,9 @@ const EMPTY_FORM = { id: null, name: "", year: "", info: "" } as const;
 
 const shorten = (value: string, limit: number): string => (value.length > limit ? `${value.slice(0, limit - 1)}…` : value);
 
-/** What is printed beside a face that is known: name, year of birth, and the start of the note. */
 export const labelFor = (person: Person): string =>
   [person.name, person.year ?? "", shorten(person.info, INFO_IN_LABEL)].filter((part) => part !== "").join(" - ");
 
-/**
- * Face recognition: where the faces are, and whose.
- *
- * The detector finds each face and turns it into 128 numbers (in its worker; no picture is kept). Here those
- * numbers are matched to the people saved on the model server, and the name, year of birth and note of the
- * match are written beside the face. The same people are added, edited and removed on this plugin's own screen
- * and by voice ("save this person, name ...", in either language), which Core hands over as the `person` command.
- */
 class FaceRecognitionModule implements VisionModule {
   readonly manifest = faceRecognitionManifest;
 
@@ -88,7 +75,6 @@ class FaceRecognitionModule implements VisionModule {
         ortBase: ORT_BASE_URL,
       },
     },
-    // Faces leave the frame and come back constantly, so an id is held a little longer than a body's.
     maxMissedFrames: 10,
   });
 
@@ -112,7 +98,6 @@ class FaceRecognitionModule implements VisionModule {
     const batch = await this.detector.process(frame, signal);
     const locale = this.context?.locale() ?? "vi";
     const now = performance.now();
-    // Held in an object so the biggest face found while mapping is seen after the map, not narrowed away.
     const biggest: { face: Focus | null } = { face: null };
 
     const detections = batch.detections.map((detection): Detection => {
@@ -164,8 +149,6 @@ class FaceRecognitionModule implements VisionModule {
     await this.detector.dispose();
   }
 
-  // ---- the people ----
-
   say(key: TextKey, values?: Record<string, string | number>): string {
     return fill(text[key][this.context?.locale() ?? "vi"], values);
   }
@@ -191,7 +174,6 @@ class FaceRecognitionModule implements VisionModule {
     return reason === "offline" ? this.say("offline") : this.say("failed", { reason });
   }
 
-  /** The face the wearer means, as numbers: the biggest one seen in the last few seconds. */
   private currentFace(now = performance.now()): Focus | null {
     return this.focus && now - this.focus.at < FOCUS_MS ? this.focus : null;
   }
@@ -206,8 +188,6 @@ class FaceRecognitionModule implements VisionModule {
       (next.kind !== "known" || (current.face.kind === "known" && current.face.person === next.person));
     if (!same || current.locale !== locale) this.state.set({ face: next, locale });
   }
-
-  // ---- what the screen asks for ----
 
   beginAdd(): void {
     const face = this.currentFace();
@@ -273,7 +253,6 @@ class FaceRecognitionModule implements VisionModule {
     }
   }
 
-  /** Another look at someone already saved, so they are known in more light and from more angles. */
   async addSampleToFace(): Promise<void> {
     const face = this.currentFace();
     const person = face?.personId ? this.people.find((item) => item.id === face.personId) : undefined;
@@ -297,13 +276,6 @@ class FaceRecognitionModule implements VisionModule {
     }
   }
 
-  // ---- what is said ----
-
-  /**
-   * "Save this person, name ..., born ..., info ..." (or the same in Vietnamese), worked out by the server and handed over here. The face
-   * is the one in front of the camera. A stranger needs a name before they are saved; whatever was said so far
-   * waits a minute and a half for the rest.
-   */
   async command(name: string, payload: Readonly<Record<string, unknown>>): Promise<string | null> {
     if (name !== "person") return null;
     const said: PersonFields & { year?: number } = {

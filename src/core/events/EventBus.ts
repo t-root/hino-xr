@@ -9,7 +9,6 @@ export interface EventBus<E> {
 }
 
 type EventBusOptions = Readonly<{
-  /** Guards against listener leaks in long-lived render loops. */
   maxListenersPerType: number;
   onListenerError: (type: string, error: unknown) => void;
   onLeakSuspected: (type: string, count: number) => void;
@@ -22,10 +21,6 @@ const defaultOptions: EventBusOptions = {
     console.warn(`[event-bus] "${type}" has ${count} listeners; suspected leak`),
 };
 
-/**
- * Synchronous typed bus. A listener throwing never prevents the remaining
- * listeners from running, so one broken module cannot stall the render loop.
- */
 export class TypedEventBus<E> implements EventBus<E> {
   private readonly listeners = new Map<keyof E, Set<(payload: never) => void>>();
   private readonly options: EventBusOptions;

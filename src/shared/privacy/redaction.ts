@@ -1,8 +1,3 @@
-/**
- * Telemetry and diagnostics must never carry recognised text, plate numbers or
- * any raw image data. Everything that leaves the runtime passes through here.
- */
-
 const SENSITIVE_KEYS =
   /^(label|text|plate|name|email|token|secret|image|frame|snapshot|lat|latitude|lng|longitude|coords|altitude|accuracy)$/i;
 

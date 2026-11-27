@@ -8,17 +8,9 @@ const PADDING_Y = 10;
 
 type LabelTexture = Readonly<{
   texture: THREE.CanvasTexture;
-  /** Aspect ratio (width / height) of the rendered label. */
   aspect: number;
 }>;
 
-/**
- * Labels are drawn into 2D canvases and cached by content, because a headset
- * frame budget cannot absorb re-rasterising text every frame.
- *
- * Both the plate and the text use the one UI colour at different alphas, so the
- * camera image stays visible through every label.
- */
 export class LabelFactory {
   private readonly cache = new Map<string, LabelTexture>();
 
@@ -40,7 +32,6 @@ export class LabelFactory {
     context.font = font;
     context.textBaseline = "middle";
     context.fillStyle = background;
-    // Square corners, like every other surface in the interface.
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = color;
     context.fillText(text, PADDING_X, canvas.height / 2);
@@ -60,4 +51,3 @@ export class LabelFactory {
     this.cache.clear();
   }
 }
-

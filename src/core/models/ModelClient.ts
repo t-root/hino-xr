@@ -4,20 +4,15 @@ import type { SpokenControl } from "./VoiceControls";
 import { DEFAULT_VOICE, voiceQuery, type VoiceSettings } from "@/shared/contracts/voice";
 import { withAccessKey } from "../auth/accessKey";
 
-/** A plugin as the model server needs it to hear "turn on the map plugin". */
 export type SpokenPlugin = Readonly<{ id: string; vi: string; en: string; enabled: boolean }>;
 
-/** What the wearer asked the headset to do, rather than the model to answer. */
 export type SpokenCommand = Readonly<{
   action: "enable" | "disable" | "create" | "revise" | "approve" | "reject" | "setting" | "person" | "sight" | "screen" | "timer" | "none";
   id: string | null;
-  /** For `create`: what the new plugin should do, in the wearer's words. */
   description: string;
-  /** For `setting`: the finished value the server worked out (number, on/off, option, or true for a page). */
   value: unknown;
 }>;
 
-/** What the server says back about a plugin it wrote or installed, already in the wearer's language. */
 export type PluginOutcome = Readonly<{ ok: boolean; say: string }>;
 
 const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "reject", "setting", "person", "sight", "screen", "timer", "none"]);
@@ -25,16 +20,9 @@ const COMMANDS = new Set(["enable", "disable", "create", "revise", "approve", "r
 type TalkResult = Readonly<{
   transcript: string;
   reply: string;
-  /** Pieces of speech in the order they were said; also handed to `onAudio` as they arrive. */
   audio: readonly Blob[];
 }>;
 
-/**
- * HTTP only. No tokeniser, no chat template, no weights, no speech model:
- * those stay on the model server. A missing server is an empty list, not an
- * exception, so the headset UI can say "offline" instead of throwing through
- * the render loop.
- */
 export class ModelClient {
   constructor(private readonly base: string = MODEL_API.replace(/\/$/, "")) {}
 
@@ -149,11 +137,6 @@ export class ModelClient {
     return readSse(response.body, { onToken, onTranscript, onAudio, onCommand, onTiming }, signal);
   }
 
-  /**
-   * Is this line the call that wakes the system ("system call") or the assistant
-   * (its name)? `after` is how many words followed the call: more than a couple
-   * means the question came with it.
-   */
   async listen(
     wav: Blob,
     expect: "system" | "wake" | "stop",
@@ -169,7 +152,6 @@ export class ModelClient {
     return (await response.json()) as { heard: string; matched: boolean; after: number };
   }
 
-  /** What was said, as text: for the on-screen keyboard's microphone key. Nothing is asked of the model. */
   async dictate(wav: Blob, locale: string, signal?: AbortSignal): Promise<string> {
     const response = await this.send(`${this.voiceBase()}/dictate?locale=${encodeURIComponent(locale)}`, {
       method: "POST",
@@ -186,7 +168,6 @@ export class ModelClient {
     return `${this.base.replace(/\/models$/, "")}/plugins`;
   }
 
-  /** The assistant reads a picture of the screen with the line that came with it. `say` is read aloud, `show` is all of it. */
   async askScreen(image: string, question: string, locale: string): Promise<Readonly<{ say: string; show: string }>> {
     const response = await this.send(`${this.base.replace(/\/models$/, "")}/assistant/screen`, {
       method: "POST",
@@ -201,17 +182,14 @@ export class ModelClient {
     return { say, show: typeof body.show === "string" && body.show ? body.show : say };
   }
 
-  /** Has the assistant write a plugin. Slow: the code model is started for it, and it writes for minutes, not seconds. */
   async draftPlugin(description: string, locale: string): Promise<PluginOutcome> {
     return this.postPlugin(`${this.pluginsBase()}/draft`, { description, locale });
   }
 
-  /** Has the server change an installed plugin; the change waits for approval like a new plugin does. */
   async revisePlugin(id: string, description: string, locale: string): Promise<PluginOutcome> {
     return this.postPlugin(`${this.pluginsBase()}/${encodeURIComponent(id)}/revise`, { description, locale });
   }
 
-  /** Installs a draft the wearer approved; the server rebuilds the app before it answers. */
   async approvePlugin(id: string, locale: string): Promise<PluginOutcome> {
     return this.postPlugin(`${this.pluginsBase()}/${encodeURIComponent(id)}/approve?locale=${encodeURIComponent(locale)}`);
   }
@@ -234,7 +212,6 @@ export class ModelClient {
     return `${this.base.replace(/\/models$/, "")}/voice`;
   }
 
-  /** One line spoken in the given voice, without the language model. */
   async preview(text: string, locale: string, voice: VoiceSettings, signal?: AbortSignal): Promise<Blob> {
     const response = await this.send(`${this.voiceBase()}/preview?${voiceQuery(voice)}`, {
       method: "POST",
@@ -263,7 +240,6 @@ const readDetail = async (response: Response): Promise<string> => {
     const body = (await response.json()) as { detail?: unknown };
     if (typeof body.detail === "string") return body.detail;
   } catch {
-    /* not JSON */
   }
   return `${response.status}`;
 };

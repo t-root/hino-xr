@@ -1,5 +1,3 @@
-/** Tiny DOM helpers. The interface is HTML, not a component tree. */
-
 type Attrs = {
   className?: string;
   text?: string;
@@ -82,7 +80,6 @@ type Store<S> = {
   getState: () => S;
 };
 
-/** Fires when the selected slice changes by reference. */
 export const watch = <S>(store: Store<S>, select: (state: S) => unknown, onChange: () => void): (() => void) => {
   let prev = select(store.getState());
   return store.subscribe((state) => {

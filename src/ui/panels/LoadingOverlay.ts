@@ -12,7 +12,6 @@ const reducedMotion = (): boolean =>
 
 const outroWait = (): number => (reducedMotion() ? 40 : BOOT_OUTRO_MS);
 
-/** How long the HUD outro holds the overlay after the camera is revealed. */
 export const bootOutroMs = outroWait;
 
 const STEP_ORDER: readonly SessionBootStep[] = ["camera", "hands", "assistant", "voice", "ready"];
@@ -27,7 +26,6 @@ const STEP_LABEL: Readonly<Record<SessionBootStep, MessageKey>> = {
 
 type Milestone = Readonly<{ key: "init" | SessionBootStep; done: boolean }>;
 
-/** Milestones reached so far: `init`, then one per boot step, in order. */
 const milestones = (step: SessionBootStep): readonly Milestone[] => {
   const index = STEP_ORDER.indexOf(step);
   const entries: Milestone[] = [{ key: "init", done: true }];
@@ -37,14 +35,8 @@ const milestones = (step: SessionBootStep): readonly Milestone[] => {
   return entries;
 };
 
-/** The boot console is English in every language, like the filler lines between the milestones. */
 const labelFor = (key: Milestone["key"]): string => TEXT[key === "init" ? "boot.log.init" : STEP_LABEL[key]].en;
 
-/**
- * Filler chatter between the real milestones, never localised: a real boot
- * console prints kernel and service names verbatim in every locale, so
- * translating fake ones would only make them look less genuine.
- */
 const FILLER_LINES: readonly string[] = [
   "Reached target Sockets.",
   "Reached target Paths.",
@@ -232,7 +224,6 @@ const paintLine = (line: HTMLElement, text: string, done: boolean, milestone: bo
   if (body) body.textContent = text;
 };
 
-/** Draws once from a shuffled bag, so the same line rarely repeats twice in a row. */
 const fillerDeck = (): (() => string) => {
   let bag: number[] = [];
   return () => {
@@ -250,17 +241,8 @@ const fillerDeck = (): (() => string) => {
 const FILLER_INTERVAL_MS = 45;
 const MAX_LINES = 120;
 
-/** One line of the boot log: a filler sentence, or the n-th milestone. */
 type BootEntry = Readonly<{ seq: number; filler: string | null; milestone: number }>;
 
-/**
- * The boot log, held once for every eye (rules.md).
- *
- * Each eye mounts its own copy of the overlay; if each drew its own filler
- * lines it would shuffle its own deck on its own timer and the two eyes would
- * read different words at different moments. So there is one deck, one timer
- * and one ordered list of entries here, and every copy only redraws it.
- */
 const bootLog = (() => {
   const listeners = new Set<() => void>();
   let entries: BootEntry[] = [];
@@ -286,13 +268,11 @@ const bootLog = (() => {
 
   return {
     entries: (): readonly BootEntry[] => entries,
-    /** Adds a line for every milestone reached since the last call. */
     reach(count: number): void {
       if (count <= reachedCount) return;
       while (reachedCount < count) push(null, reachedCount++);
       notify();
     },
-    /** A new boot starts a new log. */
     reset(): void {
       entries = [];
       reachedCount = 0;
@@ -309,21 +289,11 @@ const bootLog = (() => {
   };
 })();
 
-/**
- * Terminal boot log while Core starts: a continuous stream of console lines
- * scrolls upward like a Linux boot, mundane service chatter mostly, with the
- * real boot milestones (camera, hands, assistant, voice, ready) printed in
- * their own tagged, coloured line so they stand out from the noise.
- *
- * Camera stays visible. Veil and log both mount on `.camera-frame` (rules.md). The square already bleeds a few pixels past the picture, so the
- * 50% black layer covers the camera without leaving the frame.
- */
 export const LoadingOverlay = (frame: HTMLElement): (() => void) => {
   let shell: HTMLElement | null = null;
   let veil: HTMLElement | null = null;
   let term: HTMLElement | null = null;
   let cursor: HTMLElement | null = null;
-  /** Lines drawn in this copy, by the shared log's sequence number. */
   const drawn = new Map<number, HTMLElement>();
   const milestoneEls = new Map<number, HTMLElement>();
 
@@ -338,7 +308,6 @@ export const LoadingOverlay = (frame: HTMLElement): (() => void) => {
     milestoneEls.clear();
   };
 
-  /** Brings this copy's lines in line with the shared log. */
   const drawLog = () => {
     if (!term || !cursor) return;
     const entries = bootLog.entries();

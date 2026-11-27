@@ -4,10 +4,6 @@ export type Handedness = "left" | "right";
 
 export type PointerPhase = "enter" | "move" | "leave" | "down" | "up" | "cancel";
 
-/**
- * 21 MediaPipe hand landmarks in normalised image space; `z` is relative depth
- * where smaller means closer to the camera.
- */
 export type Landmark = Readonly<{ x: number; y: number; z: number }>;
 
 export type HandFrame = Readonly<{
@@ -15,44 +11,22 @@ export type HandFrame = Readonly<{
   landmarks: readonly Landmark[];
   confidence: number;
   timestampMs: number;
-  /** Width over height of the picture the landmarks are normalised to, so distances can be taken undistorted. */
   aspect?: number;
 }>;
 
 export type HandPointer = Readonly<{
   hand: Handedness;
-  /** Smoothed pinch point (midway between thumb and index tips), image space. */
   position: Readonly<{ x: number; y: number; z: number }>;
-  /** Normalised units per second, used for snap detection and drag inertia. */
   velocity: NormalizedPoint;
-  /** Thumb-index distance normalised by hand size; ~0 when pinched. */
   pinchStrength: number;
-  /** How fast that gap is changing, per second. Negative means the pinch is closing. */
   pinchVelocity: number;
-  /**
-   * Thumb-to-middle-tip gap over hand length. A snap is this pair; a pinch is
-   * thumb and index. When this is the closer pair the pinch must stand aside,
-   * or a snap press is eaten as a click and the snap itself is cancelled.
-   */
   thumbMiddleRatio: number;
-  /** Middle fingertip to palm centre, over hand length. Small once folded in. */
   middleCurlRatio: number;
-  /**
-   * True when thumb and middle are clearly the pair that is touching, so a
-   * pinch must stand aside and let the snap run.
-   */
   snapPress: boolean;
   confidence: number;
   timestampMs: number;
 }>;
 
-/**
- * There is no grab. A pose that reads the middle, ring and little fingers would
- * be a second way of holding something, and it would race the pinch for every
- * press — the fingers curl on their own as a hand closes, so the grab would
- * win, and then the pinch inside it could never be a click. One gesture, judged
- * on two fingertips only.
- */
 export type GestureType =
   | "hover"
   | "pinchstart"
@@ -72,15 +46,9 @@ export type GestureEvent = Readonly<{
   targetId?: string;
 }>;
 
-/**
- * Both hands pinching at once, as one gesture. `scale` is how much the distance between the hands
- * changed since the last step (above 1 is spreading apart), `rotation` how far the line between
- * them turned in radians, `pan` how far their midpoint moved. Positions are image space.
- */
 export type TwoHandEvent = Readonly<{
   phase: "start" | "move" | "end";
   center: Readonly<{ x: number; y: number }>;
-  /** Where each pinch is, in image space: the left hand's and the right hand's. */
   left: Readonly<{ x: number; y: number }>;
   right: Readonly<{ x: number; y: number }>;
   distance: number;
@@ -89,24 +57,17 @@ export type TwoHandEvent = Readonly<{
   pan: Readonly<{ x: number; y: number }>;
 }>;
 
-/**
- * What a widget receives in the `twohand` DOM event: the step, and where the midpoint of the hands
- * falls on the page, so a widget can aim at what is under them without knowing about hands.
- */
 export type TwoHandDomDetail = TwoHandEvent &
   Readonly<{
     client: Readonly<{ x: number; y: number }>;
-    /** Where each pinch falls on the page. */
     hands: Readonly<{ left: Readonly<{ x: number; y: number }>; right: Readonly<{ x: number; y: number }> }>;
   }>;
 
-/** Anything the hit-test service can resolve a pointer against. */
 export type InteractiveTargetKind = "ui" | "detection" | "palette";
 
 export type HitResult = Readonly<{
   targetId: string;
   kind: InteractiveTargetKind;
-  /** Point on the target plane in normalised viewport space. */
   point: NormalizedPoint;
   distance: number;
 }>;

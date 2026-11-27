@@ -3,7 +3,6 @@ import { normalizeBox } from "@/shared/math/box";
 
 type Point = Readonly<{ x: number; y: number }>;
 
-/** The shape of one decoded code, narrowed to what is used here (declared structurally: no decoder needed to test it). */
 export type RawCode = Readonly<{
   isValid: boolean;
   text: string;
@@ -13,7 +12,6 @@ export type RawCode = Readonly<{
 
 type Options = Readonly<{ imageWidth: number; imageHeight: number; maxResults: number }>;
 
-/** Decoded codes to contract detections: the box is the smallest upright one around the four corners. */
 export const toCodeDetections = (raw: readonly RawCode[], options: Options): Detection[] => {
   const detections: Detection[] = [];
   for (const code of raw) {

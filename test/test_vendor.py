@@ -1,4 +1,3 @@
-"""Frontend packages are pinned in vendor.json, downloaded by Python, never npm."""
 
 from __future__ import annotations
 
@@ -27,15 +26,12 @@ class VendorLockTest(unittest.TestCase):
             self.assertEqual(installed, version, name)
 
     def test_plugins_load_on_demand_from_a_minified_bundle(self) -> None:
-        # A plugin's `await import()` becomes its own file, fetched when it is
-        # switched on; app.js carries Core only. Both are minified.
         frontend = (ASSISTANT / "frontend.py").read_text(encoding="utf-8")
-        for flag in ("--splitting", "--minify", "--entry-names=app", "--chunk-names=chunks/"):
+        for flag in ("--splitting", "--minify", "--chunk-names=chunks/", "--external:@/*", '"/host/{module_path:path}"'):
             self.assertIn(flag, frontend, flag)
         self.assertIn('"/chunks/{chunk_path:path}"', frontend)
 
     def test_validation_uses_the_small_zod_build(self) -> None:
-        # Full `zod` is ~500 KB in the bundle for the same checks; `zod/mini` ~40 KB.
         schemas = (ASSISTANT.parent / "src/shared/validation/schemas.ts").read_text(encoding="utf-8")
         self.assertIn('from "zod/mini"', schemas)
         self.assertNotIn('from "zod";', schemas)

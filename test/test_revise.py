@@ -1,4 +1,3 @@
-"""Changing an installed plugin by voice: the model's reply, the staging, and the way to the command."""
 
 from __future__ import annotations
 
@@ -9,7 +8,7 @@ import unittest
 from helpers import ASSISTANT, SRC
 
 sys.path.insert(0, str(ASSISTANT))
-smith = importlib.import_module("models.pluginsmith")  # a package member: it imports models.cloud
+smith = importlib.import_module("models.pluginsmith")
 sys.path.remove(str(ASSISTANT))
 
 

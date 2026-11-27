@@ -3,18 +3,9 @@ import type { SnapSettings } from "../state/settings";
 
 export type SnapState = "ready" | "loaded" | "cooldown";
 
-/**
- * What the snap is read from, all in hand sizes (wrist to the knuckle of the middle finger), so it does not
- * depend on how far the hand is. Distances are taken with the picture's own proportions (`aspect`), not in the
- * normalised 0..1 of each axis, which stretches a wide picture sideways and made the same pose measure differently
- * whichever way the hand was turned.
- */
 export type SnapFeatures = Readonly<{
-  /** Thumb tip to middle fingertip. Small while they press together. */
   thumbMiddle: number;
-  /** Thumb tip to index fingertip. Small in a pinch, which is never a snap. */
   thumbIndex: number;
-  /** Middle fingertip to wrist. About 1.9 with the finger straight, about 1 when folded into the palm. */
   middleWrist: number;
 }>;
 
@@ -47,39 +38,17 @@ export const snapFeatures = (frame: HandFrame): SnapFeatures | null => {
 type SnapTick = Readonly<{
   nowMs: number;
   features: SnapFeatures;
-  /** True while the hand is pinching, dragging or grabbing something. */
   busy: boolean;
 }>;
 
-/**
- * Finger snap, in the two phases the open-source "Snap Vanish" detector uses (written again here, not copied):
- *
- *  1. **loaded** — the thumb presses the middle fingertip, the middle finger still reaching out (not a fist), and
- *     the thumb is not on the index finger (that is a pinch). Seen on two frames, or held a moment;
- *  2. **released** — within a short window the thumb and middle finger fly apart AND the middle fingertip folds
- *     back toward the palm, and the opening is quick (a pinch that opens slowly is not a snap).
- *
- * A release with no loaded pose before it, a hand opening slowly, and a pinch (or the moment after one) never count.
- * No sound is used.
- */
-
-/** Loaded: thumb tip to middle fingertip at most this, in hand sizes. */
 const LOAD_TM = 0.5;
-/** Loaded: the middle finger still reaches out, not folded into the palm. */
 const MIN_REACH = 1.1;
-/** Loaded: the thumb is clearly nearer the middle finger than the index finger (a pinch is the other way). */
 const NOT_A_PINCH = 1.25;
-/** Loaded: the pose is held this long, ms. One tracker frame at ~16 fps is about 62 ms, so two frames or one slow one. */
 const LOAD_HOLD_MS = 0;
-/** Released: the thumb and middle finger are at least this far apart. */
 const RELEASE_TM = 0.5;
-/** Released: the middle fingertip has come this much closer to the wrist than it was when loaded. */
 const FOLD = 0.15;
-/** Released: the gap must open at least this fast, hand sizes per second. */
 const OPEN_SPEED = 1;
-/** The release must come within this long of the last loaded frame, ms. */
 const WINDOW_MS = 500;
-/** After a pinch or drag lets go the fingers are still moving; nothing counts for this long. */
 const AFTER_PINCH_MS = 500;
 
 export class SnapGestureRecognizer {
@@ -101,15 +70,12 @@ export class SnapGestureRecognizer {
     return this.state;
   }
 
-  /** Half-way once the press is loaded, so the cursor shows the hand is ready to snap. */
   progress(): number {
     return this.state === "loaded" ? 0.5 : 0;
   }
 
-  /** Returns true on the frame a snap completes. */
   update(tick: SnapTick): boolean {
     const { nowMs, features } = tick;
-    // A hand in the middle of holding something is not snapping, whatever the fingers look like.
     if (tick.busy) {
       this.quietUntilMs = nowMs + AFTER_PINCH_MS;
       this.toReady(nowMs);

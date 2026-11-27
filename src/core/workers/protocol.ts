@@ -1,11 +1,5 @@
 import type { Detection, FrameRotation } from "@/shared/contracts/vision";
 
-/**
- * What Core knows about starting any inference worker: where the runtime and
- * the model live, and how sure a result has to be. Everything past that is the
- * plugin's own business, so it travels in `options` and is read only by the
- * worker that plugin ships.
- */
 export type WorkerInitPayload = Readonly<{
   wasmBase: string;
   modelUrl: string;

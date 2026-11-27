@@ -18,17 +18,7 @@ const button = (label: string, onClick: () => void, extra = ""): HTMLButtonEleme
   return node;
 };
 
-/**
- * One copy of the plugin's screen: a card at the foot of the camera frame with who is in front of the camera,
- * what can be done about them, the form to save or edit a person, and the list of everyone saved.
- *
- * Every copy draws from the one state in the module, so both eyes always show the same thing. The form keeps
- * its inputs between redraws (a rebuilt input would lose the cursor and the on-screen keyboard); everything
- * else is rebuilt, because it holds no typing.
- */
 export const mountFaceScreen = (element: HTMLElement, face: FaceController): (() => void) => {
-  // The box Core gives a plugin screen is half the camera frame, centred: it must not catch presses that
-  // are meant for the picture or the menu behind it. Only the card itself does.
   element.style.pointerEvents = "none";
 
   const style = h("style");
@@ -76,7 +66,6 @@ export const mountFaceScreen = (element: HTMLElement, face: FaceController): (()
     const editing = state.mode === "edit";
     const listing = state.mode === "list";
 
-    // Someone who is known already has their name, year and note beside their face: nothing is said again here.
     status.textContent = state.face.kind === "unknown" ? face.say("seeingStranger") : state.face.kind === "none" ? face.say("seeingNobody") : "";
     status.hidden = state.face.kind === "known";
     status.dataset.kind = state.face.kind;
@@ -89,7 +78,6 @@ export const mountFaceScreen = (element: HTMLElement, face: FaceController): (()
     labels.name.textContent = face.say("fieldName");
     labels.year.textContent = face.say("fieldYear");
     labels.info.textContent = face.say("fieldInfo");
-    // Written only when different, so typing in one eye does not move the cursor in the other.
     if (name.value !== state.form.name) name.value = state.form.name;
     if (year.value !== state.form.year) year.value = state.form.year;
     if (info.value !== state.form.info) info.value = state.form.info;
@@ -124,7 +112,6 @@ export const mountFaceScreen = (element: HTMLElement, face: FaceController): (()
         ? []
         : [
             ...(state.face.kind === "unknown" ? [button(face.say("saveThis"), () => face.beginAdd(), "fid-primary")] : []),
-            // Editing a person is in the list; here a known face only offers another look at it.
             ...(state.face.kind === "known" ? [button(face.say("addSample"), () => void face.addSampleToFace())] : []),
             button(listing ? face.say("close") : face.say("people"), () => (listing ? face.close() : face.showList())),
           ]),
