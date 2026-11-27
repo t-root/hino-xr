@@ -1,4 +1,5 @@
 import { holdPointer } from "@/core/input/dispatchHandPointer";
+import { toLocalPoint } from "@/core/view/localPoint";
 import { el } from "../dom";
 
 /** Slot width in px. Handed to the stylesheet as `--slot`, so there is one copy. */
@@ -84,14 +85,14 @@ export const MenuStrip = <T extends string>(parent: ParentNode, props: MenuStrip
     style: { "--slot": `${SLOT_PX}px` },
     dataset: { dragging: drag !== 0, handTarget: true },
     onPointerDown: (event) => {
-      origin.current = event.clientX;
+      origin.current = toLocalPoint(event.currentTarget as HTMLElement, event.clientX, event.clientY).x;
       swiped.current = false;
       settled.current = false;
       liveOffset.current = 0;
     },
     onPointerMove: (event) => {
       if (origin.current === null) return;
-      const offset = event.clientX - origin.current;
+      const offset = toLocalPoint(event.currentTarget as HTMLElement, event.clientX, event.clientY).x - origin.current;
       if (!swiped.current) {
         if (Math.abs(offset) <= TAP_SLOP_PX) return;
         swiped.current = true;

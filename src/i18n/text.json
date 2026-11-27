@@ -184,6 +184,7 @@
 
 
   "camera.mirror": { "vi": "Lật ảnh camera trước", "en": "Mirror the front camera" },
+  "camera.softEdge": { "vi": "Viền mềm, bo góc ảnh camera", "en": "Soft edge, rounded corners on the camera picture" },
   "camera.error.failed": { "vi": "Không mở được camera.", "en": "The camera could not be opened." },
   "camera.error.denied": {
     "vi": "Bạn đã từ chối quyền camera. Hãy cấp quyền rồi thử lại.",

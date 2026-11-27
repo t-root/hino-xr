@@ -70,6 +70,8 @@ export type RenderSettings = Readonly<{
   maxBatchAgeMs: number;
   showDiagnostics: boolean;
   mirrorFrontCamera: boolean;
+  /** Rounded corners and a soft dark fade at the edge of the camera picture. Off: the picture ends square and sharp. */
+  softEdge: boolean;
 }>;
 
 /**
@@ -257,6 +259,7 @@ export const DEFAULT_SETTINGS: Settings = {
     maxBatchAgeMs: 600,
     showDiagnostics: true,
     mirrorFrontCamera: true,
+    softEdge: false,
   },
   lens: DEFAULT_LENS,
   pipeline: {

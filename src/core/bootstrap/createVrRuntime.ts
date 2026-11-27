@@ -90,6 +90,10 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   const videoLayer = new VideoLayer(renderer.mapper);
   videoLayer.setBarrel(settings.lens.k1, settings.lens.k2);
   lensWarp.setLens(settings.lens.k1, settings.lens.k2);
+  const showSoftEdge = (on: boolean) => {
+    document.documentElement.dataset.softEdge = on ? "on" : "off";
+  };
+  showSoftEdge(settings.render.softEdge);
   videoLayer.mesh.visible = false;
   renderer.renderScene.videoRoot.add(videoLayer.mesh);
   renderer.renderScene.overlayRoot.visible = false;
@@ -271,6 +275,8 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   });
   renderer.start();
 
+  let stopWatchingVideo: (() => void) | null = null;
+
   const syncCameraOrientation = (): void => {
     const source = camera.current;
     if (!source) return;
@@ -304,6 +310,12 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     }
 
     const source = await camera.start(request);
+    // Turning the phone makes the browser hand over a differently shaped picture (landscape <-> portrait),
+    // a moment AFTER `orientationchange` and `resize` have fired: read then, the old shape was measured and
+    // the picture, the hands and the cursor stayed cropped for it. The video says when its size changes.
+    stopWatchingVideo?.();
+    source.video.addEventListener("resize", syncCameraOrientation);
+    stopWatchingVideo = () => source.video.removeEventListener("resize", syncCameraOrientation);
     const mirrored = source.mirrored && settings.render.mirrorFrontCamera;
     videoLayer.attach(source.video, mirrored, 0);
     videoLayer.mesh.visible = true;
@@ -328,6 +340,8 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
   };
 
   const stop = (): void => {
+    stopWatchingVideo?.();
+    stopWatchingVideo = null;
     autoOrientation.setEnabled(false);
     unregisterHandConsumer?.();
     unregisterHandConsumer = null;
@@ -349,6 +363,7 @@ export const createVrRuntime = (container: HTMLElement): VrRuntime => {
     renderer.setSettings(next.render, next.lens);
     videoLayer.setBarrel(next.lens.k1, next.lens.k2);
     lensWarp.setLens(next.lens.k1, next.lens.k2);
+    showSoftEdge(next.render.softEdge);
     interaction.setSettings(next.gesture, next.snap, next.flags.snapGesture);
     frameHub.setAnalysisMaxSize(next.pipeline.analysisMaxSize);
     useRuntimeStore.getState().updateSettings(next);

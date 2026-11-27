@@ -1,10 +1,10 @@
 import type { SnapSettings } from "../state/settings";
 
-export type SnapState = "ready" | "contact" | "flick" | "cooldown";
+export type SnapState = "ready" | "cooldown";
 
 type SnapTick = Readonly<{
   nowMs: number;
-  /** Thumb-to-middle-finger distance divided by hand size. */
+  /** Thumb-to-middle-finger distance divided by hand size. The landing pose has them together. */
   thumbMiddleRatio: number;
   /** Middle fingertip to palm centre, over hand size. Small once folded in. */
   middleCurlRatio: number;
@@ -13,48 +13,55 @@ type SnapTick = Readonly<{
 }>;
 
 /**
- * Finger snap: thumb and middle finger, in three phases.
+ * Finger snap, decided by the landing alone.
  *
- * A snap is a *movement over time*, not a pose, and that is the whole reason
- * this class exists instead of a threshold somewhere:
+ * The press (thumb against middle finger) and the flick (the gap jumping open) are not asked for: the tracker
+ * cannot see them reliably at ~24 fps and every pose that looked a little like them fired the menu. What cannot
+ * be faked by a loose hand is the end of the movement: the middle fingertip arriving on the palm, from a place
+ * clearly further away, within a short time. That is the snap.
  *
- *  1. **press** — thumb and middle fingertip held together, briefly;
- *  2. **flick** — the middle finger leaves the thumb, seen as the gap jumping
- *     open much faster than a hand simply opening;
- *  3. **land** — that same finger arrives closer to the palm than it was
- *     during the press.
- *
- * All three are required. Folding into a fist is not a flick: the gap never
- * opens. Releasing two fingers that were merely close is not a landing: the
- * middle finger never travels toward the palm.
- *
- * The press itself is a bent middle finger against the thumb, so it already
- * looks somewhat folded. That pose must still count; only a fully clenched
- * fist is rejected. Tracking at ~24 fps often skips the frames in between
- * press and palm — a jump from contact to a folded finger in one tick is
- * still the same movement, counted as one, but only when the gap opened.
+ * Fires on the tick the middle fingertip is below `palmRatio` of hand size AND is at least `CURL_DROP` closer
+ * to the palm than it was at its furthest within the last `windowMs`. A hand that simply stays closed has no
+ * such drop and never fires; a fist is not a landing either (`FIST_CURL`), since a snap ends on the palm with the
+ * finger, not with the whole hand clenched.
  */
 
-/** Gap increase in one tick that still counts as a flick when a frame was skipped. */
-const GAP_JUMP = 0.25;
+/** How much closer to the palm the middle fingertip must get, from its furthest in the window, to count as landing. */
+const CURL_DROP = 0.2;
 
-/** How much closer to the palm the middle fingertip must get to count as landing. */
-const CURL_DROP = 0.15;
+/** Below this the whole hand is a fist, not a finger landing on the palm. */
+const FIST_CURL = 0.4;
 
 /**
- * Below this, the middle fingertip is on the palm: a fist, not a snap press.
- * A real press sits well above this — the tip is on the thumb, not the skin.
+ * The landing pose: thumb and middle finger come to rest together on the palm (thumb laid across, middle finger
+ * folded against it). Thumb tip to middle tip, over hand size, must be below this. Loose on purpose: the tracker
+ * rarely reports the two tips exactly touching, but a hand with the middle finger away from the thumb is not it.
  */
-const FIST_CURL = 0.55;
+const LANDED_GAP = 0.8;
+
+/**
+ * The middle fingertip must be ON the palm, not merely folded toward it. An open hand with the thumb touching a
+ * bent finger (the "OK"-like pose) has the tip about one hand-length from the palm centre; a real landing sits well
+ * inside that. Capped here as well as in `palmRatio` because a saved `palmRatio` from older settings would keep the
+ * loose value.
+ */
+const LANDED_CURL = 0.85;
+
+/** A snap lands fast; a hand that is merely closing or moving takes longer. The drop must happen inside this. */
+const DROP_WITHIN_MS = 320;
+
+/** Before the drop the middle finger must have been really away from the palm, not just moving between folded poses. */
+const WAS_EXTENDED = 0.7;
+
+/** The landing must still be seen on this many consecutive tracker frames: a one-frame jitter of the tip is not it. */
+const LANDED_FRAMES = 1;
 
 export class SnapGestureRecognizer {
   private state: SnapState = "ready";
   private stateSinceMs = 0;
-  private contactSinceMs: number | null = null;
-  /** Most extended the middle finger was during this press. Landing is a drop from here. */
-  private curlAtContact: number | null = null;
-  private lastRatio: number | null = null;
-  private lastTickMs = 0;
+  /** Recent middle-finger distances to the palm, oldest first. */
+  private history: { nowMs: number; curl: number }[] = [];
+  private landedFrames = 0;
 
   constructor(private settings: SnapSettings) {}
 
@@ -68,97 +75,47 @@ export class SnapGestureRecognizer {
 
   /** Returns true on the frame a snap completes. */
   update(tick: SnapTick): boolean {
-    const dtSeconds = this.lastTickMs === 0 ? 1 / 30 : Math.max((tick.nowMs - this.lastTickMs) / 1000, 1e-3);
-    const previousGap = this.lastRatio;
-    const velocity = previousGap === null ? 0 : (tick.thumbMiddleRatio - previousGap) / dtSeconds;
-    this.lastRatio = tick.thumbMiddleRatio;
-    this.lastTickMs = tick.nowMs;
-
-    // A hand in the middle of holding something is not snapping, whatever the
-    // fingers look like: the same hand cannot be doing both.
-    if (tick.busy && this.state !== "cooldown") {
-      this.transition("ready", tick.nowMs);
+    // A hand in the middle of holding something is not snapping, whatever the fingers look like.
+    if (tick.busy) {
+      this.history = [];
+      this.landedFrames = 0;
       return false;
     }
 
-    const parted = tick.thumbMiddleRatio > this.settings.releaseRatio;
-    const fist = tick.middleCurlRatio < FIST_CURL;
-    const landed =
-      this.curlAtContact !== null &&
-      tick.middleCurlRatio <= this.curlAtContact - CURL_DROP &&
-      tick.middleCurlRatio < this.settings.palmRatio;
-    const flicked =
-      velocity > this.settings.velocityThreshold ||
-      (previousGap !== null && tick.thumbMiddleRatio - previousGap > GAP_JUMP);
-
-    switch (this.state) {
-      case "ready": {
-        const touching = tick.thumbMiddleRatio < this.settings.contactRatio && !fist;
-        if (!touching) {
-          this.contactSinceMs = null;
-          return false;
-        }
-        this.contactSinceMs ??= tick.nowMs;
-        // Held, not brushed past: fingers cross each other constantly while a
-        // hand moves, and a single frame of contact means nothing.
-        if (tick.nowMs - this.contactSinceMs >= this.settings.contactHoldMs) {
-          this.transition("contact", tick.nowMs);
-          this.curlAtContact = tick.middleCurlRatio;
-        }
-        return false;
-      }
-
-      case "contact":
-        this.curlAtContact = Math.max(this.curlAtContact ?? tick.middleCurlRatio, tick.middleCurlRatio);
-        if (flicked) {
-          this.transition("flick", tick.nowMs);
-          // One tracking frame can be the whole flight when the rate is low.
-          if (landed) {
-            this.transition("cooldown", tick.nowMs);
-            return true;
-          }
-          return false;
-        }
-        // A fist forming while the tips are still together is not a snap.
-        if (parted || fist) this.transition("ready", tick.nowMs);
-        return false;
-
-      case "flick": {
-        // The finger has left the thumb; it now has this long to arrive at the
-        // palm. Long enough for the tracker to miss a frame of a fast motion,
-        // short enough that an unrelated fist later is not read as the ending.
-        if (tick.nowMs - this.stateSinceMs > this.settings.windowMs) {
-          this.transition("ready", tick.nowMs);
-          return false;
-        }
-        // The flick already proved they separated. Requiring the gap to stay
-        // wide as well fights the landing: thumb and middle both end near the
-        // palm, so they look close again.
-        if (landed) {
-          this.transition("cooldown", tick.nowMs);
-          return true;
-        }
-        return false;
-      }
-
-      case "cooldown":
-        if (tick.nowMs - this.stateSinceMs >= this.settings.cooldownMs) this.transition("ready", tick.nowMs);
-        return false;
+    if (this.state === "cooldown") {
+      if (tick.nowMs - this.stateSinceMs >= this.settings.cooldownMs) this.transition("ready", tick.nowMs);
+      return false;
     }
+
+    this.history.push({ nowMs: tick.nowMs, curl: tick.middleCurlRatio });
+    while (this.history.length > 0 && tick.nowMs - (this.history[0] as { nowMs: number }).nowMs > DROP_WITHIN_MS) {
+      this.history.shift();
+    }
+
+    const furthest = this.history.reduce((most, entry) => Math.max(most, entry.curl), 0);
+    const landed =
+      tick.middleCurlRatio < Math.min(this.settings.palmRatio, LANDED_CURL) &&
+      tick.middleCurlRatio >= FIST_CURL &&
+      tick.thumbMiddleRatio < LANDED_GAP &&
+      furthest >= WAS_EXTENDED &&
+      furthest - tick.middleCurlRatio >= CURL_DROP;
+    this.landedFrames = landed ? this.landedFrames + 1 : 0;
+    if (this.landedFrames < LANDED_FRAMES) return false;
+    this.landedFrames = 0;
+
+    this.history = [];
+    this.transition("cooldown", tick.nowMs);
+    return true;
   }
 
   reset(): void {
     this.state = "ready";
-    this.contactSinceMs = null;
-    this.curlAtContact = null;
-    this.lastRatio = null;
-    this.lastTickMs = 0;
+    this.history = [];
+    this.landedFrames = 0;
   }
 
   private transition(state: SnapState, nowMs: number): void {
     this.state = state;
     this.stateSinceMs = nowMs;
-    this.contactSinceMs = null;
-    if (state === "ready" || state === "cooldown") this.curlAtContact = null;
   }
 }

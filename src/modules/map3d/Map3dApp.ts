@@ -1,5 +1,4 @@
 import { SharedState } from "@/core/sync";
-import { useSharedUiStore } from "@/core/state/SharedUiStore";
 import { queryOverpass } from "./overpass";
 import { MapModel, type LatLng, type MapView } from "./SelectMap";
 import { SpaceCore, type Building, type SpaceView } from "./Space";
@@ -70,7 +69,6 @@ export class Map3dApp {
   setActive(active: boolean): void {
     this.active = active;
     this.space.setRunning(active);
-    this.syncFill();
     if (!active) return;
     this.words.refresh();
     for (const view of this.views) view.activate();
@@ -87,7 +85,6 @@ export class Map3dApp {
 
   dispose(): void {
     this.disposed = true;
-    useSharedUiStore.getState().setFillFrame(false);
     for (const key of Object.keys(this.modalTimers) as ModalKey[]) window.clearTimeout(this.modalTimers[key]);
     for (const view of [...this.views]) view.dispose();
     this.views.clear();
@@ -99,12 +96,6 @@ export class Map3dApp {
   private update(patch: Partial<AppState>): void {
     this.state.set(patch);
     this.space.setShowPlatform(this.state.get().step === 2);
-    this.syncFill();
-  }
-
-  /** The 3D view is the whole eye; the map step stays in the camera square. */
-  private syncFill(): void {
-    useSharedUiStore.getState().setFillFrame(this.active && this.state.get().step !== 0);
   }
 
   private setModal(key: ModalKey, modal: ModalState): void {

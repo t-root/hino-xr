@@ -229,6 +229,14 @@ export const map3dCss = (): string => `
 .map3d .hologram-stage::before { content: none; }
 .map3d .holo-vignette { display: none; }
 
+/*
+ * The 3D city takes the whole camera frame, not the half-area square a plugin screen gets: the screen is widened
+ * to the frame while the city step is showing. It still never goes past the frame, which clips it.
+ */
+.module-screen:has(.map3d[data-step="city"]) {
+  --module-screen-side: 100%;
+}
+
 .map3d .holo-canvas {
   position: relative;
   width: 100%;
@@ -379,8 +387,8 @@ export const map3dCss = (): string => `
 }
 
 .map3d .hologram-map .leaflet-tile-pane {
-  filter: grayscale(1) invert(1) sepia(1) hue-rotate(132deg) saturate(3.6) brightness(0.56) contrast(1.62);
-  opacity: 0.18;
+  filter: grayscale(1) invert(1) sepia(1) hue-rotate(132deg) saturate(3.6) brightness(0.85) contrast(1.62);
+  opacity: 0.4;
   mix-blend-mode: normal;
 }
 

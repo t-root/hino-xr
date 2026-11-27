@@ -766,6 +766,11 @@ export const SettingsPanel = (parent: ParentNode, props: SettingsPanelProps): ((
         checked: settings.render.mirrorFrontCamera,
         onChange: (mirrorFrontCamera) => patch({ render: { ...settingsOf().render, mirrorFrontCamera } }),
       });
+      mountSwitchField(content, {
+        label: t("camera.softEdge"),
+        checked: settings.render.softEdge,
+        onChange: (softEdge) => patch({ render: { ...settingsOf().render, softEdge } }),
+      });
     }
 
     if (category === "diagnostics") {

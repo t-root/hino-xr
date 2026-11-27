@@ -5,8 +5,9 @@ import * as L from "./vendor/leaflet/dist/leaflet-src.esm.js";
 import "./vendor/leaflet/dist/leaflet.css";
 import { CanvasMirror, CopySync, SharedState } from "@/core/sync";
 import { isHandPointerId } from "@/core/input/dispatchHandPointer";
+import { toLocalDelta, toLocalPoint } from "@/core/view/localPoint";
 import type { TwoHandDomDetail } from "@/shared/contracts/input";
-import { h, icon, show, type Words } from "./ui";
+import { h, icon, type Words } from "./ui";
 
 /** The few Leaflet shapes the plugin touches. */
 export type LatLng = { lat: number; lng: number };
@@ -228,7 +229,6 @@ export class MapView {
 
   private readonly map: any;
   private readonly container: HTMLDivElement;
-  private readonly hint: HTMLElement;
   /** Placed by the screen in its bar of buttons along the top, with Close and Next. */
   readonly locateButton: HTMLButtonElement;
   private readonly resizeObserver: ResizeObserver;
@@ -251,10 +251,9 @@ export class MapView {
     this.locateButton.type = "button";
     this.locateButton.addEventListener("click", () => model.requestLocation(true));
 
-    this.hint = h("div", "m3-hint", words.node("drawHint"));
 
     this.container = h("div", "m3-map__leaflet hologram-map");
-    this.root = h("div", "m3-map", credit, this.hint, this.container);
+    this.root = h("div", "m3-map", credit, this.container);
 
     const start = model.view.view;
     this.map = L.map(this.container, {
@@ -357,10 +356,17 @@ export class MapView {
     this.locateButton.dataset.busy = String(state.locating);
     this.locateButton.dataset.failed = String(state.locationError !== "");
 
-    show(this.hint, state.bounds == null && state.drawBounds == null);
-
     this.renderRectangle(state.drawBounds);
     this.renderMarker(state.userLocation);
+  }
+
+  /**
+   * The place under a screen point. Not `mouseEventToLatLng`: it reads the point against the map's bounding box on
+   * the screen, which is a quarter-turn off whenever the interface is turned to follow the phone.
+   */
+  private latLngAt(clientX: number, clientY: number) {
+    const local = toLocalPoint(this.container, clientX, clientY);
+    return this.map.containerPointToLatLng([local.x, local.y]);
   }
 
   /** What the two hands now closed are doing, decided when they closed: drawing a region or zooming. */
@@ -375,7 +381,7 @@ export class MapView {
     event.preventDefault();
     const detail = (event as CustomEvent<TwoHandDomDetail>).detail;
     if (detail.phase === "start") this.twoHands = detail.distance < DRAW_FROM_WITHIN ? "draw" : "zoom";
-    const at = (point: { x: number; y: number }) => this.map.mouseEventToLatLng({ clientX: point.x, clientY: point.y });
+    const at = (point: { x: number; y: number }) => this.latLngAt(point.x, point.y);
     if (this.twoHands === "draw") {
       this.model.box(at(detail.hands.left), at(detail.hands.right), detail.phase === "end");
     } else if (this.twoHands === "zoom" && detail.phase === "move" && detail.scale !== 1) {
@@ -393,10 +399,10 @@ export class MapView {
     // Before Leaflet sees it: it would otherwise start moving the map under the box.
     event.stopImmediatePropagation();
     event.preventDefault();
-    const corner = this.map.mouseEventToLatLng(event);
-    const move = (next: MouseEvent) => this.model.box(corner, this.map.mouseEventToLatLng(next), false);
+    const corner = this.latLngAt(event.clientX, event.clientY);
+    const move = (next: MouseEvent) => this.model.box(corner, this.latLngAt(next.clientX, next.clientY), false);
     const up = (next: MouseEvent) => {
-      this.model.box(corner, this.map.mouseEventToLatLng(next), true);
+      this.model.box(corner, this.latLngAt(next.clientX, next.clientY), true);
       this.stopShiftDrag?.();
     };
     this.stopShiftDrag = () => {
@@ -420,7 +426,8 @@ export class MapView {
   private readonly handleHandMove = (event: PointerEvent): void => {
     if (!isHandPointerId(event.pointerId) || !this.handPan) return;
     event.stopImmediatePropagation();
-    this.map.panBy([this.handPan.x - event.clientX, this.handPan.y - event.clientY], { animate: false });
+    const moved = toLocalDelta(this.container, this.handPan.x - event.clientX, this.handPan.y - event.clientY);
+    this.map.panBy([moved.x, moved.y], { animate: false });
     this.handPan = { x: event.clientX, y: event.clientY };
   };
 

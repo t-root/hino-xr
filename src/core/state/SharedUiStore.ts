@@ -173,7 +173,9 @@ export const useSharedUiStore = createStore<SharedUiState>((set) => ({
       bootOutro: false,
       ...(starting ? { menuOpen: false, diagnosticsOpen: false } : { diagnosticsOpen: state.diagnosticsWanted }),
     })),
-  setFillFrame: (fillFrame) => set({ fillFrame }),
+  // Absolute rule: everything is drawn inside the camera frame, never past it. A plugin asking for the whole eye is
+  // refused, so the 3D city is clipped to the frame like every other screen.
+  setFillFrame: () => set({ fillFrame: false }),
   setBootOutro: (bootOutro) => set((state) => (state.starting || !bootOutro ? { bootOutro } : state)),
 
   setSettingsSlot: (settingsSlot) =>

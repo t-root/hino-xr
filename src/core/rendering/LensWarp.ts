@@ -25,6 +25,31 @@ export const warpSource = (u: number, v: number, k1: number, k2: number): { x: n
   return { x: 0.5 + dx * scale, y: 0.5 + dy * scale };
 };
 
+/**
+ * Where on the frame a point of the camera picture is SEEN: the inverse of `warpSource`. A hand at
+ * `(x, y)` of the picture shows up here once the lens has bent the picture, so a cursor that marks the
+ * hand has to be drawn here, not at `(x, y)`. Both in `0..1` of the square.
+ */
+export const warpTarget = (x: number, y: number, k1: number, k2: number): { x: number; y: number } => {
+  if (k1 === 0 && k2 === 0) return { x, y };
+  const dx = x - 0.5;
+  const dy = y - 0.5;
+  const rho = Math.hypot(dx, dy);
+  if (rho === 0) return { x, y };
+  const fit = Math.max(1 + k1 * 0.25 + k2 * 0.0625, 1);
+  // The source radius of a frame radius r is r * (1 + k1 r^2 + k2 r^4) / fit: find the r that gives rho.
+  const sourceRadius = (r: number): number => (r * (1 + k1 * r * r + k2 * r * r * r * r)) / fit;
+  let low = 0;
+  let high = 4;
+  for (let step = 0; step < 40; step += 1) {
+    const mid = (low + high) / 2;
+    if (sourceRadius(mid) < rho) low = mid;
+    else high = mid;
+  }
+  const r = (low + high) / 2;
+  return { x: 0.5 + (dx / rho) * r, y: 0.5 + (dy / rho) * r };
+};
+
 type Field = Readonly<{ url: string; scale: number }>;
 
 /** The displacement map as an image: red and green are the sideways and downward move, 0.5 meaning none. */
@@ -70,6 +95,15 @@ class LensWarp {
   private svg: SVGSVGElement | null = null;
   private lastKey = "";
 
+  /** Frame position `0..1` where a point of the camera picture is seen; unchanged while the warp is off. */
+  seen(x: number, y: number): { x: number; y: number } {
+    return this.active() ? warpTarget(x, y, this.k1, this.k2) : { x, y };
+  }
+
+  private active(): boolean {
+    return (this.k1 !== 0 || this.k2 !== 0) && this.width > 0 && this.height > 0;
+  }
+
   setLens(k1: number, k2: number): void {
     this.k1 = k1;
     this.k2 = k2;
@@ -87,8 +121,7 @@ class LensWarp {
   private apply(): void {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
-    const active = (this.k1 !== 0 || this.k2 !== 0) && this.width > 0 && this.height > 0;
-    if (!active) {
+    if (!this.active()) {
       delete root.dataset.lensWarp;
       return;
     }

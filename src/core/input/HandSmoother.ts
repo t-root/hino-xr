@@ -9,8 +9,14 @@ import type { GestureSettings } from "../state/settings";
  * before it can drive the UI, which prevents flicker-induced clicks.
  */
 export class HandSmoother {
-  private readonly x = new OneEuroFilter();
-  private readonly y = new OneEuroFilter();
+  /**
+   * The cursor marks the midpoint between thumb and index, so it must stay on it. Positions are `0..1`
+   * of the picture, so a moving hand is only a fraction of a unit per second: the library defaults
+   * (1.2 Hz, beta 0.02) smoothed so hard that the cursor trailed a moving hand by a hand's width.
+   * A high `beta` lets the filter stand aside while the hand moves and smooth only when it is still.
+   */
+  private readonly x = new OneEuroFilter({ minCutoff: 3, beta: 40, derivativeCutoff: 4 });
+  private readonly y = new OneEuroFilter({ minCutoff: 3, beta: 40, derivativeCutoff: 4 });
   private readonly z = new OneEuroFilter({ minCutoff: 0.8, beta: 0.01, derivativeCutoff: 1 });
   /**
    * The pinch is filtered to follow, not to settle.

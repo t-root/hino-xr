@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CanvasMirror, SharedState, frameClock } from "@/core/sync";
 import { isHandPointerId } from "@/core/input/dispatchHandPointer";
+import { toLocalDelta, toLocalPoint } from "@/core/view/localPoint";
 import type { TwoHandDomDetail } from "@/shared/contracts/input";
 import { queryOverpass, type OsmElement } from "./overpass";
 import { cHex } from "./palette";
@@ -609,8 +610,9 @@ export class SpaceCore implements BuildingHost {
     const h = Math.max(height, 1);
     // One hand on a house: up and down is how tall, left and right is how wide, in the same drag.
     if (!drag.building || !drag.startSize) return;
-    const up = (drag.startY - event.clientY) / h;
-    const out = (event.clientX - drag.startX) / h;
+    const moved = toLocalDelta(drag.view.canvas, event.clientX - drag.startX, event.clientY - drag.startY);
+    const up = -moved.y / h;
+    const out = moved.x / h;
     const width = clamp(drag.startSize.x + out * 3.5, 0.35, 3.5);
     drag.building.resize({ x: width, y: clamp(drag.startSize.y + up * 6, 0.3, 6), z: width });
   }
@@ -691,7 +693,8 @@ export class SpaceCore implements BuildingHost {
       return;
     }
     if (step.scale !== 1) this.zoomBy(1 / step.scale);
-    this.orbitBy(-step.rotation, step.pan.y * Math.PI);
+    // Both hands going up or down tilts the view: up and down of the picture, not of the screen.
+    this.orbitBy(-step.rotation, toLocalDelta(view.canvas, step.pan.x, step.pan.y).y * Math.PI);
   }
 
   private zoomBy(factor: number): void {
@@ -713,9 +716,11 @@ export class SpaceCore implements BuildingHost {
   }
 
   private aim(event: { clientX: number; clientY: number }, view: SpaceView): void {
-    const rect = view.canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1;
-    const y = -((event.clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1;
+    // In the canvas's own axes: the interface may be turned a quarter, and the screen point then is not where the
+    // canvas's own picture is.
+    const point = toLocalPoint(view.canvas, event.clientX, event.clientY);
+    const x = (point.x / Math.max(view.canvas.offsetWidth, 1)) * 2 - 1;
+    const y = -(point.y / Math.max(view.canvas.offsetHeight, 1)) * 2 + 1;
     this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
   }
 

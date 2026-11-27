@@ -1,5 +1,6 @@
 import { useSharedUiStore } from "@/core/state/SharedUiStore";
 import { dropPointer, holdPointer } from "@/core/input/dispatchHandPointer";
+import { toLocalPoint } from "@/core/view/localPoint";
 import { clamp } from "@/shared/math/num";
 import { el, watch } from "../dom";
 
@@ -51,12 +52,12 @@ export const ScrollBox = (
     onPointerDown: (event) => {
       if (isControl(event.target)) return;
       const offset = useSharedUiStore.getState().scroll[id] ?? 0;
-      drag.current = { pointerId: event.pointerId, y: event.clientY, from: offset, active: false };
+      drag.current = { pointerId: event.pointerId, y: toLocalPoint(event.currentTarget as HTMLElement, event.clientX, event.clientY).y, from: offset, active: false };
     },
     onPointerMove: (event) => {
       const current = drag.current;
       if (!current || current.pointerId !== event.pointerId) return;
-      const travel = event.clientY - current.y;
+      const travel = toLocalPoint(event.currentTarget as HTMLElement, event.clientX, event.clientY).y - current.y;
       if (!current.active) {
         if (Math.abs(travel) < AXIS_LOCK_PX) return;
         current.active = true;

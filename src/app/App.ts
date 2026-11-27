@@ -1,5 +1,6 @@
 import { createVoiceControls } from "@/core/models/VoiceControls";
 import { installDebugKeys } from "@/app/debugKeys";
+import { installDoubleTap } from "@/app/doubleTap";
 import { installImuMenu } from "@/app/ImuMenu";
 import { createVrRuntime } from "@/core/bootstrap/createVrRuntime";
 import { Dictation } from "@/core/input/Dictation";
@@ -207,6 +208,8 @@ export const mountApp = (host: HTMLElement): () => void => {
     }),
     // Debug: S = "system call", M = finger snap (menu).
     installDebugKeys({ systemCall: () => runtime.wake.simulateSystemCall() }),
+    // Touching the screen twice starts the system, the same as saying "system call".
+    installDoubleTap({ systemCall: () => runtime.wake.simulateSystemCall() }),
     // Head turns left and right run the menu band.
     installImuMenu(),
     // Choosing a text box, by hand, finger or mouse, brings the on-screen keyboard up.

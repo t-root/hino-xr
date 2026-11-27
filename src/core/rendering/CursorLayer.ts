@@ -2,7 +2,9 @@ import type { Handedness } from "@/shared/contracts/input";
 import { clamp01 } from "@/shared/math/num";
 import type { NormalizedPoint } from "@/shared/contracts/vision";
 import { useCursorStore, type CursorMark, type CursorPhase } from "../state/CursorStore";
+import { useSharedUiStore } from "../state/SharedUiStore";
 import type { CoordinateMapper } from "./CoordinateMapper";
+import { lensWarp } from "./LensWarp";
 
 export type { CursorPhase };
 
@@ -31,6 +33,22 @@ export class CursorLayer {
     private readonly cursorScale: () => number,
   ) {}
 
+  /**
+   * Where to draw the cursor, `0..1` of the eye. With the lens on, the camera picture is bent, so the hand is
+   * SEEN at the inverse-warped spot of the camera square (the same bend the interface gets); drawing at the
+   * plain spot leaves the cursor off the hand. A full-screen plugin view is not bent.
+   */
+  private eyeSpot(point: NormalizedPoint): NormalizedPoint {
+    if (useSharedUiStore.getState().fillFrame) {
+      const ndc = this.mapper.displayToNdc(point);
+      return { x: (ndc.x + 1) / 2, y: (1 - ndc.y) / 2 };
+    }
+    const frame = this.mapper.displayToFrame(point);
+    const seen = lensWarp.seen(frame.x, frame.y);
+    const box = this.mapper.frameInEye();
+    return { x: box.x + seen.x * box.width, y: box.y + seen.y * box.height };
+  }
+
   /** Marks a press that landed on something, at the hand that made it. */
   flash(hand: Handedness, nowMs: number): void {
     useCursorStore.getState().flash(hand, nowMs);
@@ -38,11 +56,11 @@ export class CursorLayer {
 
   update(visuals: readonly CursorVisual[], nowMs: number): void {
     const marks: CursorMark[] = visuals.map((visual) => {
-      const ndc = this.mapper.displayToNdc(visual.point);
+      const spot = this.eyeSpot(visual.point);
       return {
         hand: visual.hand,
-        x: (ndc.x + 1) / 2,
-        y: (1 - ndc.y) / 2,
+        x: spot.x,
+        y: spot.y,
         phase: visual.phase,
         progress: clamp01(visual.holdProgress),
         confidence: visual.confidence,

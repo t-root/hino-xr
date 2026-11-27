@@ -275,7 +275,7 @@ Ràng buộc bắt buộc, có test kiểm tra:
 
 **Hai mắt luôn giống nhau.** Giao diện vẽ một bản cho mỗi mắt, cả hai đọc cùng một nguồn trạng thái (`SharedUiStore`, `core/sync`); hình học mắt chỉ có một nguồn (`StereoLayout`). Nội dung có đồng hồ riêng như canvas hay video chỉ giải mã hoặc vẽ **một lần** rồi chép sang từng mắt. Trang web bên thứ ba nhúng thì tự về một khung (không thể đồng bộ hai iframe). Quy tắc đầy đủ ở `rules.md`.
 
-**Màn hình đầy mắt.** Giao diện mặc định nằm trong hình vuông camera của mỗi mắt (`.camera-frame`). Cảnh 3D của bản đồ bật cờ `fillFrame` để khung rộng bằng cả mắt và màn hình plugin dùng 100% khung; vị trí tay khi đó tính theo đúng chỗ con trỏ được vẽ.
+**Mọi thứ nằm trong khung camera.** Quy tắc tuyệt đối: mọi thứ được vẽ (giao diện, plugin, cảnh 3D của bản đồ) đều nằm gọn trong hình vuông camera của mỗi mắt (`.camera-frame`) và bị cắt ở mép khung, không bao giờ tràn ra ngoài. Cờ `fillFrame` còn trong store nhưng luôn là `false`: `setFillFrame` bị từ chối.
 
 ## Kiến trúc
 
