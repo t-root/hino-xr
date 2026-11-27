@@ -5,12 +5,12 @@ import type { CursorLayer, CursorPhase, CursorVisual } from "../rendering/Cursor
 import type { GestureState } from "./GestureStateMachine";
 import type { GestureSettings, SnapSettings } from "../state/settings";
 import type { PointerSurface } from "./DomPointerSurface";
-import { extractSignals } from "./GestureRecognizer";
+import { createLogger } from "../observability/diagnostics";
 import { GestureStateMachine } from "./GestureStateMachine";
 import { HandSmoother } from "./HandSmoother";
 import type { HitTestService } from "./HitTestService";
 import type { InteractiveRegistry } from "./InteractiveRegistry";
-import { SnapGestureRecognizer, type SnapState } from "./SnapGestureRecognizer";
+import { SnapGestureRecognizer, snapFeatures, type SnapState } from "./SnapGestureRecognizer";
 import { TwoHandGesture } from "./TwoHandGesture";
 
 /** What the cursor should look like for a hand in this state. */
@@ -87,6 +87,8 @@ export class InteractionManager {
   private snapEnabled: boolean;
   private selectedTargetId: string | null = null;
   private readonly twoHand: TwoHandGesture;
+  private readonly snapLog = createLogger("snap");
+  private lastSnapLogMs = 0;
 
   constructor(
     private readonly bus: EventBus<RuntimeEvents>,
@@ -183,13 +185,25 @@ export class InteractionManager {
 
   private detectSnap(runtime: HandRuntime, frame: HandFrame, pointer: HandPointer): void {
     if (!this.snapEnabled) return;
-    const signals = extractSignals(frame);
+    const features = snapFeatures(frame);
+    if (!features) return;
     const snapped = runtime.snap.update({
       nowMs: frame.timestampMs,
-      thumbMiddleRatio: signals.thumbMiddleRatio,
-      middleCurlRatio: signals.middleCurlRatio,
+      features,
       busy: this.isHandBusy(frame.hand),
     });
+    // What the snap is looking at, a few times a second while the thumb is near the middle finger: with these
+    // numbers from the real hand the thresholds can be set from facts. Read them in the log panel.
+    if (features.thumbMiddle < 1.2 && frame.timestampMs - this.lastSnapLogMs > 250) {
+      this.lastSnapLogMs = frame.timestampMs;
+      this.snapLog.info("pose", {
+        hand: frame.hand,
+        state: runtime.snap.currentState,
+        thumbMiddle: Number(features.thumbMiddle.toFixed(2)),
+        thumbIndex: Number(features.thumbIndex.toFixed(2)),
+        middleWrist: Number(features.middleWrist.toFixed(2)),
+      });
+    }
     // Announced like any other gesture rather than wired to one caller: a snap
     // aims at nothing in particular, so whoever wants it listens for it.
     if (snapped) this.dispatch(runtime, [{ type: "snap", hand: pointer.hand, pointer }], frame.timestampMs);
@@ -229,7 +243,8 @@ export class InteractionManager {
         hand,
         point: this.mapperDisplay({ x: pointer.position.x, y: pointer.position.y }),
         phase: phaseOf(runtime.machine.currentState, runtime.hoveredTargetId !== null),
-        holdProgress: runtime.machine.holdProgress(nowMs),
+        // The pip fills for a pinch held, and for the menu gesture (thumb on middle finger) held.
+        holdProgress: Math.max(runtime.machine.holdProgress(nowMs), runtime.snap.progress()),
         confidence: pointer.confidence,
       });
     }

@@ -15,6 +15,8 @@ export type HandFrame = Readonly<{
   landmarks: readonly Landmark[];
   confidence: number;
   timestampMs: number;
+  /** Width over height of the picture the landmarks are normalised to, so distances can be taken undistorted. */
+  aspect?: number;
 }>;
 
 export type HandPointer = Readonly<{

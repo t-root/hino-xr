@@ -114,6 +114,7 @@ const toHandFrames = (result: LandmarkerResult, packet: FramePacket): readonly H
       landmarks: landmarks.map((point) => ({ x: point.x, y: point.y, z: point.z })),
       confidence: category?.score ?? 0,
       timestampMs: packet.timestampMs,
+      aspect: packet.height > 0 ? packet.width / packet.height : 1,
     });
   }
   return frames;
